@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Portal Claro - Gestión de No Conformidades</title>
+<style>
+  :root{
+    --red:#e30613;
+    --red-dark:#c9000b;
+    --ink:#111827;
+    --muted:#6b7280;
+    --line:#dfe5ee;
+    --soft:#f6f8fb;
+    --soft2:#eef3f8;
+    --label:#5f5f5f;
+    --blue:#eaf4ff;
+    --blue-ink:#1457b7;
+    --green:#e6f7ec;
+    --green-ink:#138a3d;
+    --amber:#fff4d8;
+    --amber-ink:#a56a00;
+    --shadow:0 8px 30px rgba(36,48,71,.08);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    color:var(--ink);
+    background:linear-gradient(180deg,#fff 0%,#f8fafc 100%);
+  }
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  .hidden{display:none !important}
+  .topbar{
+    height:76px;background:#fff;border-bottom:1px solid #e7ebf0;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 48px;position:sticky;top:0;z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:22px}
+  .logo{
+    color:var(--red);font-size:38px;font-weight:800;letter-spacing:-2px;
+    line-height:1;position:relative;
+  }
+  .logo:after{content:"✦";font-size:17px;position:absolute;right:-14px;top:-7px}
+  .brand-sep{width:1px;height:42px;background:#cfd5de}
+  .brand-title{font-size:20px;font-weight:800}
+  .brand-sub{font-size:14px;color:#6c7891;margin-top:2px}
+  .top-right{display:flex;align-items:center;gap:24px}
+  .support{font-size:12px;color:#748094;text-align:right}
+  .support a{display:block;color:var(--red);font-size:14px;font-weight:700;margin-top:3px;text-decoration:underline}
+  .userbox{display:flex;align-items:center;gap:12px;padding-left:20px;border-left:1px solid #d9dee7}
+  .avatar{width:44px;height:44px;border-radius:50%;background:#e9eef5;display:flex;align-items:center;justify-content:center;font-weight:700;color:#334155}
+  .user-name{font-weight:800}
+  .user-role{font-size:12px;color:#6b7280;margin-top:2px}
+  .shell{max-width:1540px;margin:0 auto;padding:28px 44px 26px}
+  .crumb{font-size:14px;color:#64748b;margin-bottom:24px}
+  .crumb a{color:#465a78;text-decoration:underline}
+  .page-title{font-size:34px;font-weight:800;letter-spacing:-.4px;margin:0}
+  .page-sub{color:#6f7f9a;font-size:18px;margin-top:6px}
+  .info{
+    background:var(--blue);color:var(--blue-ink);
+    border:1px solid #bdd9ff;border-radius:9px;padding:14px 16px;
+    display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.45;
+  }
+  .info .i{
+    min-width:22px;height:22px;border:2px solid var(--blue-ink);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px
+  }
+  .card{background:#fff;border:1px solid #e7ebf0;border-radius:var(--radius);box-shadow:var(--shadow)}
+  .section-h{
+    background:linear-gradient(90deg,var(--red) 0%,#ef1822 100%);
+    color:#fff;font-weight:800;font-size:20px;padding:12px 20px;border-radius:11px 11px 0 0;
+    display:flex;justify-content:space-between;align-items:center
+  }
+  .section-h .small-action{font-size:13px;text-decoration:underline;font-weight:700}
+  .actions{display:flex;justify-content:space-between;gap:14px;padding:18px 20px}
+  .btn{
+    border-radius:8px;padding:13px 20px;border:1px solid #8da0b8;background:#fff;color:#23344f;
+    font-weight:700;min-width:180px
+  }
+  .btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+  .btn.primary:hover{background:var(--red-dark)}
+  .btn.ghost{background:#fff}
+  .btn.slim{min-width:auto;padding:9px 14px}
+  .stepper{display:grid;grid-template-columns:repeat(4,1fr);align-items:start;margin:6px 0 22px;padding-left:38%;gap:8px}
+  .step{position:relative;text-align:center;color:#5d6b83;font-size:14px;min-height:66px}
+  .step:before{
+    content:"";position:absolute;top:19px;left:-50%;right:50%;height:2px;background:#dbe2eb;z-index:0
+  }
+  .step:first-child:before{display:none}
+  .bubble{
+    width:40px;height:40px;border-radius:50%;background:#f2f5f9;border:2px solid #cfd9e5;color:#65748b;
+    display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-weight:800;position:relative;z-index:1
+  }
+  .step.active,.step.done{color:var(--red);font-weight:800}
+  .step.active .bubble,.step.done .bubble{background:var(--red);border-color:var(--red);color:#fff}
+  .step.done .bubble:after{content:"✓"}
+  .step.done .bubble{font-size:0}
+  .step.done .bubble:after{font-size:18px}
+  .step.active:before,.step.done:before{background:var(--red)}
+  .step.locked .bubble:before{content:"🔒";font-size:15px}
+  .step.locked .bubble{font-size:0}
+  .login-wrap{
+    min-height:calc(100vh - 76px);display:grid;grid-template-columns:1.05fr .95fr;align-items:center;
+    gap:70px;padding:36px 8vw;position:relative;overflow:hidden
+  }
+  .login-wrap:before{
+    content:"";position:absolute;left:-5%;bottom:-14%;width:58%;height:55%;
+    background:
+      radial-gradient(circle at 20% 40%,rgba(227,6,19,.08) 0 8%,transparent 8.5%),
+      linear-gradient(155deg,#f0f4f8 0%,#fafcff 58%,transparent 59%);
+    border-radius:48% 48% 0 0;z-index:0
+  }
+  .hero,.login-card{position:relative;z-index:1}
+  .hero h1{font-size:58px;line-height:.96;margin:0 0 12px;letter-spacing:-2px}
+  .hero h2{font-size:34px;color:#70809d;font-weight:500;margin:0 0 22px}
+  .hero p{font-size:22px;line-height:1.45;color:#687995;max-width:630px}
+  .hero .accent{width:64px;height:5px;border-radius:4px;background:var(--red);margin-top:20px}
+  .login-card{padding:40px 46px;max-width:680px}
+  .login-icon{width:88px;height:88px;margin:0 auto 16px;border-radius:20px;background:#ffe8ea;color:var(--red);font-size:45px;display:flex;align-items:center;justify-content:center}
+  .login-card h3{text-align:center;font-size:34px;margin:0 0 8px}
+  .login-card .hint{text-align:center;color:#72809a;margin-bottom:30px;font-size:18px}
+  .field{margin-bottom:18px}
+  .field label{display:block;font-weight:700;margin-bottom:8px}
+  .input{
+    width:100%;height:58px;border:1px solid #cfd8e4;border-radius:8px;padding:0 16px;color:#24344d;background:#fff
+  }
+  .input:focus, textarea:focus, select:focus{outline:2px solid #ffd4d7;border-color:var(--red)}
+  textarea.input{height:auto;min-height:105px;padding-top:12px;resize:vertical}
+  .login-options{display:flex;justify-content:space-between;align-items:center;color:#53627a;font-size:14px;margin:8px 0 28px}
+  .login-options a{color:var(--red);text-decoration:underline;font-weight:700}
+  .dashboard{
+    display:grid;grid-template-columns:33% 67%;gap:28px;align-items:start
+  }
+  .dashboard-hero{min-height:720px;padding:34px 22px 132px 10px;position:relative;overflow:hidden;background:transparent}
+  .role-chip{display:inline-flex;align-items:center;gap:8px;background:#ffe8ea;color:#a60008;border-radius:8px;padding:10px 14px;font-weight:700}
+  .dashboard-hero h1{font-size:54px;margin:26px 0 4px;letter-spacing:-1.4px;color:#0d1424}
+  .dashboard-hero h2{font-size:30px;color:#74829a;font-weight:500;margin:0 0 22px}
+  .dashboard-hero p{font-size:21px;color:#6d7b95;line-height:1.45;max-width:480px}
+  .dashboard-bg-art{position:absolute;left:-12px;bottom:10px;width:98%;height:42%;opacity:.82;pointer-events:none}
+  .city,.tower{display:none}
+  .module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .module{padding:28px 28px 24px;text-align:center;min-height:320px;display:flex;flex-direction:column;justify-content:space-between}
+  .module-icon{width:82px;height:82px;border-radius:18px;background:#ffe9eb;color:var(--red);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:40px}
+  .module h3{font-size:28px;margin:0 0 10px}
+  .module p{color:#6f7e97;font-size:18px;margin:0}
+  .recent-wrap{display:grid;grid-template-columns:2.2fr .8fr;gap:18px;margin-top:18px}
+  .recent{padding:18px}
+  .recent h3,.summary h3{font-size:20px;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse}
+  th{background:#59616c;color:#fff;padding:10px;text-align:left;font-size:13px}
+  td{padding:10px;border-bottom:1px solid #e5e9ef;font-size:13px;vertical-align:top}
+  .badge{display:inline-flex;align-items:center;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}
+  .b-blue{background:#e8f3ff;color:#1680d8}
+  .b-red{background:#ffe5e7;color:#cc121c}
+  .b-green{background:#e3f7e9;color:#1c893e}
+  .b-amber{background:#fff0c7;color:#a96f00}
+  .summary{padding:18px}
+  .stat{padding:15px;border-radius:11px;background:#f6f8fb;margin:12px 0;display:flex;align-items:center;gap:14px}
+  .stat strong{font-size:32px}
+  .form-card{overflow:hidden;margin-top:16px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px;padding:16px 20px 20px}
+  .pair{
+    display:grid;grid-template-columns:34% 66%;min-height:48px;border-bottom:1px solid #fff
+  }
+  .pair .lab{
+    background:linear-gradient(180deg,#656565,#545454);color:#fff;padding:14px 12px;font-weight:700;display:flex;align-items:center
+  }
+  .pair .val{padding:7px 0 7px 12px;display:flex;flex-direction:column;justify-content:center}
+  .pair .val .input{height:46px}
+  .pair.desc .lab{min-height:112px}
+  .readonly{background:#edf1f5 !important;color:#718097 !important}
+  .helper{font-size:12px;color:#71809a;margin-top:6px}
+  .checklist-card{overflow:hidden}
+  .check-table{font-size:12px}
+  .check-table th:nth-child(1){width:55px}
+  .check-table th:nth-child(3),.check-table th:nth-child(4),.check-table th:nth-child(5){width:58px;text-align:center}
+  .check-table th:nth-child(6){width:26%}
+  .check-table td:nth-child(3),.check-table td:nth-child(4),.check-table td:nth-child(5){text-align:center}
+  .group-row td{background:#eef1f4;font-weight:800;font-size:13px}
+  .comment{width:100%;height:30px;border:1px solid #cfd8e4;border-radius:5px;padding:4px 8px}
+  .nested{margin:8px 0 12px 54px;border:1px solid #d7dee8;border-radius:8px;overflow:hidden;background:#fbfcfd}
+  .nested-row{display:grid;grid-template-columns:120px 220px 1fr;border-bottom:1px solid #e1e6ed;align-items:center}
+  .nested-row:last-child{border-bottom:none}
+  .nested-row > div{padding:8px 10px}
+  .nested-row .ncode{font-weight:700;color:#4a566a}
+  .nested-row .nlab{font-weight:700}
+  .inline-options{display:flex;gap:22px;flex-wrap:wrap}
+  .case-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:16px}
+  .success{background:var(--green);border:1px solid #a8e0b7;color:var(--green-ink);padding:12px 16px;border-radius:8px;font-weight:700}
+  .summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;padding:14px 16px 16px}
+  .summary-grid .mini{display:grid;grid-template-columns:42% 58%;border:1px solid #e2e7ee;border-radius:8px;overflow:hidden}
+  .summary-grid .mini b{background:#5b5b5b;color:#fff;padding:9px 10px;font-size:12px}
+  .summary-grid .mini span{padding:9px 10px;font-size:12px}
+  .root-done{margin:14px 16px;background:#f2fbf5;border:1px solid #c9ecd4;border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center}
+  .action-table-wrap{padding:10px 16px 16px}
+  .edit-input{width:100%;border:1px solid #d7dee8;border-radius:5px;padding:6px}
+  .disabled-box{background:#f5f7fa;border:1px dashed #cfd8e4;border-radius:8px;padding:14px;color:#71809a}
+  .footer{padding:10px 48px 26px;color:#66758e;font-size:12px;display:flex;justify-content:space-between}
+  @media(max-width:1100px){
+    .dashboard{grid-template-columns:1fr}
+    .dashboard-hero{min-height:auto}
+    .city{display:none}.dashboard-bg-art{display:none}
+    .stepper{padding-left:0}
+    .module-grid{grid-template-columns:1fr}
+    .recent-wrap{grid-template-columns:1fr}
+    .form-grid{grid-template-columns:1fr}
+    .summary-grid{grid-template-columns:1fr}
+    .topbar{padding:0 18px}
+    .shell{padding:22px 18px}
+    .login-wrap{grid-template-columns:1fr;padding:30px 22px}
+    .hero{display:none}
+  }
+
+  .activity-builder{padding:14px 16px}
+  .activity-row{display:grid;grid-template-columns:1.05fr .58fr .72fr .48fr .58fr 92px;gap:8px;align-items:start;margin-bottom:10px}
+  .code-box{background:#f1f4f8;border:1px solid #d8e0e9;border-radius:6px;padding:9px 10px;font-weight:800;color:#34435c;font-size:12px;margin-bottom:5px}
+  .compact-input{width:100%;border:1px solid #d4dde7;border-radius:6px;padding:8px;background:#fff}
+  .step.na .bubble{font-size:0;background:#eef1f5;color:#8792a4}
+  .step.na .bubble:after{content:'—';font-size:18px}
+  .activity-header{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:16px}
+  .activity-table-wrap{overflow:auto}
+  .activity-table th,.activity-table td{white-space:nowrap}
+  .score{font-size:16px;font-weight:850}
+  .score100{color:#147a39}.score80{color:#527c22}.score60{color:#9b7000}.score40{color:#b22126}
+  .progressbox{background:#f5f7fa;border:1px solid #dfe5ed;border-radius:10px;padding:14px;margin:16px 0}
+  .progressline{height:10px;border-radius:999px;background:#e4e8ee;overflow:hidden}.progressfill{height:100%;background:var(--red);width:0}
+  .green-message{background:#e6f7ec;border:1px solid #a9e0b9;color:#16733a;padding:14px 16px;border-radius:9px;font-weight:750}
+  .modal-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:100}
+  .modal{width:520px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.28)}
+  .modal-body{padding:20px}.modal-actions{padding:14px 20px;background:#f6f8fb;display:flex;justify-content:flex-end;gap:10px}
+  .eval-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;padding:18px}
+  @media(max-width:1100px){.activity-row,.eval-grid{grid-template-columns:1fr}}
+
+
+  /* ===== Ajustes v3: login, matriz de impacto y causa raíz desplegable ===== */
+  /* Login inspirado en el mockup aprobado: fondo abierto, ilustración inferior y tarjeta flotante */
+  .login-wrap.v3{
+    grid-template-columns:1fr .94fr;
+    gap:72px;
+    min-height:calc(100vh - 76px);
+    padding:58px 7.2vw 74px;
+    background:#fff;
+    align-items:center;
+    position:relative;
+    overflow:hidden;
+  }
+  /* Anula el fondo anterior de .login-wrap */
+  .login-wrap.v3:before{
+    content:"";
+    position:absolute;
+    left:-8%;bottom:-21%;
+    width:75%;height:64%;
+    background:
+      linear-gradient(145deg,transparent 0 20%,rgba(238,243,248,.96) 20% 52%,transparent 52%),
+      linear-gradient(28deg,transparent 0 31%,rgba(245,248,251,.98) 31% 58%,transparent 58%);
+    border-radius:48% 48% 0 0;
+    z-index:0;
+    pointer-events:none;
+  }
+  .login-wrap.v3:after{
+    content:"";
+    position:absolute;
+    left:-3%;bottom:-7%;
+    width:70%;height:29%;
+    background:linear-gradient(165deg,rgba(248,250,252,.98),rgba(238,243,248,.92));
+    clip-path:polygon(0 47%,12% 29%,25% 51%,38% 33%,50% 54%,64% 35%,79% 58%,100% 37%,100% 100%,0 100%);
+    z-index:0;
+    pointer-events:none;
+  }
+  .login-bg-art{
+    position:absolute;
+    left:0;bottom:0;
+    width:58%;height:48%;
+    z-index:1;
+    pointer-events:none;
+    opacity:.92;
+  }
+  .login-visual{
+    position:relative;
+    z-index:2;
+    min-height:610px;
+    padding:62px 20px 150px 28px;
+    overflow:visible;
+    background:transparent;
+    border:0;
+    border-radius:0;
+  }
+  .login-visual h1{font-size:58px;line-height:1;letter-spacing:-2px;margin:0 0 14px;color:#0d1424}
+  .login-visual h2{font-size:31px;color:#6f7c95;font-weight:500;margin:0 0 24px}
+  .login-visual p{max-width:520px;color:#66758e;font-size:21px;line-height:1.5;margin:0}
+  .login-visual .redline{width:52px;height:5px;border-radius:999px;background:var(--red);margin:24px 0 0}
+  .login-city,.login-tower{display:none}
+  .login-slogan{
+    position:absolute;
+    left:28px;bottom:26px;
+    color:#506078;font-size:16px;line-height:1.3;
+    z-index:3;
+  }
+  .login-slogan:after{content:"";display:block;width:38px;height:4px;background:var(--red);border-radius:4px;margin-top:11px}
+  .login-card.v3{
+    position:relative;
+    z-index:3;
+    padding:42px 50px 46px;
+    border-radius:18px;
+    max-width:650px;
+    min-height:600px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    box-shadow:0 14px 42px rgba(36,48,71,.07);
+    border:1px solid #e7ebf1;
+    background:rgba(255,255,255,.98);
+  }
+  .login-card.v3 .login-icon{width:78px;height:78px;border-radius:20px;font-size:37px;background:#ffe8ea;margin-bottom:18px}
+  .login-card.v3 h3{font-size:34px;margin-bottom:10px}
+  .login-card.v3 .hint{font-size:17px;margin-bottom:34px;color:#71809a}
+  .login-card.v3 .input{height:62px}
+  .login-card.v3 .btn.primary{height:62px;font-size:18px !important}
+  .login-security{display:none}
+
+  .readonly-strong{background:#eef2f6 !important;color:#4b5870 !important;font-weight:750}
+  .inline-control{display:flex;gap:10px;align-items:center}.inline-control .input{flex:1}.btn.matrix{min-width:auto;padding:11px 14px;border-color:#cbd5e1;background:#f8fafc}
+  .matrix-result{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:12px;color:#64748b}.matrix-dot{width:9px;height:9px;border-radius:50%;background:#cbd5e1}
+  .matrix-dot.low{background:#31b566}.matrix-dot.medium{background:#eab308}.matrix-dot.high{background:#ef4444}
+  .impact-modal{width:min(760px,92vw)}
+  .impact-matrix{width:100%;border-collapse:separate;border-spacing:0;overflow:hidden;border:1px solid #dfe5ee;border-radius:10px}
+  .impact-matrix th{background:#f3f6fa;color:#34435c;text-align:center;padding:12px}.impact-matrix th:first-child{text-align:left}
+  .impact-matrix td{padding:12px;text-align:center;border-bottom:1px solid #e5e9ef}.impact-matrix td:first-child{text-align:left;font-weight:750}.impact-matrix tr:last-child td{border-bottom:none}
+  .impact-matrix input{width:18px;height:18px;accent-color:var(--red)}
+  .matrix-summary{margin-top:14px;display:flex;justify-content:space-between;gap:12px;align-items:center;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px}
+  .priority-preview{font-weight:800}.priority-preview.low{color:#178244}.priority-preview.medium{color:#a56a00}.priority-preview.high{color:#d1202a}.priority-preview.critical{color:#b00008}
+
+  .cause-intro{padding:14px 18px;color:#5f6d83;background:#fbfcfe;border-bottom:1px solid #edf0f4}
+  .cause-accordion-list{padding:14px 16px 4px;display:grid;gap:10px}
+  details.cause-accordion{border:1px solid #dde4ec;border-radius:11px;background:#fff;overflow:hidden}
+  details.cause-accordion[open]{box-shadow:0 8px 24px rgba(36,48,71,.06)}
+  details.cause-accordion summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 17px;font-weight:800;background:#f8fafc;color:#24344d}
+  details.cause-accordion summary::-webkit-details-marker{display:none}
+  .cause-title{display:flex;align-items:center;gap:12px}.cause-icon{width:36px;height:36px;border-radius:9px;background:#ffe8ea;color:var(--red);display:flex;align-items:center;justify-content:center;font-weight:900}
+  .cause-chevron{transition:.2s transform;color:#7b8799}details[open] .cause-chevron{transform:rotate(180deg)}
+  .cause-body{padding:0 12px 12px;overflow:auto}.cause-body .check-table{margin-top:0}.cause-body th{background:#59616c}
+  .accordion-tip{display:inline-flex;align-items:center;gap:8px;background:#f3f6fa;border:1px solid #dce4ee;color:#5d6b82;padding:7px 10px;border-radius:8px;font-size:12px}
+  .case-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2px}
+  @media(max-width:1100px){.login-wrap.v3{grid-template-columns:1fr;padding:24px}.login-visual{display:none}.inline-control{flex-direction:column;align-items:stretch}}
+
+
+  /* ===== v7: identidad visual telecom, 100% vectorial (sin reutilizar capturas) ===== */
+  .login-wrap.v3:before,.login-wrap.v3:after{display:none !important}
+  .login-bg-art,.dashboard-bg-art,.exact-login-bg,.exact-dashboard-bg{display:none !important}
+
+  .telecom-art{
+    position:absolute;
+    pointer-events:none;
+    user-select:none;
+    overflow:visible;
+  }
+  .telecom-art.login{
+    left:-1.5%;
+    bottom:-1%;
+    width:61%;
+    height:55%;
+    z-index:1;
+    opacity:.98;
+  }
+  .telecom-art.dashboard{
+    left:-2%;
+    bottom:0;
+    width:105%;
+    height:46%;
+    z-index:0;
+    opacity:.96;
+  }
+  .telecom-slogan{
+    position:absolute;
+    left:2px;
+    bottom:24px;
+    z-index:3;
+    color:#52627a;
+    font-size:16px;
+    line-height:1.25;
+    font-weight:500;
+    letter-spacing:.1px;
+  }
+  .telecom-slogan:after{
+    content:"";
+    display:block;
+    width:42px;
+    height:4px;
+    margin-top:11px;
+    border-radius:99px;
+    background:var(--red);
+  }
+  .dashboard-hero > *:not(.telecom-art){position:relative;z-index:2}
+  .dashboard-hero .telecom-art{z-index:0}
+  .dashboard-hero{
+    border-radius:18px;
+    background:
+      radial-gradient(circle at 22% 82%, rgba(227,6,19,.035), transparent 25%),
+      linear-gradient(180deg,#fff 0%,#fbfcfe 100%);
+  }
+  .dashboard-hero:after{
+    content:"";
+    position:absolute;
+    inset:auto 18px 18px 18px;
+    height:1px;
+    background:linear-gradient(90deg,transparent,#e6ebf1 18%,#e6ebf1 82%,transparent);
+    z-index:1;
+  }
+  .login-visual{z-index:2}
+  .login-card.v3{z-index:3}
+
+  /* pequeños detalles para que las tarjetas se sientan más telecom / producto digital */
+  .module{
+    position:relative;
+    overflow:hidden;
+    border-color:#e4e9f0;
+    transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+  }
+  .module:before{
+    content:"";
+    position:absolute;
+    top:0;left:0;right:0;
+    height:3px;
+    background:linear-gradient(90deg,var(--red),#ff5b64 55%,transparent);
+    opacity:.7;
+  }
+  .module:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(36,48,71,.11);border-color:#d9e0e9}
+  .module-icon{
+    box-shadow:inset 0 0 0 1px rgba(227,6,19,.06);
+  }
+  .recent,.summary{border-color:#e4e9f0}
+
+  @media(max-width:1100px){
+    .telecom-art.login,.telecom-art.dashboard,.telecom-slogan{display:none}
+    .dashboard-hero{background:#fff}
+  }
+
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">Claro</div>
+    <div class="brand-sep"></div>
+    <div>
+      <div class="brand-title">Portal Claro</div>
+      <div class="brand-sub">Gestión de No Conformidades</div>
+    </div>
+  </div>
+  <div class="top-right" id="topRight">
+    <div class="support">¿Necesitas ayuda?<a href="#">Centro de soporte ↗</a></div>
+    <div class="userbox hidden" id="userBox">
+      <div class="avatar">JP</div>
+      <div>
+        <div class="user-name">Juan Pérez</div>
+        <div class="user-role">Usuario</div>
+      </div>
+      <div>⌄</div>
+    </div>
+  </div>
+</header>
+
+<main id="screen-login">
+  <section class="login-wrap v3">
+    <svg class="telecom-art login" viewBox="0 0 900 540" aria-hidden="true">
+      <defs>
+        <linearGradient id="lgSky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ffffff"/>
+          <stop offset="1" stop-color="#f7f9fc"/>
+        </linearGradient>
+        <linearGradient id="lgMountain1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f5f7fb"/>
+          <stop offset="1" stop-color="#e9eef5"/>
+        </linearGradient>
+        <linearGradient id="lgMountain2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#f9fbfd"/>
+          <stop offset="1" stop-color="#eef3f8"/>
+        </linearGradient>
+        <linearGradient id="bFront" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#eef2f7"/>
+          <stop offset="1" stop-color="#dde5ee"/>
+        </linearGradient>
+        <linearGradient id="bSide" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#d5dde7"/>
+          <stop offset="1" stop-color="#c5cfdb"/>
+        </linearGradient>
+        <linearGradient id="bTop" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#f8fbfd"/>
+          <stop offset="1" stop-color="#e6edf4"/>
+        </linearGradient>
+        <linearGradient id="towerFront" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#94a2b4"/>
+          <stop offset="1" stop-color="#6d7d92"/>
+        </linearGradient>
+        <linearGradient id="towerSide" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#6c7a8c"/>
+          <stop offset="1" stop-color="#556476"/>
+        </linearGradient>
+        <filter id="shadowSoft" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#cbd5e1" flood-opacity=".25"/>
+        </filter>
+      </defs>
+      <rect width="900" height="540" fill="url(#lgSky)"/>
+      <path d="M0 330 L70 270 L145 322 L235 220 L340 322 L438 258 L540 342 L650 278 L760 350 L900 300 L900 540 L0 540 Z" fill="url(#lgMountain1)" opacity=".95"/>
+      <path d="M0 385 L110 322 L185 365 L285 315 L380 376 L485 328 L585 390 L700 335 L810 388 L900 355 L900 540 L0 540 Z" fill="url(#lgMountain2)"/>
+      <path d="M26 355 C180 270, 360 278, 520 355 S760 430, 880 338" fill="none" stroke="#dfe5ec" stroke-width="2" stroke-dasharray="7 11" opacity=".85"/>
+      <path d="M90 420 C260 355, 410 360, 590 422" fill="none" stroke="#e30613" stroke-width="2.2" opacity=".10"/>
+      
+      <g transform="translate(96 138)" filter="url(#shadowSoft)">
+        <polygon points="56,44 80,60 106,286 83,286" fill="url(#towerSide)" opacity=".96"/>
+        <polygon points="56,44 32,60 8,286 30,286" fill="url(#towerFront)" opacity=".9"/>
+        <g stroke="#74859a" stroke-width="4" fill="none" opacity=".78">
+          <line x1="56" y1="44" x2="30" y2="286"/><line x1="56" y1="44" x2="83" y2="286"/>
+          <line x1="40" y1="130" x2="70" y2="130"/><line x1="34" y1="186" x2="76" y2="186"/><line x1="28" y1="242" x2="82" y2="242"/>
+          <line x1="41" y1="130" x2="74" y2="186"/><line x1="68" y1="130" x2="35" y2="186"/>
+          <line x1="34" y1="186" x2="80" y2="242"/><line x1="74" y1="186" x2="29" y2="242"/>
+          <line x1="56" y1="17" x2="56" y2="47"/>
+        </g>
+      </g>
+      <g transform="translate(150 158)" fill="none" stroke="#e30613" stroke-linecap="round" opacity=".28">
+        <path d="M-44 10 C-72 -17,-72 -56,-44 -83" stroke-width="5"/>
+        <path d="M-22 -2 C-39 -19,-39 -43,-22 -59" stroke-width="5"/>
+        <path d="M44 10 C72 -17,72 -56,44 -83" stroke-width="5"/>
+        <path d="M22 -2 C39 -19,39 -43,22 -59" stroke-width="5"/>
+      </g>
+      
+      <g filter="url(#shadowSoft)">
+        <g opacity=".98">
+          <polygon points="220,338 258,338 278,326 240,326" fill="url(#bTop)"/>
+          <rect x="220" y="338" width="38" height="126" rx="3" fill="url(#bFront)"/>
+          <polygon points="258,338 278,326 278,452 258,464" fill="url(#bSide)"/>
+
+          <polygon points="272,307 326,307 350,292 296,292" fill="url(#bTop)"/>
+          <rect x="272" y="307" width="54" height="157" rx="3" fill="url(#bFront)"/>
+          <polygon points="326,307 350,292 350,449 326,464" fill="url(#bSide)"/>
+
+          <polygon points="342,245 433,245 463,225 372,225" fill="url(#bTop)"/>
+          <rect x="342" y="245" width="91" height="219" rx="4" fill="url(#bFront)"/>
+          <polygon points="433,245 463,225 463,444 433,464" fill="url(#bSide)"/>
+
+          <polygon points="457,337 500,337 518,325 475,325" fill="url(#bTop)"/>
+          <rect x="457" y="337" width="43" height="127" rx="3" fill="url(#bFront)"/>
+          <polygon points="500,337 518,325 518,452 500,464" fill="url(#bSide)"/>
+
+          <polygon points="515,355 547,355 562,345 530,345" fill="url(#bTop)"/>
+          <rect x="515" y="355" width="32" height="109" rx="3" fill="url(#bFront)"/>
+          <polygon points="547,355 562,345 562,454 547,464" fill="url(#bSide)"/>
+
+          <polygon points="559,319 614,319 638,303 583,303" fill="url(#bTop)"/>
+          <rect x="559" y="319" width="55" height="145" rx="3" fill="url(#bFront)"/>
+          <polygon points="614,319 638,303 638,448 614,464" fill="url(#bSide)"/>
+
+          <polygon points="630,367 668,367 685,356 647,356" fill="url(#bTop)"/>
+          <rect x="630" y="367" width="38" height="97" rx="3" fill="url(#bFront)"/>
+          <polygon points="668,367 685,356 685,453 668,464" fill="url(#bSide)"/>
+
+          <polygon points="680,345 731,345 754,330 703,330" fill="url(#bTop)"/>
+          <rect x="680" y="345" width="51" height="119" rx="3" fill="url(#bFront)"/>
+          <polygon points="731,345 754,330 754,449 731,464" fill="url(#bSide)"/>
+        </g>
+        <g opacity=".33" stroke="#d2dae4">
+          <line x1="366" y1="271" x2="409" y2="271"/><line x1="366" y1="294" x2="409" y2="294"/><line x1="366" y1="317" x2="409" y2="317"/>
+          <line x1="366" y1="340" x2="409" y2="340"/><line x1="366" y1="363" x2="409" y2="363"/><line x1="366" y1="386" x2="409" y2="386"/>
+        </g>
+      </g>
+      <rect x="388" y="224" width="7" height="21" fill="#d7dee7"/>
+      <text x="367" y="322" font-family="Segoe UI,Arial,sans-serif" font-size="23" font-weight="800" fill="#e30613" opacity=".84">Claro</text>
+      <g fill="#fff" stroke="#e30613" stroke-width="2" opacity=".42">
+        <circle cx="544" cy="292" r="6"/><circle cx="652" cy="318" r="6"/><circle cx="760" cy="282" r="6"/>
+      </g>
+      <g stroke="#e30613" stroke-width="1.8" opacity=".16">
+        <line x1="544" y1="292" x2="652" y2="318"/><line x1="652" y1="318" x2="760" y2="282"/>
+      </g>
+      <path d="M0 455 C165 430, 310 442, 470 474 C620 504, 770 500, 900 470 L900 540 L0 540 Z" fill="#fafbfd"/>
+      <g fill="#dce3eb" opacity=".96">
+        <circle cx="52" cy="425" r="20"/><rect x="49" y="425" width="6" height="40"/>
+        <circle cx="198" cy="438" r="15"/><rect x="195" y="438" width="5" height="30"/>
+        <circle cx="588" cy="438" r="18"/><rect x="585" y="438" width="6" height="34"/>
+        <circle cx="714" cy="422" r="22"/><rect x="710" y="422" width="7" height="43"/>
+        <circle cx="824" cy="447" r="15"/><rect x="821" y="447" width="5" height="28"/>
+      </g>
+    </svg>
+    <div class="login-visual">
+      <h1>Bienvenido</h1>
+      <h2>Gestión de No Conformidades</h2>
+      <p>Trabajamos juntos por una operación más segura, eficiente y de mayor calidad en Claro Perú.</p>
+      <div class="redline"></div>
+      <div class="telecom-slogan">Conectamos<br>lo que te importa</div>
+    </div>
+
+    <div class="card login-card v3">
+      <div class="login-icon">♙</div>
+      <h3>Inicia sesión</h3>
+      <div class="hint">Accede al Portal Claro – Gestión de No Conformidades.</div>
+      <div class="field">
+        <label>Correo corporativo</label>
+        <input id="loginEmail" class="input" placeholder="tu.nombre@claro.com.pe" >
+      </div>
+      <div class="field">
+        <label>Contraseña</label>
+        <input id="loginPass" class="input" type="password" placeholder="Ingresa tu contraseña" >
+      </div>
+      <div class="login-options">
+        <label><input type="checkbox"> Recordarme</label>
+        <a href="#">¿Olvidaste tu contraseña?</a>
+      </div>
+      <button class="btn primary" style="width:100%;font-size:18px" onclick="login()">Iniciar sesión →</button>
+      <div class="login-security">Prototipo visual. La integración con credenciales corporativas de Windows/Directorio Activo se implementará posteriormente en el backend y no se simula en este HTML.</div>
+    </div>
+  </section>
+</main>
+
+<main id="screen-dashboard" class="hidden">
+  <div class="shell">
+    <section class="dashboard">
+      <div class="dashboard-hero">
+        <div class="role-chip">♙ Rol: Usuario</div>
+        <h1>Panel principal</h1>
+        <h2>Portal de gestión y seguimiento</h2>
+        <p>Accede rápidamente a los módulos del portal para registrar, consultar y hacer seguimiento a las no conformidades, de manera ágil y segura.</p>
+        <div class="accent" style="width:54px;height:5px;background:var(--red);margin-top:18px"></div>
+        <svg class="telecom-art dashboard" viewBox="0 0 760 430" aria-hidden="true">
+          <defs>
+            <linearGradient id="dbMountain1" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#f4f7fb"/>
+              <stop offset="1" stop-color="#e8eef5"/>
+            </linearGradient>
+            <linearGradient id="dbMountain2" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fafbfd"/>
+              <stop offset="1" stop-color="#eef3f8"/>
+            </linearGradient>
+            <linearGradient id="dbFront" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#eef2f7"/>
+              <stop offset="1" stop-color="#dde5ee"/>
+            </linearGradient>
+            <linearGradient id="dbSide" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#d4dde7"/>
+              <stop offset="1" stop-color="#c3ceda"/>
+            </linearGradient>
+            <linearGradient id="dbTop" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f8fbfd"/>
+              <stop offset="1" stop-color="#e6edf4"/>
+            </linearGradient>
+            <linearGradient id="dbTowerFront" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#95a3b5"/>
+              <stop offset="1" stop-color="#6d7c91"/>
+            </linearGradient>
+            <linearGradient id="dbTowerSide" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#6b798b"/>
+              <stop offset="1" stop-color="#566477"/>
+            </linearGradient>
+            <filter id="dbShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#cbd5e1" flood-opacity=".23"/>
+            </filter>
+          </defs>
+          <path d="M0 275 L80 220 L145 272 L224 184 L310 278 L400 224 L488 290 L580 234 L660 296 L760 250 L760 430 L0 430 Z" fill="url(#dbMountain1)" opacity=".92"/>
+          <path d="M0 330 L108 275 L184 320 L272 282 L355 333 L448 292 L542 348 L640 302 L760 346 L760 430 L0 430 Z" fill="url(#dbMountain2)"/>
+          <path d="M22 315 C155 250,300 254,430 310 S640 375,735 308" fill="none" stroke="#dfe5ec" stroke-width="2" stroke-dasharray="7 10"/>
+          <g transform="translate(55 135)" filter="url(#dbShadow)">
+            <polygon points="50,48 72,61 95,240 74,240" fill="url(#dbTowerSide)" opacity=".96"/>
+            <polygon points="50,48 28,61 6,240 27,240" fill="url(#dbTowerFront)" opacity=".9"/>
+            <g stroke="#738397" stroke-width="3.6" fill="none" opacity=".8">
+              <line x1="50" y1="48" x2="26" y2="240"/><line x1="50" y1="48" x2="75" y2="240"/>
+              <line x1="34" y1="117" x2="66" y2="117"/><line x1="29" y1="164" x2="71" y2="164"/><line x1="24" y1="211" x2="77" y2="211"/>
+              <line x1="35" y1="117" x2="69" y2="164"/><line x1="65" y1="117" x2="31" y2="164"/>
+              <line x1="30" y1="164" x2="74" y2="211"/><line x1="70" y1="164" x2="27" y2="211"/>
+              <line x1="50" y1="22" x2="50" y2="50"/>
+            </g>
+          </g>
+          <g transform="translate(105 142)" fill="none" stroke="#e30613" stroke-linecap="round" opacity=".24">
+            <path d="M-34 10 C-55 -10,-55 -40,-34 -60" stroke-width="4"/><path d="M-17 1 C-29 -10,-29 -28,-17 -40" stroke-width="4"/>
+            <path d="M34 10 C55 -10,55 -40,34 -60" stroke-width="4"/><path d="M17 1 C29 -10,29 -28,17 -40" stroke-width="4"/>
+          </g>
+          <g filter="url(#dbShadow)">
+            <polygon points="183,286 219,286 236,275 200,275" fill="url(#dbTop)"/><rect x="183" y="286" width="36" height="100" rx="3" fill="url(#dbFront)"/><polygon points="219,286 236,275 236,375 219,386" fill="url(#dbSide)"/>
+            <polygon points="229,255 278,255 299,242 250,242" fill="url(#dbTop)"/><rect x="229" y="255" width="49" height="131" rx="3" fill="url(#dbFront)"/><polygon points="278,255 299,242 299,373 278,386" fill="url(#dbSide)"/>
+            <polygon points="292,210 366,210 392,193 318,193" fill="url(#dbTop)"/><rect x="292" y="210" width="74" height="176" rx="4" fill="url(#dbFront)"/><polygon points="366,210 392,193 392,369 366,386" fill="url(#dbSide)"/>
+            <polygon points="386,282 425,282 441,272 402,272" fill="url(#dbTop)"/><rect x="386" y="282" width="39" height="104" rx="3" fill="url(#dbFront)"/><polygon points="425,282 441,272 441,376 425,386" fill="url(#dbSide)"/>
+            <polygon points="438,299 466,299 479,291 451,291" fill="url(#dbTop)"/><rect x="438" y="299" width="28" height="87" rx="3" fill="url(#dbFront)"/><polygon points="466,299 479,291 479,378 466,386" fill="url(#dbSide)"/>
+            <polygon points="478,265 527,265 548,252 499,252" fill="url(#dbTop)"/><rect x="478" y="265" width="49" height="121" rx="3" fill="url(#dbFront)"/><polygon points="527,265 548,252 548,373 527,386" fill="url(#dbSide)"/>
+            <polygon points="541,310 575,310 590,301 556,301" fill="url(#dbTop)"/><rect x="541" y="310" width="34" height="76" rx="3" fill="url(#dbFront)"/><polygon points="575,310 590,301 590,377 575,386" fill="url(#dbSide)"/>
+            <g opacity=".34" stroke="#d2dae4">
+              <line x1="316" y1="233" x2="349" y2="233"/><line x1="316" y1="253" x2="349" y2="253"/><line x1="316" y1="273" x2="349" y2="273"/>
+              <line x1="316" y1="293" x2="349" y2="293"/><line x1="316" y1="313" x2="349" y2="313"/>
+            </g>
+          </g>
+          <text x="308" y="274" font-family="Segoe UI,Arial,sans-serif" font-size="18" font-weight="800" fill="#e30613" opacity=".72">Claro</text>
+          <g fill="#fff" stroke="#e30613" stroke-width="2" opacity=".46">
+            <circle cx="427" cy="230" r="6"/><circle cx="518" cy="248" r="6"/><circle cx="611" cy="221" r="6"/>
+          </g>
+          <g stroke="#e30613" stroke-width="1.7" opacity=".17">
+            <line x1="427" y1="230" x2="518" y2="248"/><line x1="518" y1="248" x2="611" y2="221"/>
+          </g>
+          <path d="M0 376 C132 352,258 360,390 390 C522 420,652 416,760 390 L760 430 L0 430 Z" fill="#fbfcfd"/>
+        </svg>
+
+      </div>
+      <div>
+        <div class="module-grid">
+          <div class="card module">
+            <div>
+              <div class="module-icon">▤＋</div>
+              <h3>Registro</h3>
+              <p>Registrar una nueva no conformidad.</p>
+            </div>
+            <button class="btn primary" onclick="showScreen('registro')">Ingresar →</button>
+          </div>
+          <div class="card module">
+            <div>
+              <div class="module-icon">⌕</div>
+              <h3>Buscar</h3>
+              <p>Consultar registros existentes.</p>
+            </div>
+            <button class="btn" onclick="toast('Módulo Buscar: pendiente de desarrollo en este prototipo.')">Ingresar →</button>
+          </div>
+          <div class="card module">
+            <div>
+              <div class="module-icon">▥</div>
+              <h3>Seguimiento</h3>
+              <p>Monitorear estado y avance de casos.</p>
+            </div>
+            <button class="btn" onclick="toast('Módulo Seguimiento: pendiente de desarrollo en este prototipo.')">Ingresar →</button>
+          </div>
+        </div>
+
+        <div class="recent-wrap">
+          <div class="card recent">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <h3>Mis casos recientes</h3><a href="#" style="color:var(--red)">Ver todos →</a>
+            </div>
+            <table>
+              <thead><tr><th>N° Caso</th><th>Título</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead>
+              <tbody>
+                <tr><td>SAC-INC-2026-0127</td><td>Intermitencia en servicio</td><td><span class="badge b-amber">En proceso</span></td><td>18/09/2026</td><td><a href="#" onclick="showScreen('registro-ingresado')">Ver →</a></td></tr>
+                <tr><td>SAC-INC-2026-0126</td><td>Incidencia en facturación</td><td><span class="badge b-red">Pendiente</span></td><td>17/09/2026</td><td><a href="#">Ver →</a></td></tr>
+                <tr><td>SAC-PBI-2026-0125</td><td>Error de provisión</td><td><span class="badge b-blue">En proceso</span></td><td>16/09/2026</td><td><a href="#">Ver →</a></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card summary">
+            <h3>Resumen de casos</h3>
+            <div class="stat"><strong style="color:var(--red)">12</strong><div>Pendientes</div></div>
+            <div class="stat"><strong>28</strong><div>En proceso</div></div>
+            <div class="stat"><strong style="color:#16853a">56</strong><div>Cerradas</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<main id="screen-registro" class="hidden">
+  <div class="shell">
+    <div class="crumb">⌂ &nbsp;<a href="#" onclick="showScreen('dashboard')">Panel principal</a> &nbsp;/&nbsp; Registro</div>
+    <div class="case-head">
+      <div>
+        <h1 class="page-title">Registro de Solicitud de Acción Correctiva</h1>
+        <div class="page-sub">Completa la información de la no conformidad para iniciar el análisis.</div>
+      </div>
+    </div>
+
+    <div class="stepper">
+      <div class="step active"><div class="bubble">1</div><div>1. Identificación</div></div>
+      <div class="step"><div class="bubble">2</div><div>2. Análisis de causa raíz</div></div>
+      <div class="step locked"><div class="bubble">3</div><div>3. Solución inmediata<br>y acciones correctivas</div></div>
+      <div class="step locked"><div class="bubble">4</div><div>4. Evaluación de eficacia<br>y cierre</div></div>
+    </div>
+
+    <div class="info">
+      <div class="i">i</div>
+      <div>
+        <b>El análisis de causa raíz se habilita y es obligatorio solo para no conformidades críticas.</b><br>
+        Si la no conformidad se categoriza como <b>crítica</b>, deberás completar el paso 2 antes de continuar al paso 3.
+        Si no es crítica, el paso 2 se marca como “No aplica” y el flujo continúa directamente al paso 3. En ambos casos se realizan los pasos 3 y 4.
+      </div>
+    </div>
+
+    <section class="card form-card">
+      <div class="section-h">1. Identificación</div>
+      <div class="form-grid">
+        <div>
+          <div class="pair"><div class="lab">Tipo de registro</div><div class="val"><select id="tipoRegistro" class="input" onchange="updateCaseCodePreview()"><option value="">Seleccionar</option><option>Incidente</option><option>Problema (PBI)</option><option>Salida No Conforme</option><option>No Conforme</option></select></div></div>
+          <div class="pair"><div class="lab">Fuente de detección</div><div class="val"><select id="fuenteDeteccion" class="input"><option value="">Seleccionar</option><option>Operación / Proceso</option><option>Falla crítica</option><option>Hallazgo de auditoría</option><option>Incumplimiento periódico de OKR</option><option>Queja / Reclamo</option><option>Riesgos y oportunidades</option><option>Revisión de procesos</option><option>Legal / Regulatorio / Contractual</option><option>Otro</option></select></div></div>
+          <div class="pair"><div class="lab">N° Hallazgo</div><div class="val"><input id="hallazgoCode" class="input readonly-strong case-code" value="Selecciona el tipo de registro" readonly><div class="helper">Formato automático: SAC-ABC-YYYY-NNNN.</div></div></div>
+          <div class="pair"><div class="lab">N° Ticket remedy (si aplica)</div><div class="val"><input id="ticketRemedy" class="input" placeholder="Ej. REM-589632"></div></div>
+          <div class="pair desc"><div class="lab">Descripción de la no conformidad</div><div class="val"><textarea id="descripcionNC" class="input" placeholder="Describe de forma clara y concisa la no conformidad encontrada..."></textarea></div></div>
+          <div class="pair"><div class="lab">Responsable</div><div class="val"><input id="responsableNC" class="input" value="Juan Pérez García"></div></div>
+          <div class="pair"><div class="lab">Fecha de detección</div><div class="val"><input id="fechaDeteccion" class="input" type="date"></div></div>
+        </div>
+        <div>
+          <div class="pair"><div class="lab">Fecha de registro</div><div class="val"><input id="fechaRegistro" class="input readonly-strong" type="date" readonly><div class="helper">Se completa automáticamente con la fecha actual y no puede modificarse.</div></div></div>
+          <div class="pair"><div class="lab">Fecha de solución</div><div class="val"><input id="fechaSolucion" class="input" type="date" onchange="validateSolutionDate()"><div class="helper">No se permiten fechas anteriores a la fecha actual.</div></div></div>
+          <div class="pair"><div class="lab">Impacto (si aplica)</div><div class="val"><div class="inline-control"><input id="impacto" class="input readonly-strong" value="Sin evaluar" readonly><button class="btn matrix" type="button" onclick="openImpactMatrix()">Evaluar impacto</button></div><div id="impactHelper" class="matrix-result"><span class="matrix-dot"></span><span>Completa la matriz Clientes / Tiempo / Soles.</span></div></div></div>
+          <div class="pair"><div class="lab">Urgencia (si aplica)</div><div class="val"><select id="urgencia" class="input" onchange="calculatePriority()"><option value="">Seleccionar</option><option>Baja</option><option>Media</option><option>Alta</option></select></div></div>
+          <div class="pair"><div class="lab">Prioridad / Criticidad (si aplica)</div><div class="val"><input id="prioridad" class="input readonly-strong" value="Pendiente de cálculo" readonly><div class="helper">Se calcula automáticamente en función del Impacto y la Urgencia. La matriz de prioridad queda parametrizable para la versión productiva.</div></div></div>
+          <div class="pair"><div class="lab">¿No conformidad crítica?</div><div class="val"><select id="esCritica" class="input"><option value="">Seleccionar</option><option value="si">Sí</option><option value="no">No</option><option value="na">No aplica</option></select><div class="helper">Esta clasificación determina si el análisis de causa raíz es obligatorio.</div></div></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn">▣ Guardar borrador</button>
+        <button class="btn primary" onclick="continueFromStep1()">Continuar →</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<main id="screen-causa" class="hidden">
+  <div class="shell">
+    <div class="crumb">⌂ &nbsp;<a href="#" onclick="showScreen('dashboard')">Panel principal</a> &nbsp;/&nbsp; Registro</div>
+    <h1 class="page-title">Registro de Solicitud de Acción Correctiva</h1>
+    <div class="page-sub">Código de la no conformidad: <b id="causeCaseCode" class="case-code">—</b></div>
+
+    <div class="stepper" style="padding-left:28%">
+      <div class="step done"><div class="bubble">1</div><div>1. Identificación</div></div>
+      <div class="step active"><div class="bubble">2</div><div>2. Análisis de causa raíz</div></div>
+      <div class="step locked"><div class="bubble">3</div><div>3. Solución inmediata<br>y acciones correctivas</div></div>
+      <div class="step locked"><div class="bubble">4</div><div>4. Evaluación de eficacia<br>y cierre</div></div>
+    </div>
+
+    <div class="info" style="margin-bottom:14px">
+      <div class="i">i</div>
+      <div>
+        Este checklist aplica únicamente porque la no conformidad fue clasificada como <b>crítica</b>.
+        Para habilitar el paso 3, completa todas las preguntas y guarda el checklist.
+      </div>
+    </div>
+
+    <section class="card checklist-card">
+      <div class="section-h">2. Análisis de causa raíz <span class="accordion-tip">Despliega una categoría a la vez</span></div>
+      <div class="cause-intro">Para reducir la carga visual, las categorías 6M se muestran contraídas. Abre solo la categoría que deseas revisar; al abrir otra, la anterior se cerrará automáticamente.</div>
+      <div class="cause-accordion-list" id="causeAccordions">
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">1</span>Método</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="1.1"><td>1.1</td><td>¿Existe documentación del proceso? (política, procedimiento, instructivo, manual, etc.)</td><td><input type="radio" name="q11" value="si"></td><td><input type="radio" name="q11" value="no"></td><td><input type="radio" name="q11" value="na"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="1.2"><td>1.2</td><td>¿La documentación está actualizada?</td><td><input type="radio" name="q12"></td><td><input type="radio" name="q12"></td><td><input type="radio" name="q12"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="1.3"><td>1.3</td><td>¿La documentación está completa?</td><td><input type="radio" name="q13"></td><td><input type="radio" name="q13"></td><td><input type="radio" name="q13"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="1.4"><td>1.4</td><td>¿La secuencia de las actividades es correcta?</td><td><input type="radio" name="q14"></td><td><input type="radio" name="q14"></td><td><input type="radio" name="q14"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="1.5"><td>1.5</td><td>¿El proceso es manual o está automatizado?</td><td><input type="radio" name="q15"></td><td><input type="radio" name="q15"></td><td><input type="radio" name="q15"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="1.6"><td>1.6</td><td>Otro:</td><td><input type="radio" name="q16"></td><td><input type="radio" name="q16"></td><td><input type="radio" name="q16"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">2</span>Mano de Obra (Personal)</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="2.1"><td>2.1</td><td>¿El personal tiene el perfil necesario para realizar su trabajo? (educación, formación, experiencia)</td><td><input type="radio" name="q21"></td><td><input type="radio" name="q21"></td><td><input type="radio" name="q21"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="2.2"><td>2.2</td><td>¿El personal recibió entrenamiento en el puesto de trabajo?</td><td><input type="radio" name="q22"></td><td><input type="radio" name="q22"></td><td><input type="radio" name="q22"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="2.3"><td>2.3</td><td>¿El personal cuenta con la experiencia necesaria para realizar su trabajo?</td><td><input type="radio" name="q23"></td><td><input type="radio" name="q23"></td><td><input type="radio" name="q23"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="2.4"><td>2.4</td><td>¿El personal realizó sus actividades conforme a la documentación vigente?</td><td><input type="radio" name="q24"></td><td><input type="radio" name="q24"></td><td><input type="radio" name="q24"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="2.5"><td>2.5</td><td>¿El personal trabaja fuera del horario laboral?</td><td><input type="radio" name="q25"></td><td><input type="radio" name="q25"></td><td><input type="radio" name="q25"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="2.6"><td>2.6</td><td>Otro:</td><td><input type="radio" name="q26"></td><td><input type="radio" name="q26"></td><td><input type="radio" name="q26"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">3</span>Maquinaria (Sistemas Informáticos, Herramientas)</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="3.1"><td>3.1</td><td>¿Se presentaron incidentes en los sistemas? (software)</td><td><input type="radio" name="q31"></td><td><input type="radio" name="q31"></td><td><input type="radio" name="q31"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="3.2"><td>3.2</td><td>¿Se presentaron incidentes en el hardware?</td><td><input type="radio" name="q32"></td><td><input type="radio" name="q32"></td><td><input type="radio" name="q32"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="3.3"><td>3.3</td><td>¿Se presentaron incidentes con la red?</td><td><input type="radio" name="q33"></td><td><input type="radio" name="q33"></td><td><input type="radio" name="q33"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="3.4"><td>3.4</td><td>Otro:</td><td><input type="radio" name="q34"></td><td><input type="radio" name="q34"></td><td><input type="radio" name="q34"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">4</span>Medición</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="4.1"><td>4.1</td><td>¿Existen controles en el proceso? (Cuando exista el control completar la información requerida)</td><td><input id="controlSi" type="radio" name="q41" value="si" onchange="toggleControlDetails()"></td><td><input type="radio" name="q41" value="no" onchange="toggleControlDetails()"></td><td><input type="radio" name="q41" value="na" onchange="toggleControlDetails()"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table>
+          <div class="nested" id="controlDetails" style="opacity:.45">
+            <div class="nested-row"><div class="ncode">4.1.1</div><div class="nlab">Tipo de control</div><div class="inline-options"><label><input type="checkbox"> Preventivo</label><label><input type="checkbox"> Detectivo</label><label><input type="checkbox"> Correctivo</label></div></div>
+            <div class="nested-row"><div class="ncode">4.1.2</div><div class="nlab">Nombre del control</div><div><input class="comment nested-required" placeholder="Escribe el nombre del control"></div></div>
+            <div class="nested-row"><div class="ncode">4.1.3</div><div class="nlab">Descripción del control</div><div><input class="comment nested-required" placeholder="Describe el control"></div></div>
+            <div class="nested-row"><div class="ncode">4.1.4</div><div class="nlab">¿El control mitiga riesgo?</div><div class="inline-options"><label><input type="radio" name="mitiga"> Sí</label><label><input type="radio" name="mitiga"> No</label><label><input type="radio" name="mitiga"> NA</label></div></div>
+            <div class="nested-row"><div class="ncode">4.1.5</div><div class="nlab">Frecuencia de ejecución</div><div><input class="comment nested-required" placeholder="Ej. diaria, semanal, mensual"></div></div>
+            <div class="nested-row"><div class="ncode">4.1.6</div><div class="nlab">Responsable</div><div><input class="comment nested-required" placeholder="Responsable del control"></div></div>
+            <div class="nested-row"><div class="ncode">4.1.7</div><div class="nlab">Evidencia</div><div><input class="comment nested-required" placeholder="Evidencia / enlace / referencia"></div></div>
+          </div>
+          <table class="check-table"><tbody>
+            <tr data-q="4.2"><td style="width:55px">4.2</td><td>¿El diseño del control es correcto? (antes, durante o después)</td><td><input type="radio" name="q42"></td><td><input type="radio" name="q42"></td><td><input type="radio" name="q42"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="4.3"><td>4.3</td><td>¿El control abarca todos los aspectos a controlar?</td><td><input type="radio" name="q43"></td><td><input type="radio" name="q43"></td><td><input type="radio" name="q43"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="4.4"><td>4.4</td><td>¿El control está actualizado?</td><td><input type="radio" name="q44"></td><td><input type="radio" name="q44"></td><td><input type="radio" name="q44"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="4.5"><td>4.5</td><td>¿El control es manual?</td><td><input type="radio" name="q45"></td><td><input type="radio" name="q45"></td><td><input type="radio" name="q45"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="4.6"><td>4.6</td><td>Otro:</td><td><input type="radio" name="q46"></td><td><input type="radio" name="q46"></td><td><input type="radio" name="q46"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">5</span>Medio de Trabajo</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="5.1"><td>5.1</td><td>¿El lugar de trabajo es adecuado? (ruido, temperatura, iluminación)</td><td><input type="radio" name="q51"></td><td><input type="radio" name="q51"></td><td><input type="radio" name="q51"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="5.2"><td>5.2</td><td>¿El mobiliario es adecuado?</td><td><input type="radio" name="q52"></td><td><input type="radio" name="q52"></td><td><input type="radio" name="q52"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="5.3"><td>5.3</td><td>¿Requiere realizar las labores en el centro de trabajo?</td><td><input type="radio" name="q53"></td><td><input type="radio" name="q53"></td><td><input type="radio" name="q53"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="5.4"><td>5.4</td><td>Otro:</td><td><input type="radio" name="q54"></td><td><input type="radio" name="q54"></td><td><input type="radio" name="q54"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+
+        <details class="cause-accordion">
+          <summary><span class="cause-title"><span class="cause-icon">6</span>Material (información)</span><span class="cause-chevron">⌄</span></summary>
+          <div class="cause-body"><table class="check-table"><thead><tr><th>N°</th><th>Pregunta / Aspecto a evaluar</th><th>Sí</th><th>No</th><th>NA</th><th>Comentarios</th></tr></thead><tbody>
+            <tr data-q="6.1"><td>6.1</td><td>¿La información recibida para ejecutar el proceso es correcta?</td><td><input type="radio" name="q61"></td><td><input type="radio" name="q61"></td><td><input type="radio" name="q61"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="6.2"><td>6.2</td><td>¿La información para ejecutar el proceso se recibió oportunamente?</td><td><input type="radio" name="q62"></td><td><input type="radio" name="q62"></td><td><input type="radio" name="q62"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="6.3"><td>6.3</td><td>¿La información recibida para ejecutar el proceso es íntegra?</td><td><input type="radio" name="q63"></td><td><input type="radio" name="q63"></td><td><input type="radio" name="q63"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="6.4"><td>6.4</td><td>¿La información se encuentra disponible cuando se requiere?</td><td><input type="radio" name="q64"></td><td><input type="radio" name="q64"></td><td><input type="radio" name="q64"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="6.5"><td>6.5</td><td>¿La información depende de terceros?</td><td><input type="radio" name="q65"></td><td><input type="radio" name="q65"></td><td><input type="radio" name="q65"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+            <tr data-q="6.6"><td>6.6</td><td>Otro:</td><td><input type="radio" name="q66"></td><td><input type="radio" name="q66"></td><td><input type="radio" name="q66"></td><td><input class="comment" placeholder="Escribe un comentario..."></td></tr>
+          </tbody></table></div>
+        </details>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="showScreen('registro')">Volver</button>
+        <div style="display:flex;gap:12px">
+          <button class="btn">▣ Guardar checklist</button>
+          <button class="btn primary" onclick="completeChecklist()">Completar y habilitar paso 3 →</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</main>
+
+
+<main id="screen-registro-ingresado" class="hidden">
+  <div class="shell">
+    <div class="crumb">⌂ &nbsp;<a href="#" onclick="showScreen('dashboard')">Panel principal</a> &nbsp;/&nbsp; Registro &nbsp;/&nbsp; <span class="case-code-text case-code">—</span></div>
+    <div class="activity-header">
+      <div><h1 class="page-title">3. Solución inmediata y acciones correctivas</h1><div class="page-sub">Cada acción se convierte en una actividad vinculada al código de la No Conformidad.</div></div>
+    </div>
+    <div class="stepper" id="stepper3"></div>
+    <div class="info"><div class="i">i</div><div><b>Relación de códigos:</b> una No Conformidad puede tener varias actividades. El sistema genera códigos relacionados como <b><span class="case-code-text case-code">—</span>-A01</b>, <b>A02</b>, <b>A03</b>, etc. Las actividades pueden quedar Pendientes, En proceso o Completadas; no es necesario completarlas para guardar el plan.</div></div>
+    <section class="card" style="margin-top:14px">
+      <div class="section-h">3. Plan de actividades <button class="btn slim" onclick="addBuilderRow()">＋ Agregar actividad</button></div>
+      <div class="activity-builder" id="builder"></div>
+      <div class="actions"><button class="btn" onclick="backFromStep3()">Volver</button><button class="btn primary" onclick="saveActivities()">Guardar actividades →</button></div>
+    </section>
+  </div>
+</main>
+
+<main id="screen-guardado" class="hidden">
+  <div class="shell">
+    <div class="green-message">✓ La No Conformidad <b><span class="case-code-text case-code">—</span></b> y sus actividades fueron guardadas correctamente.</div>
+    <div class="activity-header" style="margin-top:20px"><div><h1 class="page-title">Actividades de la No Conformidad creada</h1><div class="page-sub"><span class="case-code-text case-code">—</span> · Las acciones ya se registraron como actividades para seguimiento.</div></div></div>
+    <section class="card recent">
+      <table><thead><tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>FET inicial</th><th>Estado</th><th>Eficiencia base</th></tr></thead><tbody id="savedTable"></tbody></table>
+    </section>
+    <div class="actions" style="padding-left:0;padding-right:0"><button class="btn" onclick="showScreen('dashboard')">← Volver al panel</button><button class="btn primary" onclick="showScreen('actividades')">Ver seguimiento de actividades →</button></div>
+  </div>
+</main>
+
+<main id="screen-actividades" class="hidden">
+  <div class="shell">
+    <div class="crumb">⌂ &nbsp;<a href="#" onclick="showScreen('dashboard')">Panel principal</a> &nbsp;/&nbsp; Seguimiento &nbsp;/&nbsp; <span class="case-code-text case-code">—</span></div>
+    <div class="activity-header"><div><h1 class="page-title">Actividades · <span class="case-code-text case-code">—</span></h1><div class="page-sub">Seguimiento de fechas, reprogramaciones, estado y eficiencia por actividad.</div></div><button class="btn primary" onclick="showScreen('evaluacion')">Ir a evaluación de eficacia →</button></div>
+    <div class="info"><div class="i">i</div><div><b>Regla de reprogramación:</b> cada actividad inicia con 100%. Se permiten como máximo <b>3 reprogramaciones</b>. Cada una reduce 20 puntos porcentuales: <b>100% → 80% → 60% → 40%</b>. No se aplica otra penalización en este prototipo.</div></div>
+    <div class="progressbox"><div style="display:flex;justify-content:space-between;margin-bottom:8px"><b>Avance de actividades completadas</b><span id="advanceText">0%</span></div><div class="progressline"><div class="progressfill" id="advanceBar"></div></div></div>
+    <section class="card"><div class="section-h">Actividades relacionadas</div><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>FET inicial</th><th>Reprog. 1</th><th>Reprog. 2</th><th>Reprog. 3</th><th>Fecha vigente</th><th>Fecha real</th><th>Estado</th><th>Eficiencia</th><th>Acción</th></tr></thead><tbody id="activityRows"></tbody></table></div></section>
+    <div class="actions" style="padding-left:0;padding-right:0"><button class="btn" onclick="showScreen('dashboard')">← Volver al panel</button><button class="btn primary" onclick="showScreen('evaluacion')">Evaluar eficacia →</button></div>
+  </div>
+</main>
+
+<main id="screen-evaluacion" class="hidden">
+  <div class="shell">
+    <div class="crumb">⌂ &nbsp;<a href="#" onclick="showScreen('dashboard')">Panel principal</a> &nbsp;/&nbsp; <span class="case-code-text case-code">—</span> &nbsp;/&nbsp; Evaluación</div>
+    <h1 class="page-title">4. Evaluación de eficacia y cierre</h1><div class="page-sub">La evaluación utiliza el seguimiento de las actividades relacionadas a la NC.</div>
+    <div class="stepper" id="stepper4"></div>
+    <section class="card"><div class="section-h">4. Evaluación de eficacia y cierre</div>
+      <div class="eval-grid"><div><div class="field"><label>Fecha de evaluación de eficacia</label><input class="input" type="date"></div><div class="field"><label>Resultado de eficacia</label><select class="input"><option>Seleccionar</option><option>Eficaz</option><option>Parcialmente eficaz</option><option>No eficaz</option></select></div></div><div><div class="field"><label>Comentarios</label><textarea class="input" placeholder="Registra el resultado de la evaluación..."></textarea></div></div></div>
+      <div style="padding:0 18px 18px"><div class="card recent" style="box-shadow:none;background:#f8fafc"><h3>Resumen de actividades</h3><div id="evalSummary" style="color:#66758e"></div></div></div>
+      <div class="actions"><button class="btn" onclick="showScreen('actividades')">← Volver a actividades</button><button class="btn primary" onclick="toast('Evaluación guardada correctamente.')">Guardar evaluación</button></div>
+    </section>
+  </div>
+</main>
+
+
+<div id="impactModal" class="modal-backdrop hidden">
+  <div class="modal impact-modal">
+    <div class="section-h">Matriz de Impacto</div>
+    <div class="modal-body">
+      <p style="margin-top:0;color:#64748b">Selecciona un nivel para cada criterio. El impacto final se determina por el nivel más alto marcado.</p>
+      <table class="impact-matrix">
+        <thead><tr><th>Criterio</th><th>Bajo</th><th>Medio</th><th>Alto</th></tr></thead>
+        <tbody>
+          <tr><td>Clientes</td><td><input type="radio" name="impact_clientes" value="Bajo" onchange="previewImpact()"></td><td><input type="radio" name="impact_clientes" value="Medio" onchange="previewImpact()"></td><td><input type="radio" name="impact_clientes" value="Alto" onchange="previewImpact()"></td></tr>
+          <tr><td>Tiempo</td><td><input type="radio" name="impact_tiempo" value="Bajo" onchange="previewImpact()"></td><td><input type="radio" name="impact_tiempo" value="Medio" onchange="previewImpact()"></td><td><input type="radio" name="impact_tiempo" value="Alto" onchange="previewImpact()"></td></tr>
+          <tr><td>Soles</td><td><input type="radio" name="impact_soles" value="Bajo" onchange="previewImpact()"></td><td><input type="radio" name="impact_soles" value="Medio" onchange="previewImpact()"></td><td><input type="radio" name="impact_soles" value="Alto" onchange="previewImpact()"></td></tr>
+        </tbody>
+      </table>
+      <div class="matrix-summary"><span>Resultado preliminar</span><span id="impactPreview" class="priority-preview">Pendiente</span></div>
+    </div>
+    <div class="modal-actions"><button class="btn slim" onclick="closeImpactMatrix()">Cancelar</button><button class="btn primary slim" onclick="applyImpactMatrix()">Aplicar impacto</button></div>
+  </div>
+</div>
+
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal"><div class="section-h">Reprogramar actividad</div><div class="modal-body"><p id="modalText" style="color:#64748b"></p><div class="field"><label>Nueva fecha compromiso</label><input id="newDate" class="input" type="date"></div><div class="info"><div class="i">i</div><div>Al confirmar, la eficiencia de la actividad disminuirá 20 puntos porcentuales.</div></div></div><div class="modal-actions"><button class="btn slim" onclick="closeModal()">Cancelar</button><button class="btn primary slim" onclick="confirmReprogram()">Confirmar reprogramación</button></div></div>
+</div>
+
+<div id="toast" style="position:fixed;right:24px;bottom:24px;background:#111827;color:#fff;padding:14px 18px;border-radius:10px;box-shadow:0 10px 25px rgba(0,0,0,.18);display:none;z-index:100"></div>
+
+<footer class="footer">
+  <div>Claro Perú &nbsp; | &nbsp; Gestión de No Conformidades</div>
+  <div>Hacemos más simple la vida de más personas &nbsp; <span style="display:inline-block;width:34px;height:3px;background:var(--red);vertical-align:middle"></span></div>
+</footer>
+
+<script>
+  let currentScreen='login';
+  let checklistCompleted=false;
+  let critical=true;
+  let builderCount=0;
+  let reprogramTarget=null;
+  let currentCaseCode='';
+  let caseReserved=false;
+  let impactSelected='';
+  let activities=[];
+
+  function login(){document.getElementById('userBox').classList.remove('hidden');showScreen('dashboard')}
+  function showScreen(name){
+    const ids=['login','dashboard','registro','causa','registro-ingresado','guardado','actividades','evaluacion'];
+    ids.forEach(id=>{const el=document.getElementById('screen-'+id);if(el)el.classList.add('hidden')});
+    const target=document.getElementById('screen-'+name);if(target)target.classList.remove('hidden');
+    currentScreen=name;window.scrollTo({top:0,behavior:'smooth'});if(name!=='login')document.getElementById('userBox').classList.remove('hidden');
+    if(name==='registro')initRegistrationDates();if(name==='causa'){refreshCaseCodeDisplays();setupAccordions()}if(name==='registro-ingresado')renderStep3();if(name==='actividades')renderActivities();if(name==='evaluacion')renderStep4();
+  }
+  function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
+
+  function localISODate(d=new Date()){
+    const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${day}`;
+  }
+  function initRegistrationDates(){
+    const today=localISODate();
+    const fr=document.getElementById('fechaRegistro'),fs=document.getElementById('fechaSolucion');
+    if(fr)fr.value=today;
+    if(fs){fs.min=today;if(fs.value&&fs.value<today)fs.value=''}
+    if(!document.getElementById('fechaDeteccion').value)document.getElementById('fechaDeteccion').value=today;
+    updateCaseCodePreview();
+  }
+  function validateSolutionDate(){
+    const el=document.getElementById('fechaSolucion'),today=localISODate();el.min=today;
+    if(el.value&&el.value<today){el.value='';toast('La fecha de solución no puede ser anterior a la fecha actual.');return false}
+    return true;
+  }
+  function typePrefix(type){return {'Incidente':'INC','Problema (PBI)':'PBI','Salida No Conforme':'SNC','No Conforme':'NOC'}[type]||'ABC'}
+  function nextSequence(){const y=new Date().getFullYear();return Number(localStorage.getItem(`sacSequence-${y}`)||0)+1}
+  function buildCaseCode(type,seq=nextSequence()){
+    if(!type)return '';
+    return `SAC-${typePrefix(type)}-${new Date().getFullYear()}-${String(seq).padStart(4,'0')}`;
+  }
+  function updateCaseCodePreview(){
+    const el=document.getElementById('hallazgoCode');if(!el)return;
+    const type=document.getElementById('tipoRegistro').value;
+    if(!type){el.value='Selecciona el tipo de registro';return}
+    const seq=currentCaseCode?Number(currentCaseCode.split('-').pop()):nextSequence();
+    currentCaseCode=buildCaseCode(type,seq);el.value=currentCaseCode;refreshCaseCodeDisplays();
+  }
+  function reserveCaseCode(){
+    const type=document.getElementById('tipoRegistro').value;if(!type)return false;
+    if(!caseReserved){const y=new Date().getFullYear(),seq=nextSequence();localStorage.setItem(`sacSequence-${y}`,String(seq));currentCaseCode=buildCaseCode(type,seq);caseReserved=true}
+    document.getElementById('hallazgoCode').value=currentCaseCode;refreshCaseCodeDisplays();return true;
+  }
+  function refreshCaseCodeDisplays(){
+    if(!currentCaseCode)return;
+    const c=document.getElementById('causeCaseCode');if(c)c.textContent=currentCaseCode;
+    document.querySelectorAll('.case-code-text').forEach(el=>el.textContent=currentCaseCode);
+  }
+  function openImpactMatrix(){document.getElementById('impactModal').classList.remove('hidden');previewImpact()}
+  function closeImpactMatrix(){document.getElementById('impactModal').classList.add('hidden')}
+  function selectedImpactValues(){return ['impact_clientes','impact_tiempo','impact_soles'].map(n=>document.querySelector(`input[name="${n}"]:checked`)?.value).filter(Boolean)}
+  function getImpactResult(){
+    const vals=selectedImpactValues();if(vals.length<3)return '';
+    const rank={Bajo:1,Medio:2,Alto:3};return vals.sort((a,b)=>rank[b]-rank[a])[0];
+  }
+  function previewImpact(){const r=getImpactResult(),el=document.getElementById('impactPreview');el.textContent=r||'Completa los 3 criterios';el.className='priority-preview '+(r==='Bajo'?'low':r==='Medio'?'medium':r==='Alto'?'high':'')}
+  function applyImpactMatrix(){
+    const r=getImpactResult();if(!r){toast('Selecciona Bajo, Medio o Alto para Clientes, Tiempo y Soles.');return}
+    impactSelected=r;document.getElementById('impacto').value=r;
+    const helper=document.getElementById('impactHelper');helper.innerHTML=`<span class="matrix-dot ${r==='Bajo'?'low':r==='Medio'?'medium':'high'}"></span><span>Impacto calculado: <b>${r}</b> (se toma el mayor nivel marcado).</span>`;
+    closeImpactMatrix();calculatePriority();
+  }
+  function calculatePriority(){
+    const impact=document.getElementById('impacto')?.value||'',urg=document.getElementById('urgencia')?.value||'',out=document.getElementById('prioridad');if(!out)return;
+    if(!impact||impact==='Sin evaluar'||!urg){out.value='Pendiente de cálculo';return}
+    const matrix={
+      'Bajo|Baja':'Baja','Bajo|Media':'Media','Bajo|Alta':'Alta',
+      'Medio|Baja':'Media','Medio|Media':'Alta','Medio|Alta':'Alta',
+      'Alto|Baja':'Alta','Alto|Media':'Alta','Alto|Alta':'Crítica'
+    };
+    out.value=matrix[`${impact}|${urg}`]||'Pendiente de cálculo';
+  }
+  function setupAccordions(){
+    const list=document.getElementById('causeAccordions');if(!list||list.dataset.ready)return;list.dataset.ready='1';
+    list.querySelectorAll('details').forEach(d=>d.addEventListener('toggle',()=>{if(d.open)list.querySelectorAll('details').forEach(o=>{if(o!==d)o.open=false})}))
+  }
+
+  function continueFromStep1(){
+    const type=document.getElementById('tipoRegistro').value;
+    const source=document.getElementById('fuenteDeteccion').value;
+    if(!type){toast('Selecciona el Tipo de registro.');return}
+    if(!source){toast('Selecciona la Fuente de detección.');return}
+    if(!validateSolutionDate())return;
+    if(!impactSelected){toast('Evalúa el Impacto utilizando la matriz Clientes / Tiempo / Soles.');return}
+    if(!document.getElementById('urgencia').value){toast('Selecciona la Urgencia.');return}
+    calculatePriority();
+    if(!reserveCaseCode())return;
+    const value=document.getElementById('esCritica').value;if(!value){toast('Selecciona si la no conformidad es crítica.');return}
+    critical=value==='si';
+    if(critical){showScreen('causa')}else{checklistCompleted=false;showScreen('registro-ingresado')}
+  }
+  function toggleControlDetails(){document.getElementById('controlDetails').style.opacity=document.getElementById('controlSi').checked?'1':'.45'}
+  function completeChecklist(){
+    const rows=[...document.querySelectorAll('#screen-causa tr[data-q]')];const missing=rows.filter(r=>!r.querySelector('input[type=radio]:checked'));
+    if(missing.length){const det=missing[0].closest('details');if(det)det.open=true;missing[0].scrollIntoView({behavior:'smooth',block:'center'});toast('Completa todas las preguntas del checklist antes de continuar.');return}
+    if(document.getElementById('controlSi').checked){
+      const empty=[...document.querySelectorAll('.nested-required')].some(i=>!i.value.trim());
+      const typeSelected=[...document.querySelectorAll('#controlDetails input[type=checkbox]')].some(i=>i.checked);
+      const mitig=document.querySelector('input[name=mitiga]:checked');
+      if(empty||!typeSelected||!mitig){document.getElementById('controlDetails').scrollIntoView({behavior:'smooth',block:'center'});toast('Completa la información 4.1.1 a 4.1.7 del control.');return}
+    }
+    checklistCompleted=true;critical=true;toast('Causa raíz guardada correctamente.');setTimeout(()=>showScreen('registro-ingresado'),650)
+  }
+
+  function stepperHTML(active){
+    const s2=!critical?'<div class="step na"><div class="bubble">2</div><div>2. Análisis de causa raíz<br><span style="font-size:11px">No aplica</span></div></div>':(active>2?'<div class="step done"><div class="bubble">2</div><div>2. Análisis de causa raíz</div></div>':'<div class="step active"><div class="bubble">2</div><div>2. Análisis de causa raíz</div></div>');
+    return `<div class="step done"><div class="bubble">1</div><div>1. Identificación</div></div>${s2}<div class="step ${active===3?'active':active>3?'done':''}"><div class="bubble">3</div><div>3. Solución inmediata<br>y acciones correctivas</div></div><div class="step ${active===4?'active':''}"><div class="bubble">4</div><div>4. Evaluación de eficacia<br>y cierre</div></div>`;
+  }
+  function renderStep3(){
+    document.getElementById('stepper3').innerHTML=stepperHTML(3);
+    if(builderCount===0){document.getElementById('builder').innerHTML='';if(!activities.length){addBuilderRow('Registrar solución inmediata','Solución inmediata','',localISODate(),'Pendiente');addBuilderRow('Definir acción correctiva','Acción correctiva','','','Pendiente')}else{activities.forEach(a=>addBuilderRow(a.name,a.type,a.resp,a.fet,a.state))}}refreshCaseCodeDisplays()
+  }
+  function addBuilderRow(name='',type='Acción correctiva',resp='',fet='',state='Pendiente'){
+    builderCount++;const code=`${currentCaseCode||'SAC-ABC-'+new Date().getFullYear()+'-0000'}-A${String(builderCount).padStart(2,'0')}`;const div=document.createElement('div');div.className='activity-row';div.dataset.code=code;
+    div.innerHTML=`<div><div class="code-box">${code}</div><input class="compact-input bname" value="${name}" placeholder="Descripción de la actividad"></div><select class="compact-input btype"><option ${type==='Solución inmediata'?'selected':''}>Solución inmediata</option><option ${type==='Acción correctiva'?'selected':''}>Acción correctiva</option></select><input class="compact-input bresp" value="${resp}" placeholder="Responsable AC"><input class="compact-input bfet" type="date" value="${fet}"><select class="compact-input bstate"><option ${state==='Pendiente'?'selected':''}>Pendiente</option><option ${state==='En proceso'?'selected':''}>En proceso</option><option ${state==='Completada'?'selected':''}>Completada</option></select><button class="btn slim" onclick="this.parentElement.remove()">Quitar</button>`;
+    document.getElementById('builder').appendChild(div)
+  }
+  function backFromStep3(){critical?showScreen('causa'):showScreen('registro')}
+  function saveActivities(){
+    const rows=[...document.querySelectorAll('#builder .activity-row')];if(!rows.length){toast('Agrega al menos una actividad.');return}
+    activities=rows.map(r=>({code:r.dataset.code,name:r.querySelector('.bname').value||'Actividad sin descripción',type:r.querySelector('.btype').value,resp:r.querySelector('.bresp').value||'Sin asignar',fet:r.querySelector('.bfet').value||'',reps:[],real:'',state:r.querySelector('.bstate').value}));
+    renderSaved();showScreen('guardado')
+  }
+  function fmt(v){if(!v)return'—';const p=v.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:v}
+  function renderSaved(){const tb=document.getElementById('savedTable');tb.innerHTML='';activities.forEach(a=>tb.innerHTML+=`<tr><td><b>${a.code}</b></td><td>${a.name}</td><td>${a.resp}</td><td>${fmt(a.fet)}</td><td><span class="badge ${a.state==='Completada'?'b-green':a.state==='En proceso'?'b-blue':'b-amber'}">${a.state}</span></td><td><b>100%</b></td></tr>`)}
+  function score(a){return 100-(a.reps.length*20)}
+  function currentDate(a){return a.reps.length?a.reps[a.reps.length-1]:a.fet}
+  function renderActivities(){
+    const tb=document.getElementById('activityRows');tb.innerHTML='';activities.forEach((a,i)=>{const sc=score(a),cls=sc===100?'score100':sc===80?'score80':sc===60?'score60':'score40';tb.innerHTML+=`<tr><td><b>${a.code}</b></td><td>${a.name}</td><td>${a.resp}</td><td>${fmt(a.fet)}</td><td>${fmt(a.reps[0]||'')}</td><td>${fmt(a.reps[1]||'')}</td><td>${fmt(a.reps[2]||'')}</td><td><b>${fmt(currentDate(a))}</b></td><td><input class="edit-input" style="width:138px" type="date" value="${a.real}" onchange="setReal(${i},this.value)"></td><td><select class="edit-input" onchange="setState(${i},this.value)"><option ${a.state==='Pendiente'?'selected':''}>Pendiente</option><option ${a.state==='En proceso'?'selected':''}>En proceso</option><option ${a.state==='Completada'?'selected':''}>Completada</option></select></td><td><span class="score ${cls}">${sc}%</span><br><small>${a.reps.length} reprog.</small></td><td><button class="btn slim" ${a.reps.length>=3?'disabled':''} onclick="openReprogram(${i})">Reprogramar</button></td></tr>`});
+    const done=activities.filter(a=>a.state==='Completada').length,pct=activities.length?Math.round(done/activities.length*100):0;document.getElementById('advanceText').textContent=pct+'%';document.getElementById('advanceBar').style.width=pct+'%'
+  }
+  function setState(i,v){activities[i].state=v;renderActivities()}
+  function setReal(i,v){activities[i].real=v}
+  function openReprogram(i){
+    if(activities[i].reps.length>=3){toast('La actividad ya alcanzó las 3 reprogramaciones permitidas.');return}
+    reprogramTarget=i;const a=activities[i],next=a.reps.length+1;document.getElementById('modalText').innerHTML=`<b>${a.code}</b><br>${a.name}<br><br>Esta será la reprogramación ${next} de 3. La eficiencia pasará de <b>${score(a)}%</b> a <b>${score(a)-20}%</b>.`;document.getElementById('newDate').value='';document.getElementById('modal').classList.remove('hidden')
+  }
+  function closeModal(){document.getElementById('modal').classList.add('hidden');reprogramTarget=null}
+  function confirmReprogram(){const d=document.getElementById('newDate').value;if(!d){toast('Selecciona la nueva fecha compromiso.');return}activities[reprogramTarget].reps.push(d);closeModal();renderActivities();toast('Reprogramación registrada. La eficiencia disminuyó 20%.')}
+  function renderStep4(){
+    document.getElementById('stepper4').innerHTML=stepperHTML(4);const avg=activities.length?Math.round(activities.reduce((s,a)=>s+score(a),0)/activities.length):0;const done=activities.filter(a=>a.state==='Completada').length;document.getElementById('evalSummary').innerHTML=`Actividades: <b>${activities.length}</b> · Completadas: <b>${done}</b> · Abiertas: <b>${activities.length-done}</b> · Eficiencia promedio por reprogramaciones: <b>${avg}%</b>.`
+  }
+  document.addEventListener('DOMContentLoaded',()=>{
+    initRegistrationDates();
+    setupAccordions();
+  });
+
+</script>
+</body>
+</html>
