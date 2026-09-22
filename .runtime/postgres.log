@@ -1,0 +1,56 @@
+2026-09-21 19:34:10.889 -05 [26549] LOG:  starting PostgreSQL 18.6 on aarch64-apple-darwin24.6.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.5), 64-bit
+2026-09-21 19:34:10.890 -05 [26549] LOG:  listening on IPv4 address "127.0.0.1", port 55432
+2026-09-21 19:34:10.890 -05 [26549] LOG:  listening on Unix socket "/var/folders/3x/hd7nmcw17lz4mrzc07c56xfw0000gn/T/portal-nc-23c329ce818f/.s.PGSQL.55432"
+2026-09-21 19:34:10.893 -05 [26555] LOG:  database system was shut down at 2026-09-21 19:34:10 -05
+2026-09-21 19:34:10.896 -05 [26549] LOG:  database system is ready to accept connections
+2026-09-21 19:39:10.908 -05 [26553] LOG:  checkpoint starting: time
+2026-09-21 19:41:16.392 -05 [26553] LOG:  checkpoint complete: wrote 1234 buffers (7.5%), wrote 3 SLRU buffers; 1 WAL file(s) added, 0 removed, 0 recycled; write=125.449 s, sync=0.028 s, total=125.484 s; sync files=577, longest=0.002 s, average=0.001 s; distance=6487 kB, estimate=6487 kB; lsn=0/1DF2F10, redo lsn=0/1DDEC40
+2026-09-21 19:43:35.052 -05 [26752] ERROR:  duplicate key value violates unique constraint "hallazgos_hallazgo_codigo_key"
+2026-09-21 19:43:35.052 -05 [26752] DETAIL:  Key (codigo)=(SAC-INC-2026-0001) already exists.
+2026-09-21 19:43:35.052 -05 [26752] STATEMENT:  UPDATE "hallazgos_hallazgo" SET "codigo" = 'SAC-INC-2026-0001' WHERE "hallazgos_hallazgo"."id" = 18
+2026-09-21 19:43:35.433 -05 [26755] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:43:35.433 -05 [26755] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:43:35.433 -05 [26755] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:43:35.433 -05 [26758] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:43:35.433 -05 [26758] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:43:35.433 -05 [26758] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:43:35.433 -05 [26757] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:43:35.433 -05 [26757] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:43:35.433 -05 [26757] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:43:40.559 -05 [26759] ERROR:  database "test_gestion_no_conformidades" is being accessed by other users
+2026-09-21 19:43:40.559 -05 [26759] DETAIL:  There are 4 other sessions using the database.
+2026-09-21 19:43:40.559 -05 [26759] STATEMENT:  DROP DATABASE "test_gestion_no_conformidades"
+2026-09-21 19:44:03.739 -05 [26800] ERROR:  database "test_gestion_no_conformidades" already exists
+2026-09-21 19:44:03.739 -05 [26800] STATEMENT:  CREATE DATABASE "test_gestion_no_conformidades" 
+2026-09-21 19:44:03.741 -05 [26553] LOG:  checkpoint starting: immediate force wait
+2026-09-21 19:44:03.756 -05 [26553] LOG:  checkpoint complete: wrote 106 buffers (0.6%), wrote 4 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.012 s, sync=0.003 s, total=0.015 s; sync files=62, longest=0.001 s, average=0.001 s; distance=6887 kB, estimate=6887 kB; lsn=0/2498BB0, redo lsn=0/2498B58
+2026-09-21 19:44:05.494 -05 [26801] ERROR:  duplicate key value violates unique constraint "hallazgos_hallazgo_codigo_key"
+2026-09-21 19:44:05.494 -05 [26801] DETAIL:  Key (codigo)=(SAC-INC-2026-0001) already exists.
+2026-09-21 19:44:05.494 -05 [26801] STATEMENT:  UPDATE "hallazgos_hallazgo" SET "codigo" = 'SAC-INC-2026-0001' WHERE "hallazgos_hallazgo"."id" = 18
+2026-09-21 19:44:05.877 -05 [26808] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:44:05.877 -05 [26808] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:44:05.877 -05 [26808] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:44:05.877 -05 [26809] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:44:05.877 -05 [26809] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:44:05.877 -05 [26809] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:44:05.877 -05 [26807] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:44:05.877 -05 [26807] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:44:05.877 -05 [26807] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:44:05.956 -05 [26553] LOG:  checkpoint starting: immediate force wait
+2026-09-21 19:44:05.957 -05 [26553] LOG:  checkpoint complete: wrote 6 buffers (0.0%), wrote 5 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=0.001 s, sync=0.001 s, total=0.002 s; sync files=9, longest=0.001 s, average=0.001 s; distance=6703 kB, estimate=6869 kB; lsn=0/2B24980, redo lsn=0/2B24928
+2026-09-21 19:45:00.704 -05 [26853] ERROR:  duplicate key value violates unique constraint "hallazgos_hallazgo_codigo_key"
+2026-09-21 19:45:00.704 -05 [26853] DETAIL:  Key (codigo)=(SAC-INC-2026-0001) already exists.
+2026-09-21 19:45:00.704 -05 [26853] STATEMENT:  UPDATE "hallazgos_hallazgo" SET "codigo" = 'SAC-INC-2026-0001' WHERE "hallazgos_hallazgo"."id" = 20
+2026-09-21 19:45:01.091 -05 [26860] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:45:01.091 -05 [26860] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:45:01.091 -05 [26860] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:45:01.091 -05 [26857] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:45:01.091 -05 [26857] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:45:01.091 -05 [26857] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:45:01.091 -05 [26859] ERROR:  duplicate key value violates unique constraint "sac_anio_ambito_unico"
+2026-09-21 19:45:01.091 -05 [26859] DETAIL:  Key (anio, ambito)=(2026, INC) already exists.
+2026-09-21 19:45:01.091 -05 [26859] STATEMENT:  INSERT INTO "hallazgos_correlativosac" ("anio", "ambito", "ultimo_numero") VALUES (2026, 'INC', 0) RETURNING "hallazgos_correlativosac"."id"
+2026-09-21 19:45:01.187 -05 [26553] LOG:  checkpoint starting: immediate force wait
+2026-09-21 19:45:01.190 -05 [26553] LOG:  checkpoint complete: wrote 16 buffers (0.1%), wrote 4 SLRU buffers; 0 WAL file(s) added, 0 removed, 1 recycled; write=0.003 s, sync=0.001 s, total=0.004 s; sync files=15, longest=0.001 s, average=0.001 s; distance=6851 kB, estimate=6867 kB; lsn=0/31D5608, redo lsn=0/31D55B0
+2026-09-21 19:50:01.193 -05 [26553] LOG:  checkpoint starting: time
+2026-09-21 19:50:03.658 -05 [26553] LOG:  checkpoint complete: wrote 24 buffers (0.1%), wrote 1 SLRU buffers; 0 WAL file(s) added, 0 removed, 0 recycled; write=2.458 s, sync=0.002 s, total=2.466 s; sync files=19, longest=0.001 s, average=0.001 s; distance=100 kB, estimate=6190 kB; lsn=0/31EE610, redo lsn=0/31EE5B8

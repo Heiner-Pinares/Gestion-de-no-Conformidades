@@ -1,0 +1,1 @@
+/Library/PostgreSQL/18/bin/postgres "-D" "/Users/heinerpinares/Documents/Gestion de no Conformidades/Automatizacion/portal_nc/.runtime/postgres" "-h" "127.0.0.1" "-p" "55432" "-k" "/var/folders/3x/hd7nmcw17lz4mrzc07c56xfw0000gn/T/portal-nc-23c329ce818f"
