@@ -1,0 +1,166 @@
+[
+  {
+    "codigo": "1",
+    "nombre": "Método",
+    "preguntas": [
+      {
+        "codigo": "1.1",
+        "texto": "¿Existe documentación del proceso? (política, procedimiento, instructivo, manual, etc.)"
+      },
+      {
+        "codigo": "1.2",
+        "texto": "¿La documentación está actualizada?"
+      },
+      {
+        "codigo": "1.3",
+        "texto": "¿La documentación está completa?"
+      },
+      {
+        "codigo": "1.4",
+        "texto": "¿La secuencia de las actividades es correcta?"
+      },
+      {
+        "codigo": "1.5",
+        "texto": "¿El proceso es manual o está automatizado?"
+      },
+      {
+        "codigo": "1.6",
+        "texto": "Otro:"
+      }
+    ]
+  },
+  {
+    "codigo": "2",
+    "nombre": "Mano de Obra (Personal)",
+    "preguntas": [
+      {
+        "codigo": "2.1",
+        "texto": "¿El personal tiene el perfil necesario para realizar su trabajo? (educación, formación, experiencia)"
+      },
+      {
+        "codigo": "2.2",
+        "texto": "¿El personal recibió entrenamiento en el puesto de trabajo?"
+      },
+      {
+        "codigo": "2.3",
+        "texto": "¿El personal cuenta con la experiencia necesaria para realizar su trabajo?"
+      },
+      {
+        "codigo": "2.4",
+        "texto": "¿El personal realizó sus actividades conforme a la documentación vigente?"
+      },
+      {
+        "codigo": "2.5",
+        "texto": "¿El personal trabaja fuera del horario laboral?"
+      },
+      {
+        "codigo": "2.6",
+        "texto": "Otro:"
+      }
+    ]
+  },
+  {
+    "codigo": "3",
+    "nombre": "Maquinaria (Sistemas Informáticos, Herramientas)",
+    "preguntas": [
+      {
+        "codigo": "3.1",
+        "texto": "¿Se presentaron incidentes en los sistemas? (software)"
+      },
+      {
+        "codigo": "3.2",
+        "texto": "¿Se presentaron incidentes en el hardware?"
+      },
+      {
+        "codigo": "3.3",
+        "texto": "¿Se presentaron incidentes con la red?"
+      },
+      {
+        "codigo": "3.4",
+        "texto": "Otro:"
+      }
+    ]
+  },
+  {
+    "codigo": "4",
+    "nombre": "Medición",
+    "preguntas": [
+      {
+        "codigo": "4.1",
+        "texto": "¿Existen controles en el proceso? (Cuando exista el control completar la información requerida)"
+      },
+      {
+        "codigo": "4.2",
+        "texto": "¿El diseño del control es correcto? (antes, durante o después)"
+      },
+      {
+        "codigo": "4.3",
+        "texto": "¿El control abarca todos los aspectos a controlar?"
+      },
+      {
+        "codigo": "4.4",
+        "texto": "¿El control está actualizado?"
+      },
+      {
+        "codigo": "4.5",
+        "texto": "¿El control es manual?"
+      },
+      {
+        "codigo": "4.6",
+        "texto": "Otro:"
+      }
+    ]
+  },
+  {
+    "codigo": "5",
+    "nombre": "Medio de Trabajo",
+    "preguntas": [
+      {
+        "codigo": "5.1",
+        "texto": "¿El lugar de trabajo es adecuado? (ruido, temperatura, iluminación)"
+      },
+      {
+        "codigo": "5.2",
+        "texto": "¿El mobiliario es adecuado?"
+      },
+      {
+        "codigo": "5.3",
+        "texto": "¿Requiere realizar las labores en el centro de trabajo?"
+      },
+      {
+        "codigo": "5.4",
+        "texto": "Otro:"
+      }
+    ]
+  },
+  {
+    "codigo": "6",
+    "nombre": "Material (información)",
+    "preguntas": [
+      {
+        "codigo": "6.1",
+        "texto": "¿La información recibida para ejecutar el proceso es correcta?"
+      },
+      {
+        "codigo": "6.2",
+        "texto": "¿La información para ejecutar el proceso se recibió oportunamente?"
+      },
+      {
+        "codigo": "6.3",
+        "texto": "¿La información recibida para ejecutar el proceso es íntegra?"
+      },
+      {
+        "codigo": "6.4",
+        "texto": "¿La información se encuentra disponible cuando se requiere?"
+      },
+      {
+        "codigo": "6.5",
+        "texto": "¿La información depende de terceros?"
+      },
+      {
+        "codigo": "6.6",
+        "texto": "Otro:"
+      }
+    ]
+  }
+]

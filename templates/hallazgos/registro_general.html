@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Registro general{% endblock %}
+{% block content %}
+<div class="shell registro-shell">
+  <div class="case-head"><div><h1 class="page-title">Registro general</h1><p class="page-sub">Identificación, acciones y resultados en una sola tabla.</p></div><a class="btn primary" href="?{{ exportacion }}">Exportar CSV</a></div>
+  <form method="get" class="card panel registro-filtros">{% for field in form %}{% include 'includes/field.html' with field=field %}{% endfor %}<div class="toolbar"><button class="btn" type="submit">Filtrar</button><a href="{% url 'registro_general' %}">Limpiar</a></div></form>
+  <p class="helper">{{ pagina.paginator.count }} filas · Una fila por acción y ciclo. También aparecen los hallazgos sin acciones. FET muestra la fecha vigente; Estado corresponde a la acción, o al hallazgo si aún no hay acción. El filtro de estado corresponde al hallazgo.</p>
+  <section class="card"><div class="table-scroll registro-scroll" tabindex="0" role="region" aria-label="Registro general; desplázate horizontalmente para ver todas las columnas"><table class="registro-tabla"><caption class="helper">31 columnas · Se incluyen ciclos anteriores. Los campos sin información permanecen vacíos.</caption><thead><tr>{% for titulo in columnas %}<th scope="col">{{ titulo }}</th>{% endfor %}</tr></thead><tbody>{% for fila in pagina %}<tr>{% for valor in fila.valores %}<td>{% if forloop.counter == 7 %}<a class="code" href="{% url 'hallazgo_detalle' fila.hallazgo_id %}">{{ valor }}</a>{% else %}{{ valor }}{% endif %}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="31" class="empty">No hay registros para los filtros seleccionados.</td></tr>{% endfor %}</tbody></table></div></section>
+  {% include 'includes/paginacion.html' %}
+</div>
+{% endblock %}

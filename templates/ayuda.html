@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Ayuda{% endblock %}
+{% block content %}
+<div class="shell readable">
+  <h1 class="page-title">Guía del portal</h1>
+  <section class="card panel spaced" id="acceso">
+    <h2>Acceso</h2>
+    <p>Utiliza tu usuario local autorizado. Para recuperar el acceso, solicita al administrador de la plataforma que establezca una nueva contraseña.</p>
+    <p>La conexión con el directorio corporativo está pendiente. No introduzcas aquí tu contraseña de Windows.</p>
+  </section>
+  <section class="card panel spaced">
+    <h2>Del registro al cierre</h2>
+    <ol>
+      <li>Completa la identificación y pulsa Continuar. No se requiere aprobación de un administrador.</li>
+      <li>Si la NC es crítica, continúa directamente al análisis de causa raíz.</li>
+      <li>Si no es crítica, continúa directamente a la solución inmediata.</li>
+      <li>Registra las acciones, comunicaciones, avances y evidencias correspondientes.</li>
+      <li>Calidad evalúa la eficacia antes del cierre.</li>
+    </ol>
+    <p>Un resultado no eficaz abre un nuevo ciclo y conserva el historial anterior.</p>
+  </section>
+  <section class="card panel spaced">
+    <h2>Responsabilidades</h2>
+    <p><b>Usuario:</b> registra y gestiona sus casos y acciones. <b>Calidad:</b> evalúa la eficacia y participa en el cierre. <b>Administrador:</b> configura cuentas, catálogos y procesos; no valida la identificación.</p>
+    <p>La matriz de prioridad inicial está identificada como DEMO. Sus parámetros deben aprobarse antes del uso operativo.</p>
+  </section>
+</div>
+{% endblock %}
