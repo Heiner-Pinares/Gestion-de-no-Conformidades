@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Análisis de causa raíz{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/causa.css' %}?v=6m-2">{% endblock %}
+{% block content %}
+<div class="shell cause-page">
+  <div class="crumb">
+    <a href="{% url 'inicio' %}">Panel principal</a> /
+    <a href="{% url 'hallazgo_detalle' hallazgo.pk %}">{{ hallazgo.codigo }}</a> /
+    Análisis de causa raíz
+  </div>
+  <h1 class="page-title">Análisis de causa raíz</h1>
+  <div class="page-sub">Código de la no conformidad: <strong class="case-code">{{ hallazgo.codigo }}</strong> · Ciclo {{ ciclo.numero }}</div>
+  {% include 'includes/stepper.html' with variante='causa' %}
+
+  <form method="post" class="spaced" data-cause-form>
+    {% csrf_token %}
+    {{ form.causa_raiz }}
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+    <section class="card checklist-card cause-card">
+      <div class="section-h cause-header">
+        <span>2. Análisis de causa raíz</span>
+        <span class="accordion-tip">Despliega una categoría a la vez</span>
+      </div>
+      <p class="cause-intro">Para reducir la carga visual, las categorías 6M se muestran contraídas. Abre solo la categoría que deseas revisar; al abrir otra, la anterior se cerrará automáticamente.</p>
+
+      <div class="cause-accordion-list">
+        {% for grupo in grupos %}
+          <details class="cause-accordion"{% if grupo.abrir %} open{% endif %}>
+            <summary>
+              <span class="cause-title"><span class="cause-icon">{{ forloop.counter }}</span>{{ grupo.categoria.nombre }}</span>
+              <span class="cause-chevron" aria-hidden="true">⌄</span>
+            </summary>
+            <div class="cause-body">
+              <table class="check-table">
+                <thead>
+                  <tr>
+                    <th scope="col">N°</th>
+                    <th scope="col">Pregunta / Aspecto a evaluar</th>
+                    <th scope="col">Sí</th>
+                    <th scope="col">No</th>
+                    <th scope="col">NA</th>
+                    <th scope="col">Comentarios</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for pregunta in grupo.preguntas %}
+                    <tr>
+                      <td class="question-code">{{ pregunta.obj.codigo }}</td>
+                      <td><span id="question-{{ pregunta.obj.codigo|slugify }}">{{ pregunta.texto }}</span></td>
+                      {% for opcion in pregunta.respuesta %}
+                        <td class="choice-cell">
+                          <label aria-label="{{ opcion.choice_label }} para la pregunta {{ pregunta.obj.codigo }}">{{ opcion.tag }}<span class="sr-only">{{ opcion.choice_label }}</span></label>
+                        </td>
+                      {% endfor %}
+                      <td class="comment-cell">{{ pregunta.comentario }}{{ pregunta.respuesta.errors }}{{ pregunta.comentario.errors }}</td>
+                    </tr>
+
+                    {% if pregunta.obj.codigo == '4.1' %}
+                      <tr class="control-row">
+                        <td colspan="6">
+                          <fieldset class="control-details" data-control-details>
+                            <legend class="sr-only">Información del control existente</legend>
+                            <div class="control-line">
+                              <span class="control-code">4.1.1</span>
+                              <span class="control-label">Tipo de control</span>
+                              <div class="control-value control-options">{{ form.control_tipos }}{{ form.control_tipos.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.2</span>
+                              <label class="control-label" for="{{ form.control_nombre.id_for_label }}">Nombre del control</label>
+                              <div class="control-value">{{ form.control_nombre }}{{ form.control_nombre.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.3</span>
+                              <label class="control-label" for="{{ form.control_descripcion.id_for_label }}">Descripción del control</label>
+                              <div class="control-value">{{ form.control_descripcion }}{{ form.control_descripcion.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.4</span>
+                              <span class="control-label">¿El control mitiga riesgo?</span>
+                              <div class="control-value control-options">{{ form.control_mitiga_riesgo }}{{ form.control_mitiga_riesgo.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.5</span>
+                              <label class="control-label" for="{{ form.control_frecuencia.id_for_label }}">Frecuencia de ejecución</label>
+                              <div class="control-value">{{ form.control_frecuencia }}{{ form.control_frecuencia.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.6</span>
+                              <label class="control-label" for="{{ form.control_responsable.id_for_label }}">Responsable</label>
+                              <div class="control-value">{{ form.control_responsable }}{{ form.control_responsable.errors }}</div>
+                            </div>
+                            <div class="control-line">
+                              <span class="control-code">4.1.7</span>
+                              <label class="control-label" for="{{ form.control_evidencia.id_for_label }}">Evidencia</label>
+                              <div class="control-value">{{ form.control_evidencia }}{{ form.control_evidencia.errors }}</div>
+                            </div>
+                          </fieldset>
+                        </td>
+                      </tr>
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+
+      <div class="form-actions cause-actions">
+        <a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver</a>
+        <div class="toolbar right">
+          <button class="btn" type="submit" name="finalizar" value="0">▣ Guardar checklist</button>
+          <button class="btn primary" type="submit" name="finalizar" value="1">Completar y habilitar paso 3 →</button>
+        </div>
+      </div>
+    </section>
+  </form>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/causa.js' %}?v=6m-1"></script>{% endblock %}

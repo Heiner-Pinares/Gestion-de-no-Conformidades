@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block content %}
+<div class="shell identificacion-v8">
+  <div class="crumb">⌂ &nbsp;<a href="{% url 'inicio' %}">Panel principal</a> &nbsp;/&nbsp; Registro</div>
+  <div class="case-head"><div><h1 class="page-title">Registro de Solicitud de Acción Correctiva</h1><div class="page-sub">Completa la información de la no conformidad para iniciar el análisis.</div></div></div>
+  {% include 'includes/stepper.html' %}
+  <div class="info"><div class="i">i</div><div><b>Al completar la identificación pasarás al análisis de causa raíz.</b><br>El checklist 6M se guarda por categoría y debe completarse antes de habilitar la solución inmediata y las acciones correctivas del paso 3.</div></div>
+
+  <form method="post" class="card form-card" novalidate>
+    {% csrf_token %}{% if hallazgo %}<input type="hidden" name="version" value="{{ version }}">{% endif %}
+
+    <section class="proceso-bloque" aria-labelledby="tituloProceso">
+      <div class="section-h" id="tituloProceso">Proceso</div>
+      {% if form.errors %}<div class="form-errors" role="alert">Revisa los campos señalados.{{ form.non_field_errors }}</div>{% endif %}
+      <div class="proceso-grid">
+        {% for campo in form.campos_proceso %}{% include 'includes/field.html' with field=campo %}{% endfor %}
+      </div>
+    </section>
+
+    <div class="section-h identificacion-titulo">1. Identificación</div>
+    <div class="form-grid identificacion-columnas">
+      <div class="identificacion-columna">
+        {% include 'includes/identificacion_campo.html' with field=form.tipo_registro %}
+        {% include 'includes/identificacion_campo.html' with field=form.fuente_deteccion %}
+        <div class="pair"><div class="lab"><label for="hallazgoCode">N° Hallazgo</label></div><div class="val"><input id="hallazgoCode" class="input readonly-strong case-code" value="{% if hallazgo %}{{ hallazgo.codigo }}{% else %}Se generará automáticamente{% endif %}" readonly><div class="helper">Formato automático: SAC-ABC-YYYY-NNNN.</div></div></div>
+        {% include 'includes/identificacion_campo.html' with field=form.ticket_remedy etiqueta='N° Ticket remedy (si aplica)' %}
+        {% include 'includes/identificacion_campo.html' with field=form.descripcion etiqueta='Descripción de la no conformidad' %}
+        {% include 'includes/identificacion_campo.html' with field=form.responsable %}
+        {% include 'includes/identificacion_campo.html' with field=form.fecha_deteccion etiqueta='Fecha de detección' %}
+      </div>
+      <div class="identificacion-columna">
+        <div class="pair"><div class="lab"><label for="fechaRegistro">Fecha de registro</label></div><div class="val"><input id="fechaRegistro" class="input readonly-strong" type="date" value="{% if hallazgo %}{{ hallazgo.fecha_registro|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" readonly><div class="helper">Se completa automáticamente con la fecha actual y no puede modificarse.</div></div></div>
+        {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución' ayuda='No se permiten fechas anteriores a la fecha actual.' %}
+        <div class="pair">
+          <div class="lab"><label for="impactoResumen">Impacto (si aplica)</label></div>
+          <div class="val">
+            <div class="inline-control">
+              <input id="impactoResumen" class="input readonly-strong" value="{{ form.impacto_resumen }}" readonly>
+              <details id="impactoDetails" class="impacto-desplegable"{% if form.impacto_errores %} open{% endif %}>
+                <summary class="btn matrix">Evaluar impacto</summary>
+                <div class="impacto-panel">
+                  <strong>Evaluación de impacto</strong>
+                  <p class="helper">Selecciona un nivel para cada criterio y pulsa “Guardar evaluación”.</p>
+                  <table class="impact-matrix">
+                    <thead><tr><th>Criterio</th><th>Pendiente</th><th>Bajo</th><th>Medio</th><th>Alto</th></tr></thead>
+                    <tbody>{% for campo in form.campos_impacto %}<tr><th scope="row">{{ campo.label }}{{ campo.errors }}</th>{% for radio in campo %}<td><label>{{ radio.tag }}<span class="sr-only">{{ campo.label }}: {{ radio.choice_label }}</span></label></td>{% endfor %}</tr>{% endfor %}</tbody>
+                  </table>
+                  <p id="impactoError" class="impacto-error" role="alert" hidden>Selecciona Bajo, Medio o Alto en los tres criterios.</p>
+                  <div class="impacto-acciones"><button type="button" class="btn" id="cancelarImpacto">Cancelar</button><button type="button" class="btn primary" id="guardarImpacto">Guardar evaluación</button></div>
+                </div>
+              </details>
+            </div>
+            <div class="matrix-result"><span class="matrix-dot"></span><span id="impactoMensaje">Completa la matriz Clientes / Tiempo / Soles.</span></div>
+          </div>
+        </div>
+        {% include 'includes/identificacion_campo.html' with field=form.urgencia etiqueta='Urgencia (si aplica)' %}
+        <div class="pair"><div class="lab"><label for="prioridadResumen">Prioridad / Criticidad (si aplica)</label></div><div class="val"><input id="prioridadResumen" class="input readonly-strong" value="{% if hallazgo.prioridad_snapshot %}{{ hallazgo.prioridad_snapshot }}{% else %}Pendiente de cálculo{% endif %}" readonly><div class="helper">Se calcula automáticamente según el impacto máximo y la urgencia seleccionada.</div></div></div>
+        {% include 'includes/identificacion_campo.html' with field=form.es_critica ayuda='Esta clasificación determina si el análisis de causa raíz es obligatorio.' %}
+      </div>
+    </div>
+
+    <div class="actions"><button class="btn" type="submit" name="accion" value="borrador">{% if hallazgo %}Guardar cambios{% else %}▣ Guardar borrador{% endif %}</button>{% if form.puede_continuar %}<button class="btn primary" type="submit" name="accion" value="continuar">Continuar →</button>{% else %}<a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver al hallazgo</a>{% endif %}</div>
+  </form>
+  {{ form.matriz_prioridad|json_script:"matrizPrioridad" }}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const detalles = document.getElementById('impactoDetails');
+  const impacto = document.getElementById('impactoResumen');
+  const prioridad = document.getElementById('prioridadResumen');
+  const urgencia = document.getElementById('id_urgencia');
+  const mensaje = document.getElementById('impactoMensaje');
+  const error = document.getElementById('impactoError');
+  const matriz = JSON.parse(document.getElementById('matrizPrioridad').textContent);
+  const etiquetas = {1: 'Bajo', 2: 'Medio', 3: 'Alto'};
+
+  function niveles() {
+    return ['impacto_clientes', 'impacto_tiempo', 'impacto_soles'].map(nombre => {
+      const marcado = document.querySelector(`input[name="${nombre}"]:checked`);
+      return marcado && marcado.value ? Number(marcado.value) : null;
+    });
+  }
+
+  function actualizarPrioridad(nivel) {
+    if (!nivel || !urgencia.value) {
+      prioridad.value = 'Pendiente de cálculo';
+      return;
+    }
+    prioridad.value = matriz[`${nivel}-${urgencia.value}`] || 'Combinación sin configurar';
+  }
+
+  function guardarEvaluacion(cerrar) {
+    const valores = niveles();
+    if (valores.some(valor => !valor)) {
+      error.hidden = false;
+      return false;
+    }
+    const resultado = Math.max(...valores);
+    error.hidden = true;
+    impacto.value = etiquetas[resultado];
+    mensaje.textContent = `Impacto ${etiquetas[resultado]} calculado automáticamente.`;
+    actualizarPrioridad(resultado);
+    if (cerrar) detalles.open = false;
+    return true;
+  }
+
+  document.getElementById('guardarImpacto').addEventListener('click', () => guardarEvaluacion(true));
+  document.getElementById('cancelarImpacto').addEventListener('click', () => { detalles.open = false; });
+  urgencia.addEventListener('change', () => {
+    const valores = niveles();
+    actualizarPrioridad(valores.every(Boolean) ? Math.max(...valores) : null);
+  });
+  document.querySelectorAll('input[name^="impacto_"]').forEach(control => control.addEventListener('change', () => { error.hidden = true; }));
+  if (niveles().every(Boolean)) guardarEvaluacion(false);
+})();
+</script>
+{% endblock %}

@@ -1,14 +1,10 @@
+> Registro de la implementación inicial. La estructura vigente y su validación se describen en [ESTRUCTURA_SIMPLIFICADA.md](ESTRUCTURA_SIMPLIFICADA.md); esa actualización reemplaza las referencias a tablas que se consolidaron.
+
 # Contrato interno de implementación
 
 Django 5.2 LTS, Python 3.12, PostgreSQL real. Todas las apps `apps.<nombre>`.
 
-## Responsabilidades de trabajo
-- Raíz: config, accounts, catalogos, seeds, ejecución PostgreSQL, integración, README y verificación.
-- Agente backend: apps/hallazgos completo salvo views.py y urls.py; modelos, services, selectors, forms y tests de dominio.
-- Agente UI: apps/hallazgos/views.py y urls.py, templates/**, static/**. No modificar models/services/forms.
-- Auditor negocio: docs de análisis, decisiones, supuestos y trazabilidad.
-
-## Accounts (raíz)
+## Accounts
 Usuario(AbstractUser): area, cargo, corporate_identifier (único nullable).
 Permisos funcionales en Usuario.Meta.permissions: registrar_hallazgo, validar_hallazgo, gestionar_tratamiento, evaluar_eficacia, cerrar_hallazgo, ver_todos_hallazgos, administrar_plataforma.
 Permisos se consultan `accounts.<codename>`. Roles USUARIO, VALIDADOR, ADMINISTRADOR. Admin no recibe validar/gestionar/evaluar/cerrar automáticamente.
@@ -16,7 +12,7 @@ Funciones `apps.accounts.permissions.es_administrador(user)`, `es_validador(user
 Context processor `apps.accounts.context_processors.perfil`: `es_admin`, `es_calidad`, `puede_registrar`, `roles_usuario`, `notificaciones_no_leidas`.
 Login /cuentas/login/, logout POST /cuentas/logout/. Home `/` name `inicio` pertenece hallazgos.urls sin namespace.
 
-## Catálogos (raíz)
+## Catálogos
 TipoRegistro(codigo PK str(3),nombre,activo)
 FuenteDeteccion(codigo PK str(30),nombre,activo)
 Proceso(id,nombre,activo,responsable FK Usuario nullable,validadores M2M Usuario)
@@ -27,7 +23,7 @@ MatrizPrioridad(id,impacto FK,urgencia FK,prioridad FK,activo,es_demo), Unique(i
 EstadoHallazgo(codigo PK str(30),nombre,orden) con los 13 estados aprobados. Estructural, no editar códigos/estado desde formularios.
 CategoriaCausa(codigo PK str(2),nombre,orden,activo), PreguntaCausa(codigo PK str(8),categoria FK,texto,orden,activo). Seed extrae 32 textos EXACTOS HTML. Editable por admin con historial snapshot.
 
-## Dominio (backend)
+## Dominio
 Usar UN app hallazgos modular (models/, services/ aceptables). Reexportar entidades desde models.
 Hallazgo: codigo único, titulo, tipo_registro FK, fuente_deteccion FK, proceso FK, subproceso FK nullable, descripcion, ticket_remedy, responsable FK, registrado_por FK, fecha_deteccion DateTime, fecha_registro DateTime auto, fecha_solucion Date nullable en borrador, impacto_clientes/tiempo/soles/resultante int nullable, urgencia FK nullable, prioridad FK nullable, prioridad_snapshot str, es_critica choices SI/NO/NA (blank borrador), origen_tecnologico bool, estado FK EstadoHallazgo (estado_id = código), version int, updated_at, updated_by. Código inmutable, tipo inmutable tras creación (devolver error si intentan cambiar; documentar). Draft permite campos incompletos salvo tipo/título/proceso/responsable. No cambios manuales de estado.
 CicloTratamiento: hallazgo FK related_name ciclos, numero, motivo, creado_por, fecha_inicio, fecha_fin nullable; unique hallazgo/numero. Hallazgo.ciclo_actual property devuelve último.
@@ -61,7 +57,7 @@ PBIService.guardar(*,usuario,hallazgo,datos)
 ComunicacionService.registrar(*,usuario,hallazgo,datos)
 EvidenciaService.subir(*,usuario,hallazgo,archivo,descripcion='',accion=None,analisis=None,evaluacion=None,cierre=None)
 
-## Forms API (backend)
+## Forms API
 HallazgoForm(data=None,instance=None,usuario=None) ModelForm solo fields autorizados; `datos` cleaned_data; borrador entrada no completa se valida al enviar. Fecha mínima en form/servicio.
 TransicionForm: comentario,version(optional),confirmar(required checkbox). Para todas transiciones, comentario servicio obligatorio en devolución/cancelación/reabrir/cerrar.
 AnalisisCausaForm: dinámico campos r_<codigo con punto reemplazado _>, c_<...>, causa_raiz, campos control_*; método datos_servicio() luego is_valid. `__init__(data=None,instance=None)`.
@@ -74,7 +70,7 @@ ComunicacionForm: destinatarios,medio,descripcion,fecha.
 EvidenciaForm: archivo,descripcion.
 BuscarHallazgoForm: codigo,estado,tipo_registro,proceso,fecha_desde,fecha_hasta (opcionales).
 
-## Selectors API (backend)
+## Selectors API
 `hallazgos_visibles(usuario)` scoped queryset select_related, `acciones_disponibles(usuario,hallazgo)` lista de (codigo,etiqueta); `timeline_hallazgo(hallazgo)` lista dict etiqueta/estado (Completado/Actual/Pendiente/No aplica), `indicadores(usuario)` dict numéricos; dashboard y reportes filtran alcance.
 
 ## Workflow acordado

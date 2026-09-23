@@ -1,0 +1,1 @@
+<div class="pair{% if field.name == 'descripcion' %} desc{% endif %}"><div class="lab"><label for="{{ field.id_for_label }}">{{ etiqueta|default:field.label }}</label></div><div class="val">{{ field }}{% if ayuda %}<div class="helper">{{ ayuda }}</div>{% endif %}{{ field.errors }}</div></div>

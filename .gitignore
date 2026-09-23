@@ -1,0 +1,11 @@
+.env
+.venv/
+.runtime/
+.cache/
+media/
+staticfiles/
+__pycache__/
+*.py[cod]
+.DS_Store
+.coverage
+htmlcov/

@@ -1,0 +1,9 @@
+<ol class="stepper case-stepper{% if variante == 'causa' %} cause-stepper{% endif %}" aria-label="Etapas de la solicitud">
+{% for paso in timeline %}
+  <li class="step{% if paso.estado == 'Completado' %} done{% elif paso.estado == 'Actual' %} active{% elif paso.estado == 'No aplica' %} na{% elif paso.bloqueado %} locked{% endif %}"{% if paso.estado == 'Actual' %} aria-current="step"{% endif %}>
+    <div class="bubble" aria-hidden="true">{{ forloop.counter }}</div>
+    <div>{{ forloop.counter }}. {{ paso.etiqueta }}{% if paso.linea2 %}<br>{{ paso.linea2 }}{% endif %}{% if paso.estado == 'No aplica' %}<br><span class="step-na-label">No aplica</span>{% endif %}</div>
+    {% if paso.estado != 'No aplica' %}<span class="sr-only">{{ paso.estado }}</span>{% endif %}
+  </li>
+{% endfor %}
+</ol>
