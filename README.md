@@ -57,6 +57,28 @@ Para desarrollo, `DEBUG=True` y `ENABLE_DEMO_DATA=True` permiten `python manage.
 
 ## Roles y acceso
 
+### Ingreso con cuenta corporativa Microsoft
+
+El login permite continuar con Microsoft Entra ID mediante OAuth 2.0 y el flujo de código de autorización con PKCE. En cada ingreso se sincronizan desde Microsoft Graph el nombre, apellidos, correo, puesto y área/departamento. El encabezado muestra el puesto y el área cuando están disponibles. Los tokens de Microsoft no se guardan en la base ni en la sesión; el portal conserva únicamente el identificador corporativo y los datos de perfil.
+
+Para habilitarlo, registra el portal como una aplicación web en Microsoft Entra ID y configura exactamente esta URI de redirección para desarrollo:
+
+```text
+http://localhost:8000/cuentas/microsoft/callback/
+```
+
+Agrega el permiso delegado de Microsoft Graph `User.Read`, crea un secreto de cliente y crea un archivo local `.env.local` con:
+
+```env
+MICROSOFT_SSO_ENABLED=True
+MICROSOFT_TENANT_ID=<Id. del directorio (inquilino)>
+MICROSOFT_CLIENT_ID=<Id. de la aplicación (cliente)>
+MICROSOFT_CLIENT_SECRET=<valor del secreto, no su identificador>
+MICROSOFT_REDIRECT_URI=http://localhost:8000/cuentas/microsoft/callback/
+```
+
+La autoridad usa el tenant corporativo indicado, por lo que no acepta cuentas personales ni otros directorios. La primera entrada crea un usuario con rol `USUARIO`; un administrador puede añadir roles funcionales desde **Usuarios y roles**. Si ya hay una cuenta local con el mismo correo, se vincula y conserva su contraseña local. En producción registra la URL HTTPS definitiva y cambia `MICROSOFT_REDIRECT_URI` por esa dirección exacta.
+
 | Perfil | Función | Alcance |
 |---|---|---|
 | Usuario | Crear, corregir, enviar y participar | Casos reportados, asignados o donde tenga una acción; edición según etapa y responsabilidad |
@@ -121,7 +143,7 @@ La suite utiliza PostgreSQL real y crea/destruye su base de pruebas. La cuenta u
 
 Revisar `docs/ASSUMPTIONS.md`. Faltan DOC-CAT-001 y la definición oficial de comunicación; aprobar matriz, alcance de roles, correlativo, NA, escalamiento de no críticas tras no eficacia y cancelación de acciones. El sistema no cambia automáticamente la criticidad en una reapertura.
 
-SSO/LDAP/Entra ID, Remedy/Helix, correo, antivirus de archivos, límites de intentos de login, backup/restauración y despliegue HTTPS requieren diseño/configuración operacional. No están simulados como integraciones terminadas. El cambio a producción requiere DEBUG=False, dominio autorizado, secretos nuevos, HTTPS, servidor WSGI/ASGI y entrega de estáticos con collectstatic; nunca publicar MEDIA_ROOT directamente. La versión entregada es local y no constituye una certificación productiva del proceso.
+La integración de Microsoft Entra ID está implementada, pero requiere registrar la aplicación y cargar las credenciales del tenant de la organización. LDAP, Remedy/Helix, correo, antivirus de archivos, límites de intentos del login local, backup/restauración y despliegue HTTPS requieren diseño/configuración operacional. El cambio a producción requiere DEBUG=False, dominio autorizado, secretos nuevos, HTTPS, servidor WSGI/ASGI y entrega de estáticos con collectstatic; nunca publicar MEDIA_ROOT directamente. La versión entregada es local y no constituye una certificación productiva del proceso.
 
 Referencia de soporte del framework: https://www.djangoproject.com/download/ y https://docs.djangoproject.com/en/5.2/ .
 

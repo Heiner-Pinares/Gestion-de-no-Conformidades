@@ -9,14 +9,14 @@ Esta matriz registra la implementación local. Las aprobaciones de negocio pendi
 | Django + PostgreSQL, Custom User | config/settings.py, accounts/models.py, migraciones iniciales | migrate, check, suite sobre PostgreSQL |
 | Diseño v8, login, SVG | portal-v8.css, includes/arte_*.html, base y registration/login | Revisión en navegador a 1366 y tablet 768; pruebas HTTP |
 | Roles múltiples, separación admin/calidad | accounts/permissions.py, semilla grupos, Proceso.validadores | test_roles_y_aislamiento, test_no_autovalidacion_multirrol |
-| Registro, borrador, envío | HallazgoForm, HallazgoService, WorkflowService | test_post_registro_no_acepta_estado_sac_del_cliente |
-| SAC concurrente e inmutable | CodigoSACService, CorrelativoSAC UNIQUE, transaction/lock | test_postgresql_reserva_concurrente_sac, test_sac_unico_y_tipo_inmutable |
+| Registro sin borrador y ruta por criticidad | HallazgoForm, HallazgoService, WorkflowService: crítica → análisis; no crítica → solución inmediata | test_registro_critico_va_directo_a_analisis_sin_validacion, test_registro_continua_sin_actividad_ni_referencias_retiradas |
+| SAC concurrente y sincronizado con el tipo | CodigoSACService, CorrelativoSAC UNIQUE, transaction/lock; corrección trazable durante análisis | test_postgresql_reserva_concurrente_sac, test_sac_unico_y_tipo_protegido_fuera_del_analisis, test_registro_continua_sin_actividad_ni_referencias_retiradas |
 | Fechas e impacto | validar_datos, ImpactoService | test_fecha_impacto_prioridad_y_na |
 | Prioridad configurable | MatrizPrioridad, PrioridadService | falta de combinación activa bloquea y registra warning |
 | Devolución, corrección y validación | WorkflowService, version del hallazgo | test_devolucion_correccion_y_reenvio, test_version_y_atomicidad |
 | No crítica: corrección/comunicación/verificación | Accion, ComunicacionHallazgo, guards | test_no_critica_recorrido_completo, test_no_saltos_ni_cierre_sin_eficacia_comunicacion |
 | Crítica: 6M y PBI si tecnológica | AnalisisCausa, RespuestaCausa, ControlProceso, PBI | test_critica_tecnologica_exige_6m_pbi_y_correctivas |
-| 32 preguntas preservadas, snapshots | preguntas_6m.json, seed, checklist_snapshot | test_control_6m_obligatorio_y_snapshot, test_semillas_idempotentes |
+| Checklist 6M: 26 preguntas base y “Otro” opcional por categoría | preguntas_6m.json, checklist_snapshot y respuestas JSON del ciclo; agregar/deshacer sin tabla adicional | test_control_6m_obligatorio_y_snapshot, test_otro_6m_se_agrega_responde_y_deshace_sin_tabla_adicional |
 | Acciones 1:N, seguimiento, reprogramación | AccionService + modelos normalizados | test_reprogramaciones_maximo_y_fet_inmutable |
 | Eficacia, cierre y reapertura | EficaciaService, CierreHallazgo, CicloTratamiento | test_no_eficaz_preserva_ciclo_y_reabre, test_reapertura_manual_no_borra_cierre |
 | Evidencias privadas y validadas | EvidenciaService + descarga con autorización | test_archivos_y_descarga_privada |

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}Análisis de causa raíz{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/causa.css' %}?v=6m-2">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/causa.css' %}?v=6m-3">{% endblock %}
 {% block content %}
 <div class="shell cause-page">
   <div class="crumb">
@@ -102,6 +102,28 @@
                       </tr>
                     {% endif %}
                   {% endfor %}
+                  {% if grupo.otro %}
+                    <tr class="custom-question-row" data-other-row{% if not grupo.otro.activo.value %} hidden{% endif %}>
+                      <td class="question-code">{{ grupo.otro.pregunta.codigo }}</td>
+                      <td class="custom-question-text">
+                        {{ grupo.otro.activo }}
+                        {{ grupo.otro.texto }}
+                        {{ grupo.otro.texto.errors }}
+                      </td>
+                      {% for opcion in grupo.otro.respuesta %}
+                        <td class="choice-cell">
+                          <label aria-label="{{ opcion.choice_label }} para la pregunta adicional {{ grupo.otro.pregunta.codigo }}">{{ opcion.tag }}<span class="sr-only">{{ opcion.choice_label }}</span></label>
+                        </td>
+                      {% endfor %}
+                      <td class="comment-cell custom-comment">
+                        <div class="custom-comment-fields">{{ grupo.otro.comentario }}<button class="btn other-undo" type="button" data-undo-other>Deshacer</button></div>
+                        {{ grupo.otro.respuesta.errors }}{{ grupo.otro.comentario.errors }}
+                      </td>
+                    </tr>
+                    <tr class="other-action-row">
+                      <td colspan="6"><button class="btn other-add" type="button" data-add-other{% if grupo.otro.activo.value %} hidden{% endif %}>＋ Otro</button></td>
+                    </tr>
+                  {% endif %}
                 </tbody>
               </table>
             </div>
@@ -110,7 +132,7 @@
       </div>
 
       <div class="form-actions cause-actions">
-        <a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver</a>
+        <a class="btn" href="{% url 'hallazgo_editar' hallazgo.pk %}">Volver a identificación</a>
         <div class="toolbar right">
           <button class="btn" type="submit" name="finalizar" value="0">▣ Guardar checklist</button>
           <button class="btn primary" type="submit" name="finalizar" value="1">Completar y habilitar paso 3 →</button>
@@ -120,4 +142,4 @@
   </form>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/causa.js' %}?v=6m-1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/causa.js' %}?v=6m-2"></script>{% endblock %}

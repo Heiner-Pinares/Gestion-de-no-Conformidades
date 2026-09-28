@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Actividades creadas{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=2">{% endblock %}
+{% block content %}
+<div class="shell activity-page">
+  <div class="success activity-success">✓ La No Conformidad {{ hallazgo.codigo }} y sus actividades fueron guardadas correctamente.</div>
+  <h1 class="page-title spaced">Actividades de la No Conformidad creada</h1>
+  <p class="page-sub"><strong class="case-code">{{ hallazgo.codigo }}</strong> · Las acciones ya se registraron como actividades para seguimiento.</p>
+
+  <section class="card activity-confirm-table table-scroll spaced">
+    <table>
+      <thead><tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>FET inicial</th><th>Estado</th><th>Eficiencia base</th></tr></thead>
+      <tbody>
+        {% for accion in acciones %}
+          <tr>
+            <td><strong class="case-code">{{ accion.codigo }}</strong></td>
+            <td>{{ accion.descripcion }}</td>
+            <td>{{ accion.responsable|default:'Sin asignar' }}</td>
+            <td>{{ accion.fet_inicial|date:'d/m/Y'|default:'—' }}</td>
+            <td><span class="badge b-amber">{{ accion.get_estado_display }}</span></td>
+            <td><strong>{{ accion.eficiencia }}%</strong></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="empty">No hay actividades registradas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <div class="activity-page-actions">
+    <a class="btn" href="{% url 'inicio' %}">← Volver al panel</a>
+    <a class="btn primary" href="{% url 'hallazgo_acciones_seguimiento' hallazgo.pk %}">Ver seguimiento de actividades →</a>
+  </div>
+</div>
+{% endblock %}

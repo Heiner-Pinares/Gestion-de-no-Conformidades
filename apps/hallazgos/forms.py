@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.catalogos.models import MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro
+from apps.catalogos.models import ConfiguracionImpacto, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro
 from .estados import ESTADOS
 from .models import Accion, CicloTratamiento, ComunicacionHallazgo, EvaluacionEficacia, Hallazgo, PBI, SI_NO_NA
 from .services.evidencia import validar_archivo
@@ -26,7 +26,7 @@ class EstiloForm:
 class HallazgoForm(EstiloForm, forms.ModelForm):
     CAMPOS_VISIBLES = [
         "tipo_registro", "fuente_deteccion", "proceso", "subproceso", "actividad",
-        "descripcion", "ticket_remedy", "responsable", "fecha_deteccion", "fecha_solucion",
+        "descripcion", "origen_tecnologico", "ticket_remedy", "responsable", "fecha_deteccion", "fecha_solucion",
         "impacto_clientes", "impacto_tiempo", "impacto_soles", "urgencia", "es_critica",
     ]
 
@@ -53,18 +53,43 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         self.fields["descripcion"].widget.attrs["placeholder"] = "Describe de forma clara y concisa la no conformidad encontrada..."
         for nombre in ("tipo_registro", "fuente_deteccion", "urgencia"):
             self.fields[nombre].empty_label = "Seleccionar"
-        self.fields["es_critica"].choices = [("", "Seleccionar")] + SI_NO_NA
+        self.fields["es_critica"].choices = [
+            ("", "Seleccionar"),
+            ("SI", "Sí - Crítica"),
+            ("NO", "No - No crítica"),
+        ]
+        self.fields["origen_tecnologico"] = forms.TypedChoiceField(
+            label="¿Es hallazgo tecnológico?",
+            choices=[(True, "Sí"), (False, "No")],
+            coerce=lambda valor: valor in (True, "True", "true", "1"),
+            empty_value=False,
+            initial=instance.origen_tecnologico if instance and instance.pk else False,
+            required=False,
+            widget=forms.RadioSelect,
+        )
         if not self.is_bound and not (instance and instance.pk):
             procesos = list(self.fields["proceso"].queryset[:2])
             if len(procesos) == 1:
                 self.initial["proceso"] = procesos[0].pk
         self.fields["responsable"].queryset = get_user_model().objects.filter(is_active=True).order_by("first_name", "username")
         for nombre in ("impacto_clientes", "impacto_tiempo", "impacto_soles"):
-            self.fields[nombre] = forms.TypedChoiceField(label=nombre.replace("impacto_", "").capitalize(), choices=[("", "Pendiente"), (1, "Bajo"), (2, "Medio"), (3, "Alto")], coerce=int, empty_value=None, required=False, widget=forms.RadioSelect)
+            self.fields[nombre] = forms.TypedChoiceField(
+                label=nombre.replace("impacto_", "").capitalize(),
+                choices=[(1, "Bajo"), (2, "Medio"), (3, "Alto")],
+                coerce=int, empty_value=None, required=False, widget=forms.RadioSelect,
+            )
         self.fields["fecha_solucion"].widget.attrs["min"] = timezone.localdate().isoformat()
-        self.fields["tipo_registro"].help_text = "El tipo y el código SAC quedan fijos al crear el borrador."
-        self.fields["es_critica"].help_text = "No aplica conserva el borrador; antes de enviar debe definir Sí o No."
-        if instance and instance.pk:
+        self.fields["tipo_registro"].help_text = "El tipo define el prefijo del código SAC automático."
+        self.fields["es_critica"].help_text = "Antes de continuar debe definir Sí o No."
+        puede_corregir = instance and instance.pk and (
+            instance.estado == "EN_ANALISIS"
+            or (
+                instance.estado == "ACCION_INMEDIATA"
+                and instance.ciclo_actual is not None
+                and not instance.ciclo_actual.acciones.exists()
+            )
+        )
+        if instance and instance.pk and not puede_corregir:
             self.fields["tipo_registro"].disabled = True
         elif usuario:
             self.fields["responsable"].initial = usuario.pk
@@ -86,6 +111,8 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         sub, proceso = datos.get("subproceso"), datos.get("proceso")
         if sub and proceso and sub.proceso_id != proceso.pk:
             self.add_error("subproceso", "El subproceso debe pertenecer al proceso seleccionado.")
+        if datos.get("origen_tecnologico") and not datos.get("ticket_remedy", "").strip():
+            self.add_error("ticket_remedy", "Este campo es obligatorio para hallazgos tecnológicos.")
         if not datos.get("aplica_impacto", True):
             if datos.get("origen_tecnologico"):
                 self.add_error("aplica_impacto", "El impacto es obligatorio para un origen tecnológico.")
@@ -123,12 +150,19 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         }
 
     @property
+    def configuracion_impacto(self):
+        return ConfiguracionImpacto.objects.filter(pk=1).first() or ConfiguracionImpacto()
+
+    @property
     def campos_proceso(self):
         return [self[n] for n in ("proceso", "subproceso", "actividad")]
 
     @property
     def puede_continuar(self):
-        return not self.instance.pk or self.instance.estado in {"BORRADOR", "DEVUELTO"}
+        if not self.instance.pk or self.instance.estado in {"BORRADOR", "DEVUELTO", "EN_ANALISIS"}:
+            return True
+        ciclo = self.instance.ciclo_actual
+        return self.instance.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()
 
 
 class TransicionForm(EstiloForm, forms.Form):
@@ -163,11 +197,41 @@ class AnalisisCausaForm(EstiloForm, forms.Form):
         snapshot = {str(p["id"]): p for p in instance.checklist_snapshot} if instance and instance.checklist_snapshot else {}
         consulta = PreguntaCausa.objects.select_related("categoria")
         self.preguntas = list(consulta.filter(pk__in=snapshot) if snapshot else consulta.filter(activo=True, categoria__activo=True))
+        self.preguntas_fijas = []
+        self.preguntas_otro = []
         self.categorias = []
         grupos = {}
         for pregunta in self.preguntas:
             nombre = pregunta.codigo.replace(".", "_")
             version = snapshot.get(str(pregunta.pk), {"codigo": pregunta.codigo, "texto": pregunta.texto})
+            grupo = grupos.setdefault(pregunta.categoria_id, {"categoria": pregunta.categoria, "preguntas": [], "otro": None})
+            es_otro = version.get("es_otro", version["texto"].strip().rstrip(":").casefold() == "otro")
+            if es_otro:
+                self.preguntas_otro.append(pregunta)
+                self.fields[f"a_{nombre}"] = forms.BooleanField(required=False, widget=forms.HiddenInput)
+                self.fields[f"t_{nombre}"] = forms.CharField(
+                    label=f"Pregunta adicional {version['codigo']}", required=False, max_length=500,
+                    widget=forms.TextInput(attrs={"placeholder": "Escribe el punto o pregunta adicional..."}),
+                )
+                self.fields[f"r_{nombre}"] = forms.ChoiceField(
+                    label=f"Respuesta {version['codigo']}", choices=SI_NO_NA, required=False, widget=forms.RadioSelect,
+                )
+                self.fields[f"c_{nombre}"] = forms.CharField(
+                    label=f"Comentario {version['codigo']}", required=False,
+                    widget=forms.TextInput(attrs={"placeholder": "Escribe un comentario..."}),
+                )
+                previa = existentes.get(str(pregunta.pk))
+                if previa:
+                    self.initial[f"a_{nombre}"] = True
+                    self.initial[f"t_{nombre}"] = previa.get("texto_snapshot", "")
+                    self.initial[f"r_{nombre}"] = previa["respuesta"]
+                    self.initial[f"c_{nombre}"] = previa["comentario"]
+                grupo["otro"] = {
+                    "pregunta": pregunta, "activo": self[f"a_{nombre}"], "texto": self[f"t_{nombre}"],
+                    "respuesta": self[f"r_{nombre}"], "comentario": self[f"c_{nombre}"],
+                }
+                continue
+            self.preguntas_fijas.append(pregunta)
             self.fields[f"r_{nombre}"] = forms.ChoiceField(
                 label=f"{version['codigo']}. {version['texto']}",
                 choices=SI_NO_NA,
@@ -183,7 +247,6 @@ class AnalisisCausaForm(EstiloForm, forms.Form):
             if previa:
                 self.initial[f"r_{nombre}"] = previa["respuesta"]
                 self.initial[f"c_{nombre}"] = previa["comentario"]
-            grupo = grupos.setdefault(pregunta.categoria_id, {"categoria": pregunta.categoria, "preguntas": []})
             grupo["preguntas"].append({"pregunta": pregunta, "texto": version["texto"], "respuesta": self[f"r_{nombre}"], "comentario": self[f"c_{nombre}"]})
         self.categorias = list(grupos.values())
         if instance:
@@ -192,14 +255,39 @@ class AnalisisCausaForm(EstiloForm, forms.Form):
                 self.initial[f"control_{nombre}"] = valor
         self.estilizar()
 
+    def clean(self):
+        datos = super().clean()
+        for pregunta in self.preguntas_otro:
+            nombre = pregunta.codigo.replace(".", "_")
+            if not datos.get(f"a_{nombre}"):
+                continue
+            if not datos.get(f"t_{nombre}", "").strip():
+                self.add_error(f"t_{nombre}", "Escribe el punto o pregunta adicional.")
+            if not datos.get(f"r_{nombre}"):
+                self.add_error(f"r_{nombre}", "Selecciona Sí, No o NA.")
+        return datos
+
     def datos_servicio(self):
         respuestas = []
-        for pregunta in self.preguntas:
+        for pregunta in self.preguntas_fijas:
             nombre = pregunta.codigo.replace(".", "_")
             valor = self.cleaned_data.get(f"r_{nombre}")
             if valor:
                 respuestas.append({"pregunta": pregunta, "respuesta": valor, "comentario": self.cleaned_data.get(f"c_{nombre}", "")})
+        otros_activos = []
+        for pregunta in self.preguntas_otro:
+            nombre = pregunta.codigo.replace(".", "_")
+            if not self.cleaned_data.get(f"a_{nombre}"):
+                continue
+            otros_activos.append(str(pregunta.pk))
+            respuestas.append({
+                "pregunta": pregunta,
+                "texto_personalizado": self.cleaned_data[f"t_{nombre}"].strip(),
+                "respuesta": self.cleaned_data[f"r_{nombre}"],
+                "comentario": self.cleaned_data.get(f"c_{nombre}", ""),
+            })
         return {"causa_raiz": self.cleaned_data["causa_raiz"], "respuestas": respuestas,
+            "otros_activos": otros_activos,
             "control": {nombre: self.cleaned_data[f"control_{nombre}"] for nombre in ("tipos", "nombre", "descripcion", "mitiga_riesgo", "frecuencia", "responsable", "evidencia")}}
 
 
@@ -221,6 +309,62 @@ class AccionForm(EstiloForm, forms.ModelForm):
         inicio, fin = datos.get("fecha_inicio"), datos.get("fet_inicial")
         if fin and (fin < timezone.localdate() or (inicio and fin < inicio)):
             self.add_error("fet_inicial", "El compromiso no puede ser anterior a hoy ni al inicio.")
+        return datos
+
+
+class ActividadPlanForm(EstiloForm, forms.Form):
+    tipo = forms.ChoiceField(choices=Accion.TIPOS)
+    descripcion = forms.CharField(widget=forms.TextInput(attrs={"placeholder": "Describe la actividad"}))
+    responsable = forms.ModelChoiceField(queryset=get_user_model().objects.none(), required=False, empty_label="Responsable AC")
+    fet_inicial = forms.DateField(label="FET inicial", required=False, widget=FECHA)
+    estado = forms.ChoiceField(choices=Accion.ESTADOS)
+
+    def __init__(self, *args, es_critica=True, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["responsable"].queryset = get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
+        if not es_critica:
+            self.fields["tipo"].choices = Accion.TIPOS[:2]
+        self.fields["fet_inicial"].widget.attrs["min"] = timezone.localdate().isoformat()
+        self.estilizar()
+
+    def clean_fet_inicial(self):
+        valor = self.cleaned_data.get("fet_inicial")
+        if valor and valor < timezone.localdate():
+            raise ValidationError("La FET no puede ser anterior a hoy.")
+        return valor
+
+    def datos_servicio(self):
+        descripcion = self.cleaned_data["descripcion"].strip()
+        return {
+            "tipo": self.cleaned_data["tipo"],
+            "descripcion": descripcion,
+            "responsable": self.cleaned_data.get("responsable"),
+            "fecha_inicio": timezone.localdate(),
+            "fet_inicial": self.cleaned_data.get("fet_inicial"),
+            "estado": self.cleaned_data["estado"],
+            "resultado_esperado": descripcion,
+            "comentario": "",
+        }
+
+
+class SeguimientoLineaForm(forms.Form):
+    estado = forms.ChoiceField(choices=Accion.ESTADOS)
+    fecha_real = forms.DateField(required=False, widget=FECHA)
+
+    def __init__(self, *args, accion=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.accion = accion
+        self.fields["fecha_real"].widget.attrs["max"] = timezone.localdate().isoformat()
+
+    def clean(self):
+        datos = super().clean()
+        estado, fecha = datos.get("estado"), datos.get("fecha_real")
+        if estado == "COMPLETADA" and fecha is None:
+            self.add_error("fecha_real", "Indique la fecha real para completar la actividad.")
+        if estado != "COMPLETADA" and fecha is not None:
+            self.add_error("fecha_real", "La fecha real solo corresponde a una actividad completada.")
+        if fecha and (fecha < self.accion.fecha_inicio or fecha > timezone.localdate()):
+            self.add_error("fecha_real", "La fecha real debe estar entre el inicio de la actividad y hoy.")
         return datos
 
 
@@ -260,6 +404,11 @@ class EvaluacionEficaciaForm(EstiloForm, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fecha_evaluacion"].initial = timezone.localdate()
+        self.fields["resultado"].choices = [
+            (valor, "Seleccionar" if valor == "" else etiqueta)
+            for valor, etiqueta in self.fields["resultado"].choices
+        ]
+        self.fields["comentario"].widget.attrs["placeholder"] = "Registra el resultado de la evaluación..."
         self.estilizar()
 
 

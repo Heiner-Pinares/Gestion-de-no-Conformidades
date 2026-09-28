@@ -1,0 +1,22 @@
+{% extends 'base_admin.html' %}
+{% block title %}Hallazgos{% endblock %}
+{% block content %}
+<div class="admin-page-head">
+  <div class="admin-page-title"><span class="admin-page-icon">▤</span><div><h1>Hallazgos</h1><p>Bandeja general de casos registrados en el sistema.</p></div></div>
+</div>
+
+<form method="get" class="admin-filter">
+  {% for field in form %}<div class="field">{{ field.label_tag }}{{ field }}{{ field.errors }}</div>{% endfor %}
+  <div class="admin-filter-actions"><button class="btn primary" type="submit">Buscar</button><a href="{% url 'hallazgo_buscar' %}">Limpiar</a></div>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-table-wrap">
+    <table class="admin-table">
+      <thead><tr><th>Código</th><th>Proceso</th><th>Descripción</th><th>Responsable</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead>
+      <tbody>{% for caso in page_obj %}<tr><td class="code"><a href="{% url 'hallazgo_detalle' caso.pk %}">{{ caso.codigo }}</a></td><td>{{ caso.proceso }}</td><td>{{ caso.titulo|truncatechars:48 }}</td><td>{{ caso.responsable.get_full_name|default:caso.responsable.username }}</td><td><span class="admin-state {% if caso.estado == 'CERRADO' %}active{% elif caso.estado == 'DEVUELTO' or caso.estado == 'CANCELADO' %}returned{% elif caso.estado == 'EN_VERIFICACION' %}pending{% else %}review{% endif %}">{{ caso.get_estado_display }}</span></td><td>{{ caso.fecha_registro|date:'d/m/Y' }}</td><td class="admin-actions"><a class="admin-action-link" href="{% url 'hallazgo_detalle' caso.pk %}">Ver</a></td></tr>{% empty %}<tr><td colspan="7" class="admin-empty">No hay hallazgos para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <div class="admin-list-footer"><span>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ page_obj.paginator.count }} hallazgos</span>{% include 'includes/admin_paginacion.html' with pagina=page_obj %}</div>
+</section>
+{% endblock %}

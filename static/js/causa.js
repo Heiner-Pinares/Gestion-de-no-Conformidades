@@ -22,4 +22,31 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   controlQuestion.forEach((option) => option.addEventListener("change", syncControl));
   syncControl();
+
+  form.querySelectorAll("details.cause-accordion").forEach((accordion) => {
+    const row = accordion.querySelector("[data-other-row]");
+    const add = accordion.querySelector("[data-add-other]");
+    const undo = accordion.querySelector("[data-undo-other]");
+    if (!row || !add || !undo) return;
+    const active = row.querySelector('input[type="hidden"][name^="a_"]');
+    const question = row.querySelector('input[name^="t_"]');
+    const comment = row.querySelector('input[name^="c_"]');
+    const answers = [...row.querySelectorAll('input[type="radio"]')];
+
+    add.addEventListener("click", () => {
+      active.value = "1";
+      row.hidden = false;
+      add.hidden = true;
+      question.focus();
+    });
+    undo.addEventListener("click", () => {
+      active.value = "0";
+      question.value = "";
+      comment.value = "";
+      answers.forEach((answer) => { answer.checked = false; });
+      row.hidden = true;
+      add.hidden = false;
+      add.focus();
+    });
+  });
 });

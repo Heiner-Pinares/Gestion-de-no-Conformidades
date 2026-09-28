@@ -1,0 +1,84 @@
+{% extends 'base_admin.html' %}
+{% block title %}Inicio administrativo{% endblock %}
+{% block body_class %}admin-dashboard-page{% endblock %}
+{% block content %}
+<div class="admin-dashboard-layout">
+  <div class="admin-dashboard-main">
+    <section class="admin-welcome" aria-labelledby="admin-welcome-title">
+      {% include 'includes/admin_header_art.html' %}
+      <div class="admin-welcome-copy">
+        <span class="sr-only">Dashboard principal con resumen general del sistema.</span>
+        <p class="admin-greeting"><span>{% include 'includes/admin_icon.html' with icon='sun' %}</span>¡Hola, {{ user.first_name|default:'Administrador' }}!</p>
+        <h1 id="admin-welcome-title">Bienvenido al Portal Claro</h1>
+        <p>Aquí puedes gestionar y hacer seguimiento a las no conformidades del sistema.</p>
+      </div>
+    </section>
+
+    <section class="admin-dashboard-metrics" aria-label="Resumen general">
+      {% for metrica in metricas_admin %}
+        <article class="admin-dashboard-metric metric-{{ metrica.tono }}">
+          <div class="admin-dashboard-metric-head">
+            <span class="admin-dashboard-metric-icon">{% include 'includes/admin_icon.html' with icon=metrica.icono %}</span>
+            <div><strong>{{ metrica.valor|default:0 }}</strong><span>{{ metrica.etiqueta }}</span><small>{{ metrica.detalle }}</small></div>
+          </div>
+          <svg class="admin-sparkline" viewBox="0 0 180 34" preserveAspectRatio="none" aria-hidden="true">
+            <path class="spark-area" d="M0 28 L12 23 L27 25 L42 20 L58 24 L75 19 L92 21 L108 15 L125 18 L141 9 L158 13 L180 11 L180 34 L0 34Z"/>
+            <polyline points="0,28 12,23 27,25 42,20 58,24 75,19 92,21 108,15 125,18 141,9 158,13 180,11"/>
+          </svg>
+          <div class="admin-metric-comparison"><span class="{{ metrica.clase }}">{{ metrica.simbolo }}&nbsp; {{ metrica.porcentaje }}%</span><small>vs. mes anterior</small></div>
+        </article>
+      {% endfor %}
+    </section>
+
+    <section class="admin-panel admin-movements-panel">
+      <header class="admin-panel-head">
+        <span class="admin-dashboard-section-icon">{% include 'includes/admin_icon.html' with icon='clock' %}</span>
+        <div><h2>Últimos movimientos</h2><p>Actividad reciente en el sistema.</p></div>
+        <a class="admin-see-all" href="{% url 'hallazgo_buscar' %}">Ver todos <span>→</span></a>
+      </header>
+      <div class="admin-panel-body admin-table-wrap">
+        <table class="admin-table admin-movements-table">
+          <thead><tr><th>Fecha</th><th>Código</th><th>Descripción</th><th>Estado</th><th>Usuario</th><th>Acción</th></tr></thead>
+          <tbody>
+            {% for caso in recientes|slice:':5' %}
+              <tr>
+                <td>{{ caso.fecha_registro|date:'d/m/Y' }}</td>
+                <td class="code"><a href="{% url 'hallazgo_detalle' caso.pk %}">{{ caso.codigo }}</a></td>
+                <td title="{{ caso.titulo }}">{{ caso.titulo|truncatechars:30 }}</td>
+                <td><span class="admin-state {% if caso.estado == 'CERRADO' %}active{% elif caso.estado == 'DEVUELTO' or caso.estado == 'CANCELADO' %}returned{% elif caso.estado == 'PENDIENTE_VALIDACION' %}pending{% else %}review{% endif %}">{{ caso.get_estado_display }}</span></td>
+                <td>{{ caso.responsable.get_full_name|default:caso.responsable.username|truncatechars:24 }}</td>
+                <td class="admin-movement-action"><a href="{% url 'hallazgo_detalle' caso.pk %}">Ver&nbsp; →</a><span aria-hidden="true">{% include 'includes/admin_icon.html' with icon='more' %}</span></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="admin-empty">Todavía no hay movimientos.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <aside class="admin-dashboard-rail" aria-label="Información y accesos rápidos">
+    <div class="admin-date-card"><span>{% include 'includes/admin_icon.html' with icon='calendar' %}</span><time datetime="{% now 'Y-m-d' %}">{% now "l, d \d\e F \d\e Y" %}</time></div>
+    <section class="admin-panel admin-quick-panel">
+      <header class="admin-panel-head"><span class="admin-dashboard-section-icon">{% include 'includes/admin_icon.html' with icon='lightning' %}</span><div><h2>Accesos rápidos</h2><p>Funciones más utilizadas.</p></div></header>
+      <div class="admin-quick">
+        <a href="{% url 'hallazgo_buscar' %}"><span>{% include 'includes/admin_icon.html' with icon='search' %}</span><span><strong>Consultar hallazgos</strong><small>Búsqueda avanzada y filtros</small></span><b>›</b></a>
+        <a href="{% url 'validaciones_admin' %}"><span>{% include 'includes/admin_icon.html' with icon='check' %}</span><span><strong>Revisar cierres</strong><small>Vistos buenos pendientes</small></span><b>›</b></a>
+        <a href="{% url 'usuarios' %}"><span>{% include 'includes/admin_icon.html' with icon='users' %}</span><span><strong>Gestionar usuarios</strong><small>Administrar accesos</small></span><b>›</b></a>
+        <a href="{% url 'catalogos' %}"><span>{% include 'includes/admin_icon.html' with icon='database' %}</span><span><strong>Administrar catálogos</strong><small>Listas maestras</small></span><b>›</b></a>
+      </div>
+    </section>
+    <section class="admin-panel admin-system-panel">
+      <header><span class="admin-system-dot"></span><div><h2>Estado general del sistema</h2><p>Última actualización: {% now "d/m/Y H:i" %}</p></div><strong>Operativo</strong></header>
+      <div class="admin-system-summary">
+        <div class="blue"><b>{{ resumen.total|default:0 }}</b><span>Hallazgos</span></div>
+        <div class="amber"><b>{{ resumen.pendientes|default:0 }}</b><span>Pendientes</span></div>
+        <div class="purple"><b>{{ resumen.en_analisis|default:0 }}</b><span>En análisis</span></div>
+        <div class="green"><b>{{ resumen.cerrados|default:0 }}</b><span>Cerrados</span></div>
+      </div>
+    </section>
+  </aside>
+</div>
+{% endblock %}
+{% block admin_footer %}{% endblock %}

@@ -114,16 +114,25 @@ class CicloTratamiento(models.Model):
 
 
 class Accion(models.Model):
-    TIPOS = [("INMEDIATA", "Acción inmediata"), ("CORRECTIVA", "Acción correctiva")]
-    ESTADOS = [("PENDIENTE", "Pendiente"), ("EN_PROCESO", "En proceso"), ("COMPLETADA", "Completada")]
+    TIPOS = [
+        ("INMEDIATA", "Solución inmediata"),
+        ("ACCION_INMEDIATA", "Acción inmediata"),
+        ("CORRECTIVA", "Acción correctiva"),
+    ]
+    ESTADOS = [
+        ("PENDIENTE", "Pendiente"),
+        ("EN_PROCESO", "En proceso"),
+        ("COMPLETADA", "Terminado"),
+        ("CANCELADA", "Cancelado"),
+    ]
     ciclo = models.ForeignKey(CicloTratamiento, on_delete=models.PROTECT, related_name="acciones")
     codigo = models.CharField(max_length=50, unique=True, editable=False)
-    tipo = models.CharField(max_length=12, choices=TIPOS)
+    tipo = models.CharField(max_length=18, choices=TIPOS)
     descripcion = models.TextField()
-    responsable = models.ForeignKey(USER, on_delete=models.PROTECT, related_name="acciones_asignadas")
+    responsable = models.ForeignKey(USER, null=True, blank=True, on_delete=models.PROTECT, related_name="acciones_asignadas")
     fecha_inicio = models.DateField()
-    fet_inicial = models.DateField()
-    fecha_vigente = models.DateField()
+    fet_inicial = models.DateField(null=True, blank=True)
+    fecha_vigente = models.DateField(null=True, blank=True)
     fecha_real = models.DateField(null=True, blank=True)
     estado = models.CharField(max_length=12, choices=ESTADOS, default="PENDIENTE")
     porcentaje_avance = models.PositiveSmallIntegerField(default=0, validators=[MaxValueValidator(100)])
@@ -139,8 +148,8 @@ class Accion(models.Model):
             models.CheckConstraint(condition=Q(fet_inicial__gte=F("fecha_inicio")), name="accion_fet_desde_inicio"),
             models.CheckConstraint(condition=Q(fecha_vigente__gte=F("fecha_inicio")), name="accion_vigente_desde_inicio"),
             models.CheckConstraint(condition=Q(fecha_real__isnull=True) | Q(fecha_real__gte=F("fecha_inicio")), name="accion_real_desde_inicio"),
-            models.CheckConstraint(condition=Q(tipo__in=["INMEDIATA", "CORRECTIVA"]), name="accion_tipo_valido"),
-            models.CheckConstraint(condition=Q(estado__in=["PENDIENTE", "EN_PROCESO", "COMPLETADA"]), name="accion_estado_valido"),
+            models.CheckConstraint(condition=Q(tipo__in=["INMEDIATA", "ACCION_INMEDIATA", "CORRECTIVA"]), name="accion_tipo_valido"),
+            models.CheckConstraint(condition=Q(estado__in=["PENDIENTE", "EN_PROCESO", "COMPLETADA", "CANCELADA"]), name="accion_estado_valido"),
             models.CheckConstraint(condition=(Q(estado="COMPLETADA", porcentaje_avance=100, fecha_real__isnull=False) | (~Q(estado="COMPLETADA") & Q(porcentaje_avance__lt=100, fecha_real__isnull=True))), name="accion_completada_coherente"),
         ]
 

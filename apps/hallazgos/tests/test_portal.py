@@ -17,8 +17,8 @@ from PIL import Image
 from apps.accounts.models import Usuario
 from apps.catalogos.models import FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro, Urgencia
 from apps.hallazgos.forms import HallazgoForm
-from apps.hallazgos.models import Accion, Hallazgo, HistorialHallazgo, Notificacion
-from apps.hallazgos.selectors import hallazgos_visibles, timeline_hallazgo
+from apps.hallazgos.models import Accion, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
+from apps.hallazgos.selectors import acciones_disponibles, hallazgos_visibles, timeline_hallazgo
 from apps.hallazgos.services import AccionService, CausaService, ComunicacionService, EficaciaService, EvidenciaService, HallazgoService, PBIService, WorkflowService
 from apps.hallazgos.services.hallazgo import CodigoSACService, ImpactoService, PrioridadService
 
@@ -67,18 +67,141 @@ class Recorridos(TestCase):
 
     def analizar(self,h):
         self.paso(h,'iniciar_analisis')
-        return CausaService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(causa_raiz='Falta de control preventivo',respuestas=[dict(pregunta=p,respuesta='NO',comentario='Revisado') for p in PreguntaCausa.objects.all()],control={}),finalizar=True)
+        preguntas = [p for p in PreguntaCausa.objects.all() if p.texto.strip().rstrip(':').casefold() != 'otro']
+        return CausaService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(causa_raiz='Falta de control preventivo',respuestas=[dict(pregunta=p,respuesta='NO',comentario='Revisado') for p in preguntas],control={}),finalizar=True)
 
     def verificar(self,h):
         self.paso(h,'enviar_verificacion')
         return EficaciaService.evaluar(usuario=self.calidad,hallazgo=h,datos=dict(fecha_evaluacion=timezone.localdate(),resultado='EFICAZ',comentario='No se repite la desviación'))
 
     def test_no_critica_recorrido_completo(self):
-        h=self.crear(); self.inmediata(h); self.verificar(h); self.paso(h,'cerrar',self.calidad)
+        h=self.crear(); self.inmediata(h); self.verificar(h); self.paso(h,'cerrar',self.admin)
         self.assertEqual(h.estado,'CERRADO')
         self.assertEqual(h.ciclos.filter(fecha_cierre__isnull=False).count(),1)
-        self.assertEqual(sum(p['estado']=='No aplica' for p in timeline_hallazgo(h)),0)
+        self.assertEqual(sum(p['estado']=='No aplica' for p in timeline_hallazgo(h)),1)
         with self.assertRaises(ValidationError): self.accion(h)
+
+    def test_cierre_exige_visto_bueno_del_administrador(self):
+        h = self.crear()
+        self.inmediata(h)
+        self.verificar(h)
+        h.refresh_from_db()
+
+        with self.assertRaises(PermissionDenied):
+            self.paso(h, 'cerrar', self.calidad)
+        self.assertNotIn('cerrar', dict(acciones_disponibles(self.calidad, h)))
+        self.assertEqual(
+            dict(acciones_disponibles(self.admin, h))['cerrar'],
+            'Dar visto bueno y cerrar',
+        )
+
+        self.client.force_login(self.admin)
+        detalle = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
+        self.assertContains(detalle, 'Visto bueno administrativo y cierre')
+        self.assertContains(detalle, 'Dar visto bueno y cerrar')
+        respuesta = self.client.post(reverse('hallazgo_transicion', args=[h.pk, 'cerrar']), {
+            'comentario': 'Expediente revisado y conforme para el cierre.',
+            'version': h.version,
+            'confirmar': 'on',
+        })
+        self.assertEqual(respuesta.url, reverse('hallazgo_detalle', args=[h.pk]))
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'CERRADO')
+        self.assertEqual(h.ciclo_actual.responsable_cierre, self.admin)
+        self.assertEqual(h.ciclo_actual.resultado_cierre, 'EFICAZ')
+
+    def test_paso_cuatro_exige_todas_las_actividades_completadas_al_cien(self):
+        h=self.crear(); self.paso(h,'enviar'); self.paso(h,'validar',self.calidad); self.paso(h,'iniciar_inmediata')
+        actividad=self.accion(h)
+        with self.assertRaisesRegex(ValidationError, 'todas las actividades al 100'):
+            self.paso(h,'enviar_verificacion')
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'ACCION_INMEDIATA')
+        self.assertFalse(h.ciclo_actual.evaluaciones.exists())
+
+        # La misma regla protege el servicio aunque un estado histórico haya
+        # quedado manualmente en verificación.
+        Hallazgo.objects.filter(pk=h.pk).update(estado='EN_VERIFICACION')
+        h.refresh_from_db()
+        with self.assertRaisesRegex(ValidationError, 'todas las actividades al 100'):
+            EficaciaService.evaluar(usuario=self.calidad,hallazgo=h,datos=dict(
+                fecha_evaluacion=timezone.localdate(),resultado='EFICAZ',comentario='Intento anticipado'))
+
+        Hallazgo.objects.filter(pk=h.pk).update(estado='ACCION_INMEDIATA')
+        h.refresh_from_db()
+        self.completar(actividad)
+        self.paso(h,'enviar_verificacion')
+        EficaciaService.evaluar(usuario=self.calidad,hallazgo=h,datos=dict(
+            fecha_evaluacion=timezone.localdate(),resultado='EFICAZ',comentario='Todas las actividades están completadas'))
+        self.paso(h,'cerrar',self.admin)
+        self.assertEqual(h.estado,'CERRADO')
+
+    def test_plan_incluye_accion_inmediata_estados_y_confirmacion(self):
+        h = self.crear()
+        self.paso(h, 'enviar')
+        self.paso(h, 'validar', self.calidad)
+        self.paso(h, 'iniciar_inmediata')
+        self.client.force_login(self.usuario)
+
+        pantalla = self.client.get(reverse('hallazgo_accion', args=[h.pk]))
+        self.assertContains(pantalla, 'value="INMEDIATA"')
+        self.assertContains(pantalla, 'Solución inmediata')
+        self.assertContains(pantalla, 'value="ACCION_INMEDIATA"')
+        self.assertContains(pantalla, 'Acción inmediata')
+        for codigo, etiqueta in Accion.ESTADOS:
+            self.assertContains(pantalla, f'value="{codigo}"')
+            self.assertContains(pantalla, etiqueta)
+        self.assertContains(pantalla, '¿Enviar actividades?')
+        self.assertContains(pantalla, 'Estas actividades se enviarán a tu jefe para su revisión.')
+        self.assertContains(pantalla, 'data-confirm-activities')
+
+        plan = {
+            'actividades-TOTAL_FORMS': '2', 'actividades-INITIAL_FORMS': '0',
+            'actividades-MIN_NUM_FORMS': '1', 'actividades-MAX_NUM_FORMS': '1000',
+            'actividades-0-tipo': 'INMEDIATA',
+            'actividades-0-descripcion': 'Restablecer el servicio',
+            'actividades-0-responsable': '', 'actividades-0-fet_inicial': '',
+            'actividades-0-estado': 'PENDIENTE',
+            'actividades-1-tipo': 'ACCION_INMEDIATA',
+            'actividades-1-descripcion': 'Comunicar la contingencia',
+            'actividades-1-responsable': '', 'actividades-1-fet_inicial': '',
+            'actividades-1-estado': 'EN_PROCESO',
+        }
+        respuesta = self.client.post(reverse('hallazgo_accion', args=[h.pk]), plan)
+        self.assertEqual(respuesta.url, reverse('hallazgo_acciones_creadas', args=[h.pk]))
+        adicional = h.ciclo_actual.acciones.get(tipo='ACCION_INMEDIATA')
+        self.assertEqual((adicional.get_tipo_display(), adicional.estado, adicional.porcentaje_avance),
+                         ('Acción inmediata', 'EN_PROCESO', 50))
+
+    def test_cancelada_es_terminal_y_no_bloquea_el_paso_cuatro(self):
+        h = self.crear()
+        self.paso(h, 'enviar')
+        self.paso(h, 'validar', self.calidad)
+        self.paso(h, 'iniciar_inmediata')
+        solucion = self.accion(h)
+        adicional = self.accion(h, 'ACCION_INMEDIATA')
+        self.completar(solucion)
+        AccionService.seguir(
+            usuario=self.usuario,
+            accion=adicional,
+            datos=dict(estado='CANCELADA', porcentaje_avance=0, fecha_real=None,
+                       comentario='La actividad dejó de ser necesaria.'),
+        )
+        self.paso(h, 'enviar_verificacion')
+        self.assertEqual(h.estado, 'EN_VERIFICACION')
+        with self.assertRaisesRegex(ValidationError, 'terminada o cancelada'):
+            AccionService.reprogramar(
+                usuario=self.usuario,
+                accion=adicional,
+                nueva_fecha=timezone.localdate() + timedelta(days=1),
+                motivo='No debe permitirse',
+            )
+
+        self.client.force_login(self.usuario)
+        seguimiento = self.client.get(reverse('hallazgo_acciones_seguimiento', args=[h.pk]))
+        self.assertContains(seguimiento, 'data-activity-scrollbar')
+        self.assertContains(seguimiento, 'data-activity-scroll')
+        self.assertContains(seguimiento, 'Cancelada')
 
     def test_critica_tecnologica_exige_6m_pbi_y_correctivas(self):
         h=self.crear(es_critica='SI',origen_tecnologico=True); self.inmediata(h)
@@ -89,9 +212,9 @@ class Recorridos(TestCase):
         with self.assertRaises(ValidationError): self.paso(h,'planificar')
         PBIService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(numero_pbi='PBI-TEST',sistema='Facturación',responsable_ti=self.usuario,estado='ABIERTO',fecha_cierre=None))
         self.paso(h,'planificar'); a=self.accion(h,'CORRECTIVA'); self.paso(h,'iniciar_implementacion'); self.completar(a)
-        self.verificar(h);self.paso(h,'cerrar',self.calidad)
+        self.verificar(h);self.paso(h,'cerrar',self.admin)
         self.assertEqual(h.estado,'CERRADO')
-        self.assertEqual(len(h.ciclo_actual.respuestas),32)
+        self.assertEqual(len(h.ciclo_actual.respuestas),26)
 
     def test_devolucion_correccion_y_reenvio(self):
         h=self.crear();self.paso(h,'enviar')
@@ -109,11 +232,11 @@ class Recorridos(TestCase):
         with self.assertRaises(ValidationError): AccionService.reprogramar(usuario=self.usuario,accion=anterior,nueva_fecha=timezone.localdate()+timedelta(days=20),motivo='No permitido')
         self.paso(h,'iniciar_inmediata');self.completar(self.accion(h))
         ComunicacionService.registrar(usuario=self.usuario,hallazgo=h,datos=dict(destinatarios='Equipo',medio='Reunión',descripcion='Nueva corrección',fecha=timezone.now()))
-        self.verificar(h);self.paso(h,'cerrar',self.calidad)
+        self.verificar(h);self.paso(h,'cerrar',self.admin)
         self.assertEqual(h.ciclos.first().evaluaciones.first().resultado,'NO_EFICAZ')
 
     def test_reapertura_manual_no_borra_cierre(self):
-        h=self.crear();self.inmediata(h);self.verificar(h);self.paso(h,'cerrar',self.calidad);self.paso(h,'reabrir',self.calidad)
+        h=self.crear();self.inmediata(h);self.verificar(h);self.paso(h,'cerrar',self.admin);self.paso(h,'reabrir',self.calidad)
         self.assertEqual(h.ciclos.filter(fecha_cierre__isnull=False).count(),1);self.assertEqual(h.ciclos.count(),2)
 
     def test_reprogramaciones_maximo_y_fet_inmutable(self):
@@ -138,7 +261,7 @@ class Recorridos(TestCase):
         h=self.crear();self.paso(h,'enviar')
         with self.assertRaises(PermissionDenied): self.paso(h,'validar',self.usuario)
 
-    def test_sac_unico_y_tipo_inmutable(self):
+    def test_sac_unico_y_tipo_protegido_fuera_del_analisis(self):
         h=self.crear();h2=self.crear();self.assertNotEqual(h.codigo,h2.codigo)
         self.assertRegex(h.codigo,r'^SAC-INC-\d{4}-\d{4}$')
         with self.assertRaises(ValidationError): HallazgoService.actualizar(usuario=self.usuario,hallazgo=h,datos={'tipo_registro':TipoRegistro.objects.get(codigo='NOC')})
@@ -157,18 +280,17 @@ class Recorridos(TestCase):
         h=self.crear(aplica_impacto=False,justificacion_no_impacto='Documental',es_critica='NA')
         with self.assertRaises(ValidationError): self.paso(h,'enviar')
 
-    def test_no_saltos_ni_cierre_sin_eficacia_comunicacion(self):
+    def test_no_saltos_ni_cierre_sin_eficacia(self):
         h=self.crear()
-        with self.assertRaises(ValidationError): self.paso(h,'cerrar',self.calidad)
+        with self.assertRaises(ValidationError): self.paso(h,'cerrar',self.admin)
         self.paso(h,'enviar');self.paso(h,'validar',self.calidad);self.paso(h,'iniciar_inmediata');self.completar(self.accion(h))
-        with self.assertRaises(ValidationError): self.paso(h,'enviar_verificacion')
-        ComunicacionService.registrar(usuario=self.usuario,hallazgo=h,datos=dict(destinatarios='Equipo',medio='Reunión',descripcion='Corrección',fecha=timezone.now()))
         self.paso(h,'enviar_verificacion')
-        with self.assertRaises(ValidationError): self.paso(h,'cerrar',self.calidad)
+        with self.assertRaises(ValidationError): self.paso(h,'cerrar',self.admin)
 
     def test_control_6m_obligatorio_y_snapshot(self):
         h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
-        respuestas=[dict(pregunta=p,respuesta='SI' if p.pk=='4.1' else 'NO',comentario='') for p in PreguntaCausa.objects.all()]
+        preguntas = [p for p in PreguntaCausa.objects.all() if p.texto.strip().rstrip(':').casefold() != 'otro']
+        respuestas=[dict(pregunta=p,respuesta='SI' if p.pk=='4.1' else 'NO',comentario='') for p in preguntas]
         with self.assertRaises(ValidationError): CausaService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(causa_raiz='Causa',respuestas=respuestas,control={}),finalizar=True)
         control=dict(tipos=['PREVENTIVO'],nombre='Control',descripcion='Validación',mitiga_riesgo='SI',frecuencia='Diaria',responsable='Equipo',evidencia='Documento de control')
         a=CausaService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(causa_raiz='Causa',respuestas=respuestas,control=control),finalizar=True)
@@ -182,6 +304,40 @@ class Recorridos(TestCase):
         n=h.historial.count()
         with patch('apps.hallazgos.services.common.Notificacion.objects.bulk_create',side_effect=RuntimeError('fallo de prueba')), self.assertRaises(RuntimeError): self.paso(h,'validar',self.calidad)
         h.refresh_from_db();self.assertEqual(h.estado,'PENDIENTE_VALIDACION');self.assertEqual(h.historial.count(),n)
+
+    def test_otro_6m_se_agrega_responde_y_deshace_sin_tabla_adicional(self):
+        h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
+        self.client.force_login(self.usuario)
+        pantalla = self.client.get(reverse('hallazgo_causa', args=[h.pk]))
+        self.assertEqual(pantalla.status_code, 200)
+        self.assertEqual(pantalla.content.decode().count('data-add-other'), 6)
+        self.assertNotContains(pantalla, '>Otro:</span>')
+
+        incompleto = self.client.post(reverse('hallazgo_causa', args=[h.pk]), {
+            'a_1_6': '1', 't_1_6': '', 'r_1_6': '', 'c_1_6': '', 'finalizar': '0',
+        })
+        self.assertEqual(incompleto.status_code, 200)
+        self.assertContains(incompleto, 'Escribe el punto o pregunta adicional.')
+
+        guardado = self.client.post(reverse('hallazgo_causa', args=[h.pk]), {
+            'a_1_6': '1', 't_1_6': '¿Existe una excepción documentada?',
+            'r_1_6': 'NO', 'c_1_6': 'Debe formalizarse', 'finalizar': '0',
+        })
+        self.assertEqual(guardado.url, reverse('hallazgo_causa', args=[h.pk]))
+        h.refresh_from_db()
+        otro = next(r for r in h.ciclo_actual.respuestas if r['pregunta_id'] == '1.6')
+        self.assertEqual(otro['texto_snapshot'], '¿Existe una excepción documentada?')
+        self.assertEqual(otro['respuesta'], 'NO')
+        self.assertTrue(otro['es_otro'])
+        reapertura = self.client.get(reverse('hallazgo_causa', args=[h.pk]))
+        self.assertContains(reapertura, '¿Existe una excepción documentada?')
+
+        deshecho = self.client.post(reverse('hallazgo_causa', args=[h.pk]), {
+            'a_1_6': '0', 't_1_6': '', 'r_1_6': '', 'c_1_6': '', 'finalizar': '0',
+        })
+        self.assertEqual(deshecho.url, reverse('hallazgo_causa', args=[h.pk]))
+        h.refresh_from_db()
+        self.assertFalse(any(r['pregunta_id'] == '1.6' for r in h.ciclo_actual.respuestas))
 
     def test_archivos_y_descarga_privada(self):
         h=self.crear();buf=BytesIO();Image.new('RGB',(2,2)).save(buf,format='PNG')
@@ -199,10 +355,14 @@ class Recorridos(TestCase):
         for url in ['/',reverse('hallazgo_crear'),reverse('hallazgo_buscar'),reverse('hallazgo_detalle',args=[h.pk]),reverse('hallazgo_editar',args=[h.pk]),reverse('notificaciones'),reverse('ayuda')]:
             self.assertEqual(self.client.get(url).status_code,200,url)
         self.assertEqual(self.client.get(reverse('usuarios')).status_code,403)
+        self.assertEqual(self.client.get(reverse('validaciones_admin')).status_code,403)
+        self.assertEqual(self.client.get(reverse('configuracion_impacto')).status_code,403)
         self.client.force_login(self.calidad);self.assertEqual(self.client.get(reverse('usuarios')).status_code,403)
         self.client.force_login(self.admin)
-        for url in ['/',reverse('usuarios'),reverse('catalogos'),reverse('auditoria'),reverse('reportes'),reverse('usuario_crear'),reverse('catalogo_crear',args=['procesos'])]:
+        for url in ['/',reverse('hallazgo_buscar'),reverse('validaciones_admin'),reverse('usuarios'),reverse('catalogos'),reverse('configuracion_impacto'),reverse('auditoria'),reverse('reportes'),reverse('usuario_crear'),reverse('catalogo_crear',args=['procesos'])]:
             self.assertEqual(self.client.get(url).status_code,200,url)
+        self.assertContains(self.client.get('/'), 'Dashboard principal')
+        self.assertContains(self.client.get(reverse('validaciones_admin')), 'vistos buenos administrativos')
         self.assertEqual(self.client.get(reverse('hallazgo_crear')).status_code,403)
         seguro=Client(enforce_csrf_checks=True);seguro.force_login(self.usuario)
         self.assertEqual(seguro.post(reverse('hallazgo_crear'),{}).status_code,403)
@@ -212,20 +372,113 @@ class Recorridos(TestCase):
         d=self.datos();d={k:(v.pk if hasattr(v,'pk') else v) for k,v in d.items()};d.update(aplica_impacto='on',codigo='SAC-FALSO',estado='CERRADO')
         self.client.force_login(self.usuario);r=self.client.post(reverse('hallazgo_crear'),d)
         self.assertEqual(r.status_code,302, getattr(r,'context',None))
-        h=Hallazgo.objects.first();self.assertEqual(h.estado,'BORRADOR');self.assertNotEqual(h.codigo,'SAC-FALSO')
+        h=Hallazgo.objects.first();self.assertEqual(h.estado,'ACCION_INMEDIATA');self.assertNotEqual(h.codigo,'SAC-FALSO')
 
     def test_registro_muestra_proceso_antes_y_actividad_opcional(self):
         self.client.force_login(self.usuario)
         response = self.client.get(reverse('hallazgo_crear'))
         html = response.content.decode()
         self.assertEqual(response.status_code, 200)
-        self.assertIn('Se generará automáticamente', html)
+        self.assertIn('Selecciona un tipo de registro', html)
+        self.assertIn('Vista previa automática', html)
+        self.assertIn('id="hallazgoCode"', html)
+        self.assertIn('readonly', html)
+        self.assertNotIn('Guardar borrador', html)
         self.assertIn('Guardar evaluación', html)
+        self.assertIn('Clientes afectados', html)
+        self.assertIn('Tiempo de afectación', html)
+        self.assertIn('Impacto financiero', html)
+        self.assertIn('0 – 99 cuentas', html)
+        self.assertIn('30 – 120 min', html)
+        self.assertIn('S/ 2,000,000 o más', html)
+        self.assertEqual(html.count('name="impacto_clientes"'), 3)
+        self.assertEqual(html.count('name="impacto_tiempo"'), 3)
+        self.assertEqual(html.count('name="impacto_soles"'), 3)
+        self.assertIn('Registrar ticket', html)
+        self.assertIn('https://clarop-dwp.claro.pe/dwp/app/#/activity', html)
+        self.assertIn('target="_blank"', html)
+        self.assertIn('¿Es hallazgo tecnológico?', html)
+        self.assertIn('name="origen_tecnologico"', html)
+        self.assertLess(html.index('Fecha de registro'), html.index('Fecha de detección'))
+        self.assertLess(html.index('Fecha de detección'), html.index('Fecha de solución'))
         self.assertLess(html.index('id_proceso'), html.rindex('1. Identificación'))
         self.assertIn('id_actividad', html)
         self.assertNotIn('id_criterio_categoria', html)
         self.assertNotIn('id_requisito_referencia', html)
         self.assertFalse(HallazgoForm(usuario=self.usuario).fields['actividad'].required)
+        self.assertEqual(
+            list(HallazgoForm(usuario=self.usuario).fields['es_critica'].choices),
+            [('', 'Seleccionar'), ('SI', 'Sí - Crítica'), ('NO', 'No - No crítica')],
+        )
+
+        formulario_tecnologico = HallazgoForm(data={
+            'tipo_registro': TipoRegistro.objects.get(codigo='INC').pk,
+            'fuente_deteccion': FuenteDeteccion.objects.get(codigo='OPERACION').pk,
+            'proceso': self.proceso.pk,
+            'descripcion': 'Incidente tecnológico sin ticket',
+            'responsable': self.usuario.pk,
+            'fecha_deteccion': timezone.localdate().isoformat(),
+            'fecha_solucion': (timezone.localdate() + timedelta(days=1)).isoformat(),
+            'impacto_clientes': '1', 'impacto_tiempo': '1', 'impacto_soles': '1',
+            'urgencia': Urgencia.objects.get(valor=2).pk,
+            'es_critica': 'NO', 'origen_tecnologico': 'True', 'ticket_remedy': '',
+        }, usuario=self.usuario)
+        self.assertFalse(formulario_tecnologico.is_valid())
+        self.assertEqual(
+            formulario_tecnologico.errors['ticket_remedy'],
+            ['Este campo es obligatorio para hallazgos tecnológicos.'],
+        )
+
+        tipo = TipoRegistro.objects.get(codigo='INC')
+        preview = CodigoSACService.previsualizar(tipo=tipo)
+        invalido = self.client.post(reverse('hallazgo_crear'), {'tipo_registro': tipo.pk})
+        self.assertEqual(invalido.status_code, 200)
+        self.assertContains(invalido, f'value="{preview}"')
+        self.assertFalse(CorrelativoSAC.objects.exists())
+        self.assertFalse(Hallazgo.objects.exists())
+
+        intento_borrador = self.client.post(reverse('hallazgo_crear'), {
+            'tipo_registro': tipo.pk, 'accion': 'borrador',
+        })
+        self.assertEqual(intento_borrador.status_code, 200)
+        self.assertFalse(Hallazgo.objects.exists())
+
+    def test_administrador_configura_rangos_de_impacto(self):
+        from apps.catalogos.models import AuditoriaAdministracion, ConfiguracionImpacto
+
+        self.client.force_login(self.admin)
+        url = reverse('configuracion_impacto')
+        pantalla = self.client.get(url)
+        self.assertEqual(pantalla.status_code, 200)
+        self.assertContains(pantalla, 'Configuración de evaluación de impacto')
+        self.assertContains(pantalla, 'name="clientes_bajo_hasta"')
+
+        base = {
+            'predeterminada': 'on',
+            'clientes_bajo_desde': 0, 'clientes_bajo_hasta': 99,
+            'clientes_medio_desde': 100, 'clientes_medio_hasta': 499,
+            'clientes_alto_desde': 500,
+            'tiempo_bajo_desde': 0, 'tiempo_bajo_hasta': 29,
+            'tiempo_medio_desde': 30, 'tiempo_medio_hasta': 120,
+            'tiempo_alto_desde': 121,
+            'financiero_bajo_desde': 0, 'financiero_bajo_hasta': 999999,
+            'financiero_medio_desde': 1000000, 'financiero_medio_hasta': 1999999,
+            'financiero_alto_desde': 2000000,
+        }
+        invalido = dict(base, clientes_medio_desde=99)
+        respuesta = self.client.post(url, invalido)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, 'no pueden superponerse')
+
+        valido = dict(base, clientes_bajo_hasta=149, clientes_medio_desde=150)
+        respuesta = self.client.post(url, valido)
+        self.assertEqual(respuesta.status_code, 302)
+        configuracion = ConfiguracionImpacto.objects.get(pk=1)
+        self.assertEqual(configuracion.clientes_bajo_hasta, 149)
+        self.assertEqual(configuracion.clientes_medio_desde, 150)
+        self.assertTrue(AuditoriaAdministracion.objects.filter(
+            entidad='ConfiguracionImpacto', objeto='1', accion='actualizar',
+        ).exists())
 
     def test_registro_continua_sin_actividad_ni_referencias_retiradas(self):
         self.client.force_login(self.usuario)
@@ -251,17 +504,70 @@ class Recorridos(TestCase):
         response = self.client.post(reverse('hallazgo_crear'), post)
         self.assertEqual(response.status_code, 302, getattr(response, 'context', None))
         hallazgo = Hallazgo.objects.get()
-        self.assertEqual(hallazgo.estado, 'EN_ANALISIS')
-        self.assertEqual(response.url, reverse('hallazgo_causa', args=[hallazgo.pk]))
+        self.assertEqual(hallazgo.estado, 'ACCION_INMEDIATA')
+        self.assertEqual(response.url, reverse('hallazgo_accion', args=[hallazgo.pk]))
         self.assertIsNotNone(hallazgo.ciclo_actual)
         self.assertEqual(hallazgo.actividad, '')
-        checklist = {'finalizar': '1'}
-        for pregunta in PreguntaCausa.objects.all():
-            checklist['r_' + pregunta.codigo.replace('.', '_')] = 'NO'
-        response = self.client.post(reverse('hallazgo_causa', args=[hallazgo.pk]), checklist)
+        pantalla = self.client.get(reverse('hallazgo_accion', args=[hallazgo.pk]))
+        self.assertContains(pantalla, '3. Plan de actividades')
+        self.assertContains(pantalla, 'Agregar actividad')
+        self.assertContains(pantalla, 'Volver a identificación')
+        self.assertEqual(timeline_hallazgo(hallazgo)[1]['estado'], 'No aplica')
+        plan = {
+            'actividades-TOTAL_FORMS': '1', 'actividades-INITIAL_FORMS': '0',
+            'actividades-MIN_NUM_FORMS': '1', 'actividades-MAX_NUM_FORMS': '1000',
+            'actividades-0-tipo': 'INMEDIATA',
+            'actividades-0-descripcion': 'Corregir la desviación detectada',
+            'actividades-0-responsable': '', 'actividades-0-fet_inicial': '',
+            'actividades-0-estado': 'PENDIENTE',
+        }
+        response = self.client.post(reverse('hallazgo_accion', args=[hallazgo.pk]), plan)
+        self.assertEqual(response.url, reverse('hallazgo_acciones_creadas', args=[hallazgo.pk]))
+        actividad = hallazgo.ciclo_actual.acciones.get()
+        self.assertIsNone(actividad.responsable)
+        self.assertIsNone(actividad.fet_inicial)
+        confirmacion = self.client.get(reverse('hallazgo_acciones_creadas', args=[hallazgo.pk]))
+        self.assertContains(confirmacion, 'Ver seguimiento de actividades')
+        self.assertContains(confirmacion, 'Eficiencia base')
+        seguimiento_pantalla = self.client.get(reverse('hallazgo_acciones_seguimiento', args=[hallazgo.pk]))
+        self.assertContains(seguimiento_pantalla, '3 reprogramaciones')
+        self.assertContains(seguimiento_pantalla, 'Fecha vigente')
+        self.assertContains(seguimiento_pantalla, 'Paso 4 bloqueado')
+        seguimiento = {
+            f'accion-{actividad.pk}-estado': 'PENDIENTE',
+            f'accion-{actividad.pk}-fecha_real': '',
+            'accion': 'guardar',
+        }
+        response = self.client.post(reverse('hallazgo_acciones_seguimiento', args=[hallazgo.pk]), seguimiento)
+        self.assertEqual(response.url, reverse('hallazgo_acciones_seguimiento', args=[hallazgo.pk]))
         hallazgo.refresh_from_db()
-        self.assertEqual(response.url, reverse('hallazgo_accion', args=[hallazgo.pk]))
         self.assertEqual(hallazgo.estado, 'ACCION_INMEDIATA')
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.estado, 'PENDIENTE')
+        self.assertEqual(self.client.get(reverse('hallazgo_eficacia', args=[hallazgo.pk])).status_code, 403)
+
+        completado = {
+            f'accion-{actividad.pk}-estado': 'COMPLETADA',
+            f'accion-{actividad.pk}-fecha_real': timezone.localdate().isoformat(),
+            'accion': 'evaluar',
+        }
+        response = self.client.post(reverse('hallazgo_acciones_seguimiento', args=[hallazgo.pk]), completado)
+        self.assertEqual(response.url, reverse('hallazgo_eficacia', args=[hallazgo.pk]))
+        hallazgo.refresh_from_db()
+        actividad.refresh_from_db()
+        self.assertEqual(hallazgo.estado, 'EN_VERIFICACION')
+        self.assertEqual((actividad.estado, actividad.porcentaje_avance), ('COMPLETADA', 100))
+        eficacia = self.client.get(response.url)
+        self.assertContains(eficacia, 'Resumen de actividades')
+        self.assertContains(eficacia, 'Resultado de eficacia')
+        self.assertContains(eficacia, 'Abiertas: <b>0</b>')
+        self.assertContains(eficacia, '>Seleccionar</option>')
+        response = self.client.post(reverse('hallazgo_eficacia', args=[hallazgo.pk]), {
+            'fecha_evaluacion': timezone.localdate().isoformat(), 'resultado': 'EFICAZ',
+            'comentario': 'La solución eliminó la desviación.',
+        })
+        self.assertEqual(response.url, reverse('hallazgo_detalle', args=[hallazgo.pk]))
+        self.assertEqual(hallazgo.ciclo_actual.evaluaciones.count(), 1)
 
     def test_registro_critico_va_directo_a_analisis_sin_validacion(self):
         self.client.force_login(self.usuario)
@@ -290,6 +596,54 @@ class Recorridos(TestCase):
         self.assertEqual(response.url, reverse('hallazgo_causa', args=[hallazgo.pk]))
         self.assertFalse(hallazgo.historial.filter(accion='VALIDAR').exists())
         self.assertTrue(hallazgo.historial.filter(accion='CONTINUAR_IDENTIFICACION').exists())
+        codigo_original = hallazgo.codigo
+        causa = self.client.get(reverse('hallazgo_causa', args=[hallazgo.pk]))
+        self.assertContains(causa, reverse('hallazgo_editar', args=[hallazgo.pk]))
+        identificacion = self.client.get(reverse('hallazgo_editar', args=[hallazgo.pk]))
+        self.assertEqual(identificacion.status_code, 200)
+        self.assertFalse(identificacion.context['form'].fields['tipo_registro'].disabled)
+        tipo_corregido = TipoRegistro.objects.get(codigo='NOC')
+        correccion = dict(
+            post,
+            tipo_registro=tipo_corregido.pk,
+            descripcion='Descripción corregida antes del análisis',
+            version=hallazgo.version,
+        )
+        response = self.client.post(reverse('hallazgo_editar', args=[hallazgo.pk]), correccion)
+        hallazgo.refresh_from_db()
+        self.assertEqual(response.url, reverse('hallazgo_causa', args=[hallazgo.pk]))
+        self.assertEqual(hallazgo.estado, 'EN_ANALISIS')
+        self.assertNotEqual(hallazgo.codigo, codigo_original)
+        self.assertRegex(hallazgo.codigo, r'^SAC-NOC-\d{4}-\d{4}$')
+        self.assertEqual(hallazgo.tipo_registro, tipo_corregido)
+        cambio = hallazgo.historial.filter(accion='ACTUALIZACION').latest('pk')
+        self.assertEqual(cambio.metadata_json['codigo_anterior'], codigo_original)
+        self.assertEqual(cambio.metadata_json['codigo_nuevo'], hallazgo.codigo)
+        self.assertEqual(hallazgo.descripcion, 'Descripción corregida antes del análisis')
+        self.assertEqual(hallazgo.ciclos.count(), 1)
+
+    def test_no_critico_puede_volver_y_cambiar_a_critico_antes_de_crear_actividades(self):
+        self.client.force_login(self.usuario)
+        datos = self.datos()
+        post = {
+            'tipo_registro': datos['tipo_registro'].pk, 'fuente_deteccion': datos['fuente_deteccion'].pk,
+            'proceso': datos['proceso'].pk, 'subproceso': '', 'actividad': '',
+            'descripcion': datos['descripcion'], 'ticket_remedy': '', 'responsable': datos['responsable'].pk,
+            'fecha_deteccion': timezone.localdate().isoformat(), 'fecha_solucion': datos['fecha_solucion'].isoformat(),
+            'impacto_clientes': '1', 'impacto_tiempo': '2', 'impacto_soles': '1',
+            'urgencia': datos['urgencia'].pk, 'es_critica': 'NO', 'accion': 'continuar',
+        }
+        response = self.client.post(reverse('hallazgo_crear'), post)
+        hallazgo = Hallazgo.objects.get()
+        self.assertEqual(response.url, reverse('hallazgo_accion', args=[hallazgo.pk]))
+        identificacion = self.client.get(reverse('hallazgo_editar', args=[hallazgo.pk]))
+        self.assertEqual(identificacion.status_code, 200)
+        self.assertFalse(identificacion.context['form'].fields['tipo_registro'].disabled)
+        post.update(es_critica='SI', version=hallazgo.version)
+        response = self.client.post(reverse('hallazgo_editar', args=[hallazgo.pk]), post)
+        hallazgo.refresh_from_db()
+        self.assertEqual(hallazgo.estado, 'EN_ANALISIS')
+        self.assertEqual(response.url, reverse('hallazgo_causa', args=[hallazgo.pk]))
 
     def test_semillas_idempotentes(self):
         call_command('seed_initial_data',stdout=StringIO());call_command('seed_initial_data',stdout=StringIO())
@@ -375,7 +729,10 @@ class Recorridos(TestCase):
         self.assertEqual(fila.gerencia, 'Gerencia de Operaciones')
         self.assertIsNone(fila.accion_id)
         self.assertIsNone(fila.porcentaje_avance)
-        self.assertEqual(len(COLUMNAS_REGISTRO), 31)
+        self.assertEqual(fila.impacto_clientes_nivel, 'Bajo')
+        self.assertEqual(fila.impacto_tiempo_nivel, 'Medio')
+        self.assertEqual(fila.impacto_financiero_nivel, 'Bajo')
+        self.assertEqual(len(COLUMNAS_REGISTRO), 34)
         self.paso(h, 'enviar'); self.paso(h, 'validar', self.calidad); self.paso(h, 'iniciar_inmediata')
         a = self.accion(h); b = self.accion(h)
         self.assertEqual(RegistroGeneral.objects.filter(hallazgo_id=h.pk).count(), 2)
@@ -388,7 +745,7 @@ class Recorridos(TestCase):
         self.assertEqual(fila.fet, nueva)
         self.completar(a)
         fila.refresh_from_db()
-        self.assertEqual(fila.estado, 'Completada')
+        self.assertEqual(fila.estado, 'Terminado')
         self.assertEqual(fila.porcentaje_avance, 100)
         self.assertEqual(a.reprogramaciones.first().metadata_json['fecha_anterior'], str(a.fet_inicial))
         self.assertEqual(a.seguimientos.count(), 1)
@@ -401,11 +758,19 @@ class Recorridos(TestCase):
         url = reverse('registro_general')
         self.assertEqual(self.client.get(url).status_code, 302)
         self.client.force_login(self.usuario)
-        self.assertContains(self.client.get(url), h.codigo)
+        pagina = self.client.get(url)
+        self.assertContains(pagina, h.codigo)
+        self.assertContains(pagina, 'data-registro-scroll')
+        self.assertContains(pagina, 'Primeras columnas')
+        self.assertContains(pagina, 'Últimas columnas')
+        self.assertContains(pagina, 'N° Hallazgo')
         rows = list(csv.reader(StringIO(self.client.get(url+'?formato=csv').content.decode('utf-8-sig'))))
         self.assertEqual(rows[0], [titulo for _, titulo in COLUMNAS_REGISTRO])
-        self.assertEqual(len(rows[1]), 31)
-        self.assertEqual(rows[1][24], '0')
+        self.assertEqual(len(rows[1]), 34)
+        self.assertEqual(rows[1][rows[0].index('Nivel de impacto · Clientes')], 'Bajo')
+        self.assertEqual(rows[1][rows[0].index('Nivel de impacto · Tiempo')], 'Medio')
+        self.assertEqual(rows[1][rows[0].index('Nivel de impacto · Financiero')], 'Bajo')
+        self.assertEqual(rows[1][rows[0].index('Porcentaje de Avance')], '0')
         self.assertTrue(rows[1][8].startswith("'="))
         self.client.force_login(self.ajeno)
         self.assertNotContains(self.client.get(url), h.codigo)
@@ -422,7 +787,7 @@ class Recorridos(TestCase):
             fila = RegistroGeneral.objects.get(accion_id=ac.pk)
             self.assertIn('implementacion.pdf', fila.evidencia_implementacion)
             self.assertEqual(fila.causas_raiz, 'Falta de control preventivo')
-        self.completar(ac); self.verificar(h); self.paso(h, 'cerrar', self.calidad)
+        self.completar(ac); self.verificar(h); self.paso(h, 'cerrar', self.admin)
         fecha = RegistroGeneral.objects.get(accion_id=ac.pk).fecha_cierre
         self.assertIsNotNone(fecha)
         self.paso(h, 'reabrir', self.calidad)
@@ -433,9 +798,10 @@ class Recorridos(TestCase):
     def test_analisis_compacto_snapshot_control_y_evidencia(self):
         h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
         control=dict(tipos=['PREVENTIVO'],nombre='Control',descripcion='Validación',mitiga_riesgo='SI',frecuencia='Diaria',responsable='Equipo',evidencia='Documento')
-        respuestas=[dict(pregunta=p,respuesta='SI' if p.pk=='4.1' else 'NO',comentario='Dato original') for p in PreguntaCausa.objects.all()]
+        preguntas = [p for p in PreguntaCausa.objects.all() if p.texto.strip().rstrip(':').casefold() != 'otro']
+        respuestas=[dict(pregunta=p,respuesta='SI' if p.pk=='4.1' else 'NO',comentario='Dato original') for p in preguntas]
         ciclo=CausaService.guardar(usuario=self.usuario,hallazgo=h,datos=dict(causa_raiz='Causa',respuestas=respuestas,control=control),finalizar=True)
-        self.assertEqual(len(ciclo.respuestas),32)
+        self.assertEqual(len(ciclo.respuestas),26)
         self.assertEqual(ciclo.control['nombre'],'Control')
         self.assertEqual(ciclo.analisis_responsable_id,self.usuario.pk)
         with self.assertRaises(ValidationError):

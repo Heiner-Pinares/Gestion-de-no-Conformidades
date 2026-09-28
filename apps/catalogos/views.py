@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count, Q
+from django.db.models.functions import TruncMonth
 from django.forms.models import model_to_dict
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -17,8 +18,8 @@ from django.utils import timezone
 from apps.accounts.forms import UsuarioCreacionForm, UsuarioEdicionForm
 from apps.accounts.models import Usuario
 from apps.accounts.permissions import es_administrador, es_validador
-from .forms import CATALOGOS, formulario_catalogo
-from .models import AuditoriaAdministracion
+from .forms import CATALOGOS, ConfiguracionImpactoForm, formulario_catalogo
+from .models import AuditoriaAdministracion, ConfiguracionImpacto
 
 
 def solo_admin(view):
@@ -43,10 +44,25 @@ def registrar_auditoria(usuario, entidad, objeto, accion, antes, despues):
 @solo_admin
 def usuarios(request):
     q = request.GET.get("q", "").strip()
+    rol = request.GET.get("rol", "").strip()
     qs = Usuario.objects.filter(is_superuser=False).prefetch_related("groups").order_by("username")
     if q:
-        qs = qs.filter(Q(username__icontains=q) | Q(first_name__icontains=q) | Q(last_name__icontains=q))
-    return render(request, "administrador/usuarios.html", {"pagina": Paginator(qs, 25).get_page(request.GET.get("page")), "q": q, "filtros": urlencode({"q": q})})
+        qs = qs.filter(
+            Q(username__icontains=q) | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q) | Q(email__icontains=q)
+            | Q(cargo__icontains=q)
+        )
+    if rol:
+        qs = qs.filter(groups__name=rol)
+    filtros = {"q": q, "rol": rol}
+    return render(request, "administrador/usuarios.html", {
+        "pagina": Paginator(qs, 10).get_page(request.GET.get("page")),
+        "q": q,
+        "rol": rol,
+        "roles": Group.objects.order_by("name"),
+        "total_usuarios": Usuario.objects.filter(is_superuser=False).count(),
+        "filtros": urlencode({k: v for k, v in filtros.items() if v}),
+    })
 
 
 @solo_admin
@@ -104,7 +120,16 @@ def usuario_password(request, pk):
 
 @solo_admin
 def catalogos(request):
-    tipo = request.GET.get("tipo", "procesos")
+    tipo = request.GET.get("tipo", "").strip()
+    if not tipo:
+        resumen_catalogos = [
+            {"clave": clave, "titulo": titulo, "total": modelo.objects.count()}
+            for clave, (modelo, _, titulo) in CATALOGOS.items()
+        ]
+        return render(request, "administrador/catalogos.html", {
+            "tipos": [(k, v[2]) for k, v in CATALOGOS.items()],
+            "resumen_catalogos": resumen_catalogos,
+        })
     if tipo not in CATALOGOS:
         raise Http404
     modelo, _, titulo = CATALOGOS[tipo]
@@ -113,7 +138,7 @@ def catalogos(request):
         qs = qs.select_related("impacto", "urgencia", "prioridad")
     return render(request, "administrador/catalogos.html", {
         "tipos": [(k, v[2]) for k, v in CATALOGOS.items()], "tipo": tipo, "titulo": titulo,
-        "pagina": Paginator(qs, 30).get_page(request.GET.get("page")),
+        "pagina": Paginator(qs, 10).get_page(request.GET.get("page")),
         "filtros": urlencode({"tipo": tipo}),
         "puede_crear": tipo not in ("tipos", "impactos", "urgencias", "categorias"),
     })
@@ -137,6 +162,22 @@ def catalogo_editar(request, tipo, pk=None):
         messages.success(request, "Catálogo guardado. Los valores históricos del caso se conservan.")
         return redirect(f"/administracion/catalogos/?tipo={tipo}")
     return render(request, "administrador/formulario.html", {"form": form, "titulo": titulo, "volver": "catalogos"})
+
+
+@solo_admin
+def configuracion_impacto(request):
+    configuracion, _ = ConfiguracionImpacto.objects.get_or_create(pk=1)
+    form = ConfiguracionImpactoForm(request.POST or None, instance=configuracion)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            actual = ConfiguracionImpacto.objects.select_for_update().get(pk=1)
+            campos = list(form.fields)
+            antes = serializar(actual, campos)
+            guardado = form.save()
+            registrar_auditoria(request.user, "ConfiguracionImpacto", guardado.pk, "actualizar", antes, serializar(guardado, campos))
+        messages.success(request, "Los rangos de evaluación de impacto fueron actualizados.")
+        return redirect("configuracion_impacto")
+    return render(request, "administrador/impacto_configuracion.html", {"form": form, "configuracion": configuracion})
 
 
 @solo_admin
@@ -176,5 +217,33 @@ def reportes(request):
     }
     eficacia = round(100 * evaluaciones.filter(resultado="EFICAZ").count() / numero_evaluaciones, 1) if numero_evaluaciones else None
     from apps.hallazgos.estados import ESTADOS
-    estados = [{"estado__nombre": dict(ESTADOS).get(row["estado"], row["estado"]), "total": row["total"]} for row in qs.order_by().values("estado").annotate(total=Count("pk")).order_by("estado")]
-    return render(request, "administrador/reportes.html", {"resumen": resumen, "eficacia": eficacia, "n_evaluaciones": numero_evaluaciones, "estados": estados})
+    estados = [
+        {"estado__nombre": dict(ESTADOS).get(row["estado"], row["estado"]), "total": row["total"]}
+        for row in qs.order_by().values("estado").annotate(total=Count("pk")).order_by("estado")
+    ]
+    maximo_estado = max((item["total"] for item in estados), default=1)
+    for item in estados:
+        item["porcentaje"] = round(100 * item["total"] / maximo_estado)
+    tipos = list(
+        qs.order_by().values("tipo_registro__nombre")
+        .annotate(total=Count("pk")).order_by("-total")
+    )
+    for item in tipos:
+        item["porcentaje"] = round(100 * item["total"] / total) if total else 0
+    tendencia = list(
+        qs.order_by().annotate(mes=TruncMonth("fecha_registro"))
+        .values("mes").annotate(total=Count("pk")).order_by("mes")
+    )[-6:]
+    maximo_mes = max((item["total"] for item in tendencia), default=1)
+    for item in tendencia:
+        item["porcentaje"] = round(100 * item["total"] / maximo_mes)
+    tasa_cierre = round(100 * resumen["Cerrados"] / total) if total else 0
+    return render(request, "administrador/reportes.html", {
+        "resumen": resumen,
+        "eficacia": eficacia,
+        "n_evaluaciones": numero_evaluaciones,
+        "estados": estados,
+        "tipos_hallazgo": tipos,
+        "tendencia": tendencia,
+        "tasa_cierre": tasa_cierre,
+    })

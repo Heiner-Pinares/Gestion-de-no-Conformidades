@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Evaluación de eficacia y cierre{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=2">{% endblock %}
+{% block content %}
+<div class="shell activity-page">
+  <div class="crumb"><a href="{% url 'inicio' %}">Panel principal</a> / <span class="case-code">{{ hallazgo.codigo }}</span> / Evaluación</div>
+  <h1 class="page-title">4. Evaluación de eficacia y cierre</h1>
+  <p class="page-sub">La evaluación utiliza el seguimiento de las actividades relacionadas a la NC.</p>
+  {% include 'includes/stepper.html' %}
+
+  <form method="post" class="card efficacy-card spaced">
+    {% csrf_token %}
+    <div class="section-h">4. Evaluación de eficacia y cierre</div>
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <div class="efficacy-grid">
+      <div class="efficacy-left">
+        <div class="field"><label for="{{ form.fecha_evaluacion.id_for_label }}">Fecha de evaluación de eficacia</label>{{ form.fecha_evaluacion }}{{ form.fecha_evaluacion.errors }}</div>
+        <div class="field"><label for="{{ form.resultado.id_for_label }}">Resultado de eficacia</label>{{ form.resultado }}{{ form.resultado.errors }}</div>
+      </div>
+      <div class="field"><label for="{{ form.comentario.id_for_label }}">Comentarios</label>{{ form.comentario }}{{ form.comentario.errors }}</div>
+    </div>
+    <div class="activity-summary">
+      <h2>Resumen de actividades</h2>
+      <p>Actividades vigentes: <b>{{ total }}</b> · Terminadas: <b>{{ completadas }}</b> · Abiertas: <b>{{ abiertas }}</b> · Eficiencia promedio por reprogramaciones: <b>{{ eficiencia }}%</b>.</p>
+    </div>
+    <div class="form-actions">
+      <a class="btn" href="{% url 'hallazgo_acciones_seguimiento' hallazgo.pk %}">← Volver a actividades</a>
+      <button class="btn primary" type="submit">Guardar evaluación</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
+from apps.accounts.permissions import exigir_administrador
 from .common import (analisis_completo, bloquear, ciclo_vigente, exigir, gestionar,
     notificar, nuevo_ciclo, registrar, requiere_inmediata, tratamiento_completo, validar)
 from .hallazgo import validar_datos
@@ -15,7 +16,7 @@ TRANSICIONES = {
     "planificar": ({"EN_ANALISIS", "PBI_EN_GESTION"}, "PLAN_ACCION", "Pasar al plan de acción"),
     "iniciar_implementacion": ({"PLAN_ACCION"}, "EN_IMPLEMENTACION", "Iniciar implementación"),
     "enviar_verificacion": ({"ACCION_INMEDIATA", "EN_IMPLEMENTACION"}, "EN_VERIFICACION", "Enviar a verificación"),
-    "cerrar": ({"EN_VERIFICACION"}, "CERRADO", "Cerrar hallazgo"),
+    "cerrar": ({"EN_VERIFICACION"}, "CERRADO", "Dar visto bueno y cerrar"),
     "reabrir": ({"CERRADO"}, "REABIERTO", "Reabrir tratamiento"),
 }
 
@@ -36,12 +37,13 @@ class WorkflowService:
         if not hallazgo.ciclo_actual:
             nuevo_ciclo(hallazgo, usuario, "Tratamiento inicial")
         anterior = hallazgo.estado
-        hallazgo.estado = "EN_ANALISIS"
+        hallazgo.estado = "EN_ANALISIS" if hallazgo.es_critica == "SI" else "ACCION_INMEDIATA"
+        destino = "análisis de causa raíz" if hallazgo.es_critica == "SI" else "solución inmediata"
         registrar(
             hallazgo,
             usuario,
             "CONTINUAR_IDENTIFICACION",
-            "Flujo directo desde identificación; no requiere validación administrativa.",
+            f"Flujo directo desde identificación hacia {destino}; no requiere validación administrativa.",
             anterior=anterior,
         )
         notificar(
@@ -86,8 +88,10 @@ class WorkflowService:
         exigir(hallazgo.estado in origenes, "La transición no está permitida desde el estado actual.")
         if accion in {"devolver", "validar", "cancelar"}:
             validar(usuario, hallazgo)
-        elif accion in {"cerrar", "reabrir"}:
-            validar(usuario, hallazgo, "cerrar_hallazgo" if accion == "cerrar" else "evaluar_eficacia")
+        elif accion == "cerrar":
+            exigir_administrador(usuario)
+        elif accion == "reabrir":
+            validar(usuario, hallazgo, "evaluar_eficacia")
         elif accion == "enviar":
             from django.core.exceptions import PermissionDenied
             if usuario.pk not in {hallazgo.registrado_por_id, hallazgo.responsable_id} or not usuario.has_perm("accounts.registrar_hallazgo"):
@@ -118,13 +122,13 @@ class WorkflowService:
             ciclo = ciclo_vigente(hallazgo)
             exigir(analisis_completo(ciclo) and ciclo.acciones.filter(tipo="CORRECTIVA").exists(), "Se necesita análisis finalizado y al menos una acción correctiva.")
         elif accion == "enviar_verificacion":
+            ciclo = tratamiento_completo(hallazgo)
             if hallazgo.es_critica == "SI":
                 exigir(hallazgo.estado == "EN_IMPLEMENTACION", "El caso crítico debe completar análisis y acciones correctivas.")
-            tratamiento_completo(hallazgo)
         elif accion == "cerrar":
             ciclo = tratamiento_completo(hallazgo)
             ultima = ciclo.evaluaciones.first()
-            exigir(ultima is not None and ultima.resultado == "EFICAZ", "Se requiere la evaluación eficaz del ciclo vigente antes del cierre.")
+            exigir(ultima is not None and ultima.resultado == "EFICAZ", "Calidad debe registrar una evaluación eficaz antes del visto bueno administrativo.")
             ciclo.responsable_cierre = usuario
             ciclo.fecha_cierre = timezone.now()
             ciclo.comentarios_cierre = comentario

@@ -25,6 +25,13 @@
 .cause-card .choice-cell input[type=radio]{width:18px;height:18px;margin:0;accent-color:#1677ff}
 .cause-card .comment-cell input{width:100%;min-width:240px;height:38px;min-height:38px;border:1px solid #cbd6e3;border-radius:6px;padding:7px 11px;color:#24344d;background:#fff}
 .cause-card .comment-cell input:focus,.cause-card .control-value input:focus{outline:2px solid #cfe2ff;border-color:#1677ff}
+.cause-card .custom-question-text input{width:100%;min-width:360px;height:38px;border:1px solid #cbd6e3;border-radius:6px;padding:7px 11px;color:#24344d;background:#fff}
+.cause-card .custom-question-text input:focus{outline:2px solid #cfe2ff;border-color:#1677ff}
+.cause-card .custom-comment-fields{display:flex;align-items:center;gap:8px}
+.cause-card .custom-comment-fields input{min-width:190px}
+.cause-card .other-undo{padding:8px 12px;white-space:nowrap;color:#b0000a}
+.cause-card .other-action-row td{height:auto;padding:14px 12px;text-align:left;border-bottom:0}
+.cause-card .other-add{padding:9px 18px;font-weight:800}
 .cause-card .control-row>td{padding:10px 48px 14px;border-bottom:1px solid #e5e9ef}
 .control-details{margin:0;border:1px solid #dbe3eb;border-radius:10px;padding:0;overflow:hidden;background:#fff}
 .control-line{display:grid;grid-template-columns:125px 270px minmax(320px,1fr);align-items:center;min-height:52px;border-bottom:1px solid #e7ebf0}

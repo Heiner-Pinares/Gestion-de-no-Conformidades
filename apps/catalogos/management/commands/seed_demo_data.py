@@ -62,7 +62,7 @@ class Command(BaseCommand):
                     "urgencia": Urgencia.objects.get(valor=2), "es_critica": "NO",
                     "criterio_categoria": "DEMO: clasificación manual para revisar el recorrido.",
                     "requisito_referencia": "DEMO: compromiso de continuidad del servicio.",
-                })
+                }, borrador=False)
         self.stdout.write(self.style.SUCCESS("Tres cuentas y casos DEMO disponibles. No se sobrescribieron casos existentes."))
         if not password:
             self.stdout.write("Las cuentas nuevas no tienen contraseña utilizable. Ejecuta seed_demo_data sin --noinput o changepassword antes de iniciar sesión.")

@@ -5,14 +5,14 @@ from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.catalogos.models import (
-    CategoriaCausa, FuenteDeteccion, Impacto, MatrizPrioridad,
+    CategoriaCausa, ConfiguracionImpacto, FuenteDeteccion, Impacto, MatrizPrioridad,
     PreguntaCausa, Prioridad, TipoRegistro, Urgencia,
 )
 
 ROLES = {
     "USUARIO": ["registrar_hallazgo"],
-    "VALIDADOR": ["validar_hallazgo", "gestionar_tratamiento", "evaluar_eficacia", "cerrar_hallazgo"],
-    "ADMINISTRADOR": ["administrar_plataforma", "ver_todos_hallazgos"],
+    "VALIDADOR": ["validar_hallazgo", "gestionar_tratamiento", "evaluar_eficacia"],
+    "ADMINISTRADOR": ["administrar_plataforma", "ver_todos_hallazgos", "cerrar_hallazgo"],
 }
 FUENTES = [
     ("OPERACION", "Operación / Proceso"), ("FALLA_CRITICA", "Falla crítica"),
@@ -32,7 +32,7 @@ class Command(BaseCommand):
             permisos = Permission.objects.filter(content_type__app_label="accounts", codename__in=codenames)
             if permisos.count() != len(codenames):
                 raise RuntimeError("Ejecuta migrate antes de la semilla.")
-            grupo.permissions.add(*permisos)
+            grupo.permissions.set(permisos)
         for codigo, nombre in [("INC", "Incidente"), ("PBI", "Problema (PBI)"), ("SNC", "Salida No Conforme"), ("NOC", "No Conforme")]:
             TipoRegistro.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre})
         for codigo, nombre in FUENTES:
@@ -43,6 +43,7 @@ class Command(BaseCommand):
             Urgencia.objects.get_or_create(valor=valor, defaults={"nombre": nombre})
         for codigo, nombre in [("BAJA", "Baja"), ("MEDIA", "Media"), ("ALTA", "Alta"), ("CRITICA", "Crítica")]:
             Prioridad.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre})
+        ConfiguracionImpacto.objects.get_or_create(pk=1)
         # TODO negocio: reemplazar esta matriz DEMO por la oficial aprobada.
         demo = [["BAJA", "MEDIA", "ALTA"], ["MEDIA", "ALTA", "ALTA"], ["ALTA", "ALTA", "CRITICA"]]
         for impacto, fila in enumerate(demo, 1):

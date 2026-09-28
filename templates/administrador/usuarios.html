@@ -1,1 +1,17 @@
-{% extends 'base.html' %}{% block content %}<div class="shell"><div class="case-head"><h1 class="page-title">Usuarios y roles</h1><a class="btn primary" href="{% url 'usuario_crear' %}">Crear usuario</a></div><form method="get" class="toolbar spaced"><label for="q">Buscar usuario</label><input class="input" style="width:300px" id="q" name="q" value="{{ q }}"><button class="btn slim">Buscar</button></form><div class="card table-scroll spaced"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>Área</th><th>Roles</th><th>Estado</th><th>Acción</th></tr></thead><tbody>{% for u in pagina %}<tr><td>{{ u.username }}</td><td>{{ u.get_full_name }}</td><td>{{ u.area }}</td><td>{% for g in u.groups.all %}<span class="badge b-blue">{{ g.name }}</span>{% endfor %}</td><td>{{ u.is_active|yesno:'Activo,Inactivo' }}</td><td><a href="{% url 'usuario_editar' u.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="6">No hay usuarios.</td></tr>{% endfor %}</tbody></table></div>{% include 'includes/paginacion.html' %}</div>{% endblock %}
+{% extends 'base_admin.html' %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+<div class="admin-page-head">
+  <div><h1>Usuarios</h1><p>Administración de cuentas, perfiles y accesos del sistema.</p></div>
+  <a class="admin-primary" href="{% url 'usuario_crear' %}">＋ Nuevo usuario</a>
+</div>
+<section class="admin-panel">
+  <form method="get" class="admin-users-filter">
+    <div class="field"><label for="q">Buscar usuario</label><input class="input" id="q" name="q" value="{{ q }}" placeholder="Nombre, correo, usuario o puesto..."></div>
+    <div class="field"><label for="rol">Filtrar por rol</label><select class="input" id="rol" name="rol"><option value="">Todos</option>{% for item in roles %}<option value="{{ item.name }}"{% if rol == item.name %} selected{% endif %}>{{ item.name|title }}</option>{% endfor %}</select></div>
+    <small>{{ total_usuarios }} usuarios en total · <button class="btn slim" type="submit">Buscar</button></small>
+  </form>
+  <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Nombre</th><th>Correo / usuario</th><th>Puesto y área</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{% for u in pagina %}<tr><td><div class="admin-name-cell"><span class="admin-mini-avatar">{{ u.first_name|default:u.username|slice:':1'|upper }}{{ u.last_name|slice:':1'|upper }}</span><strong>{{ u.get_full_name|default:u.username }}</strong></div></td><td>{{ u.email|default:u.username }}</td><td>{{ u.cargo|default:'—' }}{% if u.area %}<div class="helper">{{ u.area }}</div>{% endif %}</td><td>{% for g in u.groups.all %}<span class="admin-role {% if g.name == 'ADMINISTRADOR' %}admin{% elif g.name == 'VALIDADOR' %}validator{% endif %}">{{ g.name|title }}</span>{% empty %}—{% endfor %}</td><td><span class="admin-state {% if u.is_active %}active{% else %}inactive{% endif %}">{{ u.is_active|yesno:'Activo,Inactivo' }}</span></td><td><a class="admin-action-link" href="{% url 'usuario_editar' u.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="6" class="admin-empty">No hay usuarios para los filtros seleccionados.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="admin-list-footer"><span>Mostrando {{ pagina.start_index }} a {{ pagina.end_index }} de {{ pagina.paginator.count }} usuarios</span>{% include 'includes/admin_paginacion.html' with pagina=pagina %}</div>
+</section>
+{% endblock %}

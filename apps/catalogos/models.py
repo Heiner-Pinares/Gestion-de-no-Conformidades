@@ -140,6 +140,60 @@ class MatrizPrioridad(models.Model):
         return f"{self.impacto} / {self.urgencia}: {self.prioridad}"
 
 
+class ConfiguracionImpacto(models.Model):
+    """Rangos que explican los tres niveles seleccionables por el usuario."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    predeterminada = models.BooleanField(default=True)
+    clientes_bajo_desde = models.PositiveBigIntegerField(default=0)
+    clientes_bajo_hasta = models.PositiveBigIntegerField(default=99)
+    clientes_medio_desde = models.PositiveBigIntegerField(default=100)
+    clientes_medio_hasta = models.PositiveBigIntegerField(default=499)
+    clientes_alto_desde = models.PositiveBigIntegerField(default=500)
+    tiempo_bajo_desde = models.PositiveIntegerField(default=0)
+    tiempo_bajo_hasta = models.PositiveIntegerField(default=29)
+    tiempo_medio_desde = models.PositiveIntegerField(default=30)
+    tiempo_medio_hasta = models.PositiveIntegerField(default=120)
+    tiempo_alto_desde = models.PositiveIntegerField(default=121)
+    financiero_bajo_desde = models.DecimalField(max_digits=14, decimal_places=0, default=0)
+    financiero_bajo_hasta = models.DecimalField(max_digits=14, decimal_places=0, default=999999)
+    financiero_medio_desde = models.DecimalField(max_digits=14, decimal_places=0, default=1000000)
+    financiero_medio_hasta = models.DecimalField(max_digits=14, decimal_places=0, default=1999999)
+    financiero_alto_desde = models.DecimalField(max_digits=14, decimal_places=0, default=2000000)
+
+    class Meta:
+        verbose_name = "configuración de impacto"
+        verbose_name_plural = "configuración de impacto"
+
+    def __str__(self):
+        return "Rangos predeterminados de evaluación de impacto"
+
+    @staticmethod
+    def numero(valor):
+        return f"{int(valor):,}"
+
+    @property
+    def rangos_usuario(self):
+        n = self.numero
+        return {
+            "clientes": {
+                "bajo": f"{n(self.clientes_bajo_desde)} – {n(self.clientes_bajo_hasta)} cuentas",
+                "medio": f"{n(self.clientes_medio_desde)} – {n(self.clientes_medio_hasta)} cuentas",
+                "alto": f"{n(self.clientes_alto_desde)} o más cuentas",
+            },
+            "tiempo": {
+                "bajo": f"{n(self.tiempo_bajo_desde)} – {n(self.tiempo_bajo_hasta)} min",
+                "medio": f"{n(self.tiempo_medio_desde)} – {n(self.tiempo_medio_hasta)} min",
+                "alto": f"{n(self.tiempo_alto_desde)} o más min",
+            },
+            "financiero": {
+                "bajo": f"Menos de S/ {n(self.financiero_medio_desde)}",
+                "medio": f"S/ {n(self.financiero_medio_desde)} a menos de S/ {n(self.financiero_alto_desde)}",
+                "alto": f"S/ {n(self.financiero_alto_desde)} o más",
+            },
+        }
+
+
 class PreguntaCausa(models.Model):
     codigo = models.CharField(primary_key=True, max_length=8)
     categoria = models.ForeignKey(CategoriaCausa, on_delete=models.PROTECT, related_name="preguntas")

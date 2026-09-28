@@ -1,0 +1,67 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Administración{% endblock %} · Portal Claro</title>
+  <link rel="stylesheet" href="{% static 'css/portal-v8.css' %}">
+  <link rel="stylesheet" href="{% static 'css/portal.css' %}?v=impacto-configurable-1">
+  <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=admin-dashboard-4">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="admin-body {% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+  <header class="admin-toolbar">
+    <div class="admin-brand">
+      <a class="admin-claro" href="{% url 'inicio' %}" aria-label="Claro, inicio">Claro<span>✦</span></a>
+      <i aria-hidden="true"></i>
+      <div><strong>Portal Claro</strong><span>Gestión de No Conformidades</span></div>
+    </div>
+    <form action="{% url 'hallazgo_buscar' %}" method="get" role="search">
+      {% include 'includes/admin_icon.html' with icon='search' %}
+      <label class="sr-only" for="admin-global-search">Buscar en el portal</label>
+      <input id="admin-global-search" name="codigo" placeholder="Buscar hallazgos, procesos, códigos o palabras clave...">
+      <kbd>⌘ K</kbd>
+    </form>
+    <a class="admin-bell" href="{% url 'notificaciones' %}" aria-label="Avisos">
+      {% include 'includes/admin_icon.html' with icon='bell' %}
+      {% if notificaciones_no_leidas %}<b>{{ notificaciones_no_leidas }}</b>{% endif %}
+    </a>
+    <details class="admin-user-menu">
+      <summary>
+        <span class="admin-avatar">{{ user.first_name|default:user.username|slice:':1'|upper }}{{ user.last_name|slice:':1'|upper }}</span>
+        <span><strong>{{ user.get_full_name|default:user.username }}</strong><small>{{ user.cargo|default:'Administrador' }}</small></span>
+        <span class="admin-user-chevron" aria-hidden="true">⌄</span>
+      </summary>
+      <div class="admin-user-popover">
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Cerrar sesión</button></form>
+      </div>
+    </details>
+  </header>
+
+  <div class="admin-app">
+    <aside class="admin-sidebar" aria-label="Administración">
+      <nav>
+        <a href="{% url 'inicio' %}"{% if request.resolver_match.url_name == 'inicio' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='home' %}</b><span class="admin-nav-label">Inicio</span></a>
+        <a href="{% url 'hallazgo_buscar' %}"{% if request.resolver_match.url_name == 'hallazgo_buscar' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='document' %}</b><span class="admin-nav-label">Hallazgos</span></a>
+        <a href="{% url 'validaciones_admin' %}"{% if request.resolver_match.url_name == 'validaciones_admin' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='check' %}</b><span class="admin-nav-label">Validaciones</span></a>
+        <a href="{% url 'usuarios' %}"{% if request.resolver_match.url_name == 'usuarios' or request.resolver_match.url_name == 'usuario_crear' or request.resolver_match.url_name == 'usuario_editar' or request.resolver_match.url_name == 'usuario_password' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='users' %}</b><span class="admin-nav-label">Usuarios</span></a>
+        <a href="{% url 'reportes' %}"{% if request.resolver_match.url_name == 'reportes' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='chart' %}</b><span class="admin-nav-label">Indicadores</span></a>
+        <a href="{% url 'catalogos' %}"{% if request.resolver_match.url_name == 'catalogos' or request.resolver_match.url_name == 'configuracion_impacto' or request.resolver_match.url_name == 'catalogo_crear' or request.resolver_match.url_name == 'catalogo_editar' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='database' %}</b><span class="admin-nav-label">Catálogos</span></a>
+      </nav>
+      <div class="admin-sidebar-foot">{% include 'includes/admin_tower_art.html' %}<strong>Claro Perú</strong><small>Conectamos personas<br>y un mejor mañana</small></div>
+      <button class="admin-sidebar-toggle" type="button" aria-label="Contraer menú" aria-expanded="true" data-admin-sidebar-toggle>«</button>
+    </aside>
+
+    <section class="admin-stage">
+      <main id="contenido" class="admin-content" tabindex="-1">
+        {% if messages %}{% for message in messages %}<div class="alert {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}{% endif %}
+        {% block content %}{% endblock %}
+      </main>
+      {% block admin_footer %}<footer class="admin-footer"><span>Claro Perú · Gestión de No Conformidades</span><span>Hacemos más simple la vida de más personas</span></footer>{% endblock %}
+    </section>
+  </div>
+  <script src="{% static 'js/admin.js' %}?v=1" defer></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

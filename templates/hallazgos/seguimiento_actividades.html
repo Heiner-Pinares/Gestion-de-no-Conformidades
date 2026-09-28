@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Actividades · {{ hallazgo.codigo }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=3">{% endblock %}
+{% block content %}
+<div class="shell activity-page">
+  <form method="post">
+    {% csrf_token %}
+    <div class="activity-follow-head">
+      <div>
+        <h1 class="page-title">Actividades · <span class="case-code">{{ hallazgo.codigo }}</span></h1>
+        <p class="page-sub">Seguimiento de fechas, reprogramaciones, estado y eficiencia por actividad.</p>
+      </div>
+      {% if puede_evaluar %}
+        <button class="btn primary" type="submit" name="accion" value="evaluar">Ir a evaluación de eficacia →</button>
+      {% else %}
+        <button class="btn primary" type="button" disabled title="Completa todas las actividades para habilitar el paso 4">Paso 4 bloqueado</button>
+      {% endif %}
+    </div>
+    {% if error_general %}<div class="form-errors" role="alert">{{ error_general }}</div>{% endif %}
+    <div class="info activity-info"><div class="i">i</div><div>
+      <b>Regla para habilitar el paso 4:</b> todas las actividades vigentes deben estar en estado Terminado al 100 %. Puedes guardar el seguimiento las veces que necesites; las actividades canceladas no se consideran para habilitar la evaluación de eficacia.
+      <p><b>Reprogramaciones:</b> se permiten como máximo 3 reprogramaciones por actividad. Cada una reduce 20 puntos de eficiencia: 100 % → 80 % → 60 % → 40 %.</p>
+    </div></div>
+
+    <section class="activity-progress">
+      <div><b>Avance de actividades terminadas · {{ completadas }} de {{ total }}</b><strong>{{ progreso }}%</strong></div>
+      <progress value="{{ progreso }}" max="100">{{ progreso }}%</progress>
+      {% if not puede_evaluar %}<p class="activity-progress-note">Paso 4 bloqueado: faltan {{ pendientes }} actividad{{ pendientes|pluralize:"es" }} por terminar.</p>{% endif %}
+    </section>
+
+    <section class="card activity-follow-table">
+      <div class="section-h">Actividades relacionadas</div>
+      <div class="activity-follow-scrollbar" data-activity-scrollbar aria-hidden="true"><div data-activity-scrollbar-track></div></div>
+      <div class="activity-follow-scroll" data-activity-scroll tabindex="0" role="region" aria-label="Tabla de actividades relacionadas; desplázate horizontalmente para ver todas las columnas">
+      <table data-activity-table>
+        <thead>
+          <tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>FET inicial</th><th>Reprog. 1</th><th>Reprog. 2</th><th>Reprog. 3</th><th>Fecha vigente</th><th>Fecha real</th><th>Estado</th><th>Eficiencia</th><th>Acción</th></tr>
+        </thead>
+        <tbody>
+          {% for linea in lineas %}
+            {% with accion=linea.accion %}
+            <tr>
+              <td><strong class="case-code">{{ accion.codigo }}</strong></td>
+              <td>{{ accion.descripcion }}</td>
+              <td>{{ accion.responsable|default:'Sin asignar' }}</td>
+              <td>{{ accion.fet_inicial|date:'d/m/Y'|default:'—' }}</td>
+              {% for fecha in linea.reprogramaciones %}<td>{{ fecha }}</td>{% endfor %}
+              <td><strong>{{ accion.fecha_vigente|date:'d/m/Y'|default:'—' }}</strong></td>
+              {% if linea.form %}
+                <td>{{ linea.form.fecha_real }}{{ linea.form.fecha_real.errors }}</td>
+                <td>{{ linea.form.estado }}{{ linea.form.estado.errors }}</td>
+              {% else %}
+                <td>{{ accion.fecha_real|date:'d/m/Y'|default:'—' }}</td>
+                <td>{{ accion.get_estado_display }}</td>
+              {% endif %}
+              <td><strong class="efficiency">{{ accion.eficiencia }}%</strong><small>{{ accion.reprogramaciones.count }} reprog.</small></td>
+              <td>{% if accion.estado == 'COMPLETADA' %}<span class="badge b-green">Terminada</span>{% elif accion.estado == 'CANCELADA' %}<span class="badge b-gray">Cancelada</span>{% else %}<a class="btn slim" href="{% url 'accion_reprogramar' accion.pk %}">Reprogramar</a>{% endif %}</td>
+            </tr>
+            {% endwith %}
+          {% empty %}
+            <tr><td colspan="12" class="empty">No hay actividades registradas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    </section>
+    <div class="activity-page-actions">
+      <a class="btn" href="{% url 'inicio' %}">← Volver al panel</a>
+      <div class="activity-follow-actions">
+        <button class="btn" type="submit" name="accion" value="guardar">Guardar seguimiento</button>
+        {% if puede_evaluar %}
+          <button class="btn primary" type="submit" name="accion" value="evaluar">Evaluar eficacia →</button>
+        {% else %}
+          <button class="btn primary" type="button" disabled>Paso 4 bloqueado</button>
+        {% endif %}
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=2"></script>{% endblock %}

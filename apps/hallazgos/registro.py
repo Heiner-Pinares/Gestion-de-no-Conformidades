@@ -3,7 +3,7 @@ from datetime import date, datetime
 from django.db import models
 from django.utils import timezone
 
-COLUMNAS_REGISTRO = [('numero', 'N°'), ('gerencia', 'Gerencia'), ('proceso', 'Proceso'), ('sub_proceso', 'Sub Proceso'), ('fuente_deteccion', 'Fuente de detección'), ('tipo_hallazgo', 'Tipo de Hallazgo'), ('numero_hallazgo', 'N° Hallazgo'), ('ticket_remedy', 'N° Ticket Remedy (si aplica)'), ('descripcion_hallazgo', 'Descripción del Hallazgo'), ('requisito_referencia', 'Requisito de referencia'), ('responsable_proceso', 'Responsable del proceso'), ('fecha_deteccion', 'Fecha de detección'), ('fecha_registro', 'Fecha de registro'), ('impacto', 'Impacto (si aplica)'), ('urgencia', 'Urgencia (si aplica)'), ('prioridad_criticidad', 'Prioridad / Criticidad (si aplica)'), ('no_conformidad_critica', '¿No conformidad crítica?'), ('causas_raiz', 'Causa(s) raíz identificada(s)'), ('tipo_accion', 'Tipo de Acción'), ('descripcion_accion', 'Descripción de la Acción'), ('responsable', 'Responsable'), ('fet', 'FET'), ('estado', 'Estado'), ('evidencia_implementacion', 'Evidencia de implementación'), ('porcentaje_avance', 'Porcentaje de Avance'), ('comentario', 'Comentario'), ('fecha_evaluacion_eficacia', 'Fecha de evaluación de eficacia'), ('resultado_eficacia', 'Resultado de eficacia'), ('fecha_cierre', 'Fecha de cierre'), ('auditor_verificador', 'Auditor o Verificador'), ('comentarios', 'Comentarios')]
+COLUMNAS_REGISTRO = [('numero', 'N°'), ('gerencia', 'Gerencia'), ('proceso', 'Proceso'), ('sub_proceso', 'Sub Proceso'), ('fuente_deteccion', 'Fuente de detección'), ('tipo_hallazgo', 'Tipo de Hallazgo'), ('numero_hallazgo', 'N° Hallazgo'), ('ticket_remedy', 'N° Ticket Remedy (si aplica)'), ('descripcion_hallazgo', 'Descripción del Hallazgo'), ('requisito_referencia', 'Requisito de referencia'), ('responsable_proceso', 'Responsable del proceso'), ('fecha_deteccion', 'Fecha de detección'), ('fecha_registro', 'Fecha de registro'), ('impacto', 'Impacto (si aplica)'), ('impacto_clientes_nivel', 'Nivel de impacto · Clientes'), ('impacto_tiempo_nivel', 'Nivel de impacto · Tiempo'), ('impacto_financiero_nivel', 'Nivel de impacto · Financiero'), ('urgencia', 'Urgencia (si aplica)'), ('prioridad_criticidad', 'Prioridad / Criticidad (si aplica)'), ('no_conformidad_critica', '¿No conformidad crítica?'), ('causas_raiz', 'Causa(s) raíz identificada(s)'), ('tipo_accion', 'Tipo de Acción'), ('descripcion_accion', 'Descripción de la Acción'), ('responsable', 'Responsable'), ('fet', 'FET'), ('estado', 'Estado'), ('evidencia_implementacion', 'Evidencia de implementación'), ('porcentaje_avance', 'Porcentaje de Avance'), ('comentario', 'Comentario'), ('fecha_evaluacion_eficacia', 'Fecha de evaluación de eficacia'), ('resultado_eficacia', 'Resultado de eficacia'), ('fecha_cierre', 'Fecha de cierre'), ('auditor_verificador', 'Auditor o Verificador'), ('comentarios', 'Comentarios')]
 
 class RegistroGeneral(models.Model):
     fila_id = models.CharField(primary_key=True, max_length=100)
@@ -24,6 +24,9 @@ class RegistroGeneral(models.Model):
     fecha_deteccion = models.DateTimeField(null=True)
     fecha_registro = models.DateTimeField(null=True)
     impacto = models.TextField(null=True)
+    impacto_clientes_nivel = models.TextField(null=True)
+    impacto_tiempo_nivel = models.TextField(null=True)
+    impacto_financiero_nivel = models.TextField(null=True)
     urgencia = models.TextField(null=True)
     prioridad_criticidad = models.TextField(null=True)
     no_conformidad_critica = models.TextField(null=True)

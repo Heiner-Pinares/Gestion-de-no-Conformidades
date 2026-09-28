@@ -1,0 +1,26 @@
+{% extends 'base_admin.html' %}
+{% block title %}Validaciones{% endblock %}
+{% block content %}
+<div class="admin-page-head">
+  <div class="admin-page-title"><span class="admin-page-icon">✓</span><div><h1>Validaciones</h1><p>Revisión del paso 4 y vistos buenos administrativos de cierre.</p></div></div>
+</div>
+
+<section class="admin-metrics" aria-label="Resumen de validaciones">
+  <article class="admin-metric"><span class="admin-metric-icon amber">◷</span><div><strong>{{ resumen_validaciones.pendientes }}</strong><span>En verificación</span><small>Paso 4 activo</small></div></article>
+  <article class="admin-metric"><span class="admin-metric-icon green">✓</span><div><strong>{{ resumen_validaciones.listos }}</strong><span>Listos para cerrar</span><small>Requieren visto bueno</small></div></article>
+  <article class="admin-metric"><span class="admin-metric-icon blue">↻</span><div><strong>{{ resumen_validaciones.en_revision }}</strong><span>En revisión</span><small>Con requisitos pendientes</small></div></article>
+  <article class="admin-metric"><span class="admin-metric-icon purple">●</span><div><strong>{{ resumen_validaciones.cerrados }}</strong><span>Cerrados</span><small>Histórico finalizado</small></div></article>
+</section>
+
+<form method="get" class="admin-filter">
+  <div class="field"><label for="prioridad">Prioridad</label><select class="input" id="prioridad" name="prioridad"><option value="">Todas</option><option{% if prioridad == 'Alta' %} selected{% endif %}>Alta</option><option{% if prioridad == 'Media' %} selected{% endif %}>Media</option><option{% if prioridad == 'Baja' %} selected{% endif %}>Baja</option></select></div>
+  <div class="field"><label for="desde">Desde</label><input class="input" id="desde" name="desde" type="date" value="{{ desde }}"></div>
+  <div class="field"><label for="hasta">Hasta</label><input class="input" id="hasta" name="hasta" type="date" value="{{ hasta }}"></div>
+  <div class="admin-filter-actions"><button class="btn primary" type="submit">Buscar</button><a href="{% url 'validaciones_admin' %}">Limpiar</a></div>
+</form>
+
+<section class="admin-panel">
+  <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Código</th><th>Usuario</th><th>Prioridad</th><th>Estado</th><th>Fecha</th><th>Acciones</th></tr></thead><tbody>{% for caso in pagina %}<tr><td class="code">{{ caso.codigo }}</td><td>{{ caso.responsable.get_full_name|default:caso.responsable.username }}</td><td><span class="admin-state {% if caso.prioridad_snapshot == 'Alta' %}returned{% elif caso.prioridad_snapshot == 'Media' %}pending{% else %}active{% endif %}">{{ caso.prioridad_snapshot|default:'Sin definir' }}</span></td><td><span class="admin-state {% if caso.listo_para_cierre %}ready{% else %}review{% endif %}">{% if caso.listo_para_cierre %}Listo para visto bueno{% else %}En revisión{% endif %}</span></td><td>{{ caso.fecha_registro|date:'d/m/Y H:i' }}</td><td><a class="admin-action-link primary" href="{% url 'hallazgo_detalle' caso.pk %}">Revisar</a></td></tr>{% empty %}<tr><td colspan="6" class="admin-empty">No hay casos pendientes de validación final.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="admin-list-footer"><span>{{ pagina.paginator.count }} registros en el paso 4</span>{% include 'includes/admin_paginacion.html' with pagina=pagina %}</div>
+</section>
+{% endblock %}

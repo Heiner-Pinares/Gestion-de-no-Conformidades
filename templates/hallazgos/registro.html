@@ -3,9 +3,9 @@
 {% block content %}
 <div class="shell identificacion-v8">
   <div class="crumb">⌂ &nbsp;<a href="{% url 'inicio' %}">Panel principal</a> &nbsp;/&nbsp; Registro</div>
-  <div class="case-head"><div><h1 class="page-title">Registro de Solicitud de Acción Correctiva</h1><div class="page-sub">Completa la información de la no conformidad para iniciar el análisis.</div></div></div>
+  <div class="case-head"><div><h1 class="page-title">Registro de Solicitud de Acción Correctiva</h1><div class="page-sub">Completa la información de la no conformidad para iniciar su tratamiento.</div></div></div>
   {% include 'includes/stepper.html' %}
-  <div class="info"><div class="i">i</div><div><b>Al completar la identificación pasarás al análisis de causa raíz.</b><br>El checklist 6M se guarda por categoría y debe completarse antes de habilitar la solución inmediata y las acciones correctivas del paso 3.</div></div>
+  <div class="info"><div class="i">i</div><div><b>El recorrido depende de la criticidad seleccionada.</b><br>Los casos críticos pasan al análisis de causa raíz; los no críticos continúan directamente a la solución inmediata.</div></div>
 
   <form method="post" class="card form-card" novalidate>
     {% csrf_token %}{% if hallazgo %}<input type="hidden" name="version" value="{{ version }}">{% endif %}
@@ -23,14 +23,33 @@
       <div class="identificacion-columna">
         {% include 'includes/identificacion_campo.html' with field=form.tipo_registro %}
         {% include 'includes/identificacion_campo.html' with field=form.fuente_deteccion %}
-        <div class="pair"><div class="lab"><label for="hallazgoCode">N° Hallazgo</label></div><div class="val"><input id="hallazgoCode" class="input readonly-strong case-code" value="{% if hallazgo %}{{ hallazgo.codigo }}{% else %}Se generará automáticamente{% endif %}" readonly><div class="helper">Formato automático: SAC-ABC-YYYY-NNNN.</div></div></div>
-        {% include 'includes/identificacion_campo.html' with field=form.ticket_remedy etiqueta='N° Ticket remedy (si aplica)' %}
+        <div class="pair"><div class="lab"><label for="hallazgoCode">N° Hallazgo</label></div><div class="val"><input id="hallazgoCode" class="input readonly-strong case-code" value="{% if codigo_previsualizado %}{{ codigo_previsualizado }}{% else %}Selecciona un tipo de registro{% endif %}" readonly><div class="helper">{% if hallazgo %}Código automático: si corriges el tipo, se actualizará al continuar.{% else %}Vista previa automática: el código definitivo se confirma al continuar.{% endif %} Formato SAC-ABC-YYYY-NNNN.</div><span id="hallazgoCodeStatus" class="sr-only" aria-live="polite"></span></div></div>
+        <div class="pair technology-pair">
+          <div class="lab"><span class="technology-label">¿Es hallazgo tecnológico? <span class="technology-info" title="Selecciona Sí cuando el hallazgo requiere gestión mediante un ticket Remedy" aria-label="Información: selecciona Sí cuando el hallazgo requiere gestión mediante un ticket Remedy">i</span></span></div>
+          <div class="val">
+            <div class="technology-toggle" role="radiogroup" aria-label="¿Es hallazgo tecnológico?">
+              {% for radio in form.origen_tecnologico %}<label class="technology-option">{{ radio.tag }}<span>{{ radio.choice_label }}</span></label>{% endfor %}
+            </div>
+            {{ form.origen_tecnologico.errors }}
+          </div>
+        </div>
+        <div class="pair">
+          <div class="lab"><label for="{{ form.ticket_remedy.id_for_label }}">N° Ticket remedy (si aplica)</label></div>
+          <div class="val">
+            <div class="ticket-remedy-control">
+              {{ form.ticket_remedy }}
+              <a class="btn ticket-register-link" href="https://clarop-dwp.claro.pe/dwp/app/#/activity" target="_blank" rel="noopener noreferrer" aria-label="Registrar ticket Remedy en el portal DWP de Claro; se abre en una pestaña nueva">↗ Registrar ticket</a>
+            </div>
+            <div id="ticketTecnologicoAyuda" class="technology-ticket-help" hidden>ⓘ Este campo es obligatorio para hallazgos tecnológicos.</div>
+            {{ form.ticket_remedy.errors }}
+          </div>
+        </div>
         {% include 'includes/identificacion_campo.html' with field=form.descripcion etiqueta='Descripción de la no conformidad' %}
         {% include 'includes/identificacion_campo.html' with field=form.responsable %}
-        {% include 'includes/identificacion_campo.html' with field=form.fecha_deteccion etiqueta='Fecha de detección' %}
       </div>
       <div class="identificacion-columna">
         <div class="pair"><div class="lab"><label for="fechaRegistro">Fecha de registro</label></div><div class="val"><input id="fechaRegistro" class="input readonly-strong" type="date" value="{% if hallazgo %}{{ hallazgo.fecha_registro|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" readonly><div class="helper">Se completa automáticamente con la fecha actual y no puede modificarse.</div></div></div>
+        {% include 'includes/identificacion_campo.html' with field=form.fecha_deteccion etiqueta='Fecha de detección' %}
         {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución' ayuda='No se permiten fechas anteriores a la fecha actual.' %}
         <div class="pair">
           <div class="lab"><label for="impactoResumen">Impacto (si aplica)</label></div>
@@ -39,15 +58,18 @@
               <input id="impactoResumen" class="input readonly-strong" value="{{ form.impacto_resumen }}" readonly>
               <details id="impactoDetails" class="impacto-desplegable"{% if form.impacto_errores %} open{% endif %}>
                 <summary class="btn matrix">Evaluar impacto</summary>
-                <div class="impacto-panel">
-                  <strong>Evaluación de impacto</strong>
-                  <p class="helper">Selecciona un nivel para cada criterio y pulsa “Guardar evaluación”.</p>
-                  <table class="impact-matrix">
-                    <thead><tr><th>Criterio</th><th>Pendiente</th><th>Bajo</th><th>Medio</th><th>Alto</th></tr></thead>
-                    <tbody>{% for campo in form.campos_impacto %}<tr><th scope="row">{{ campo.label }}{{ campo.errors }}</th>{% for radio in campo %}<td><label>{{ radio.tag }}<span class="sr-only">{{ campo.label }}: {{ radio.choice_label }}</span></label></td>{% endfor %}</tr>{% endfor %}</tbody>
-                  </table>
+                <div class="impacto-panel" role="dialog" aria-modal="true" aria-labelledby="impactoTitulo">
+                  <div class="impact-modal-head"><strong id="impactoTitulo">Evaluación de impacto</strong><button type="button" id="cerrarImpacto" aria-label="Cerrar evaluación de impacto">×</button></div>
+                  <div class="impact-modal-body">
+                  {% with rangos=form.configuracion_impacto.rangos_usuario %}
+                    {% include 'includes/impacto_criterio.html' with campo=form.impacto_clientes titulo='Clientes afectados' descripcion='Cantidad de clientes que han sido afectados.' icono='♟' rangos=rangos.clientes %}
+                    {% include 'includes/impacto_criterio.html' with campo=form.impacto_tiempo titulo='Tiempo de afectación' descripcion='Duración del servicio afectado.' icono='◷' rangos=rangos.tiempo %}
+                    {% include 'includes/impacto_criterio.html' with campo=form.impacto_soles titulo='Impacto financiero' descripcion='Pérdida económica potencial del incidente.' icono='●' rangos=rangos.financiero %}
+                  {% endwith %}
+                  <div class="impact-result-preview"><span aria-hidden="true">▥</span><strong>Impacto resultante:</strong><b id="impactoResultadoModal">Pendiente</b></div>
                   <p id="impactoError" class="impacto-error" role="alert" hidden>Selecciona Bajo, Medio o Alto en los tres criterios.</p>
                   <div class="impacto-acciones"><button type="button" class="btn" id="cancelarImpacto">Cancelar</button><button type="button" class="btn primary" id="guardarImpacto">Guardar evaluación</button></div>
+                  </div>
                 </div>
               </details>
             </div>
@@ -60,9 +82,10 @@
       </div>
     </div>
 
-    <div class="actions"><button class="btn" type="submit" name="accion" value="borrador">{% if hallazgo %}Guardar cambios{% else %}▣ Guardar borrador{% endif %}</button>{% if form.puede_continuar %}<button class="btn primary" type="submit" name="accion" value="continuar">Continuar →</button>{% else %}<a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver al hallazgo</a>{% endif %}</div>
+    <div class="actions">{% if form.puede_continuar %}<button class="btn primary right" type="submit" name="accion" value="continuar">Continuar →</button>{% else %}<a class="btn right" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver al hallazgo</a>{% endif %}</div>
   </form>
   {{ form.matriz_prioridad|json_script:"matrizPrioridad" }}
+  {{ codigos_sac|json_script:"codigosSac" }}
 </div>
 {% endblock %}
 
@@ -74,9 +97,35 @@
   const prioridad = document.getElementById('prioridadResumen');
   const urgencia = document.getElementById('id_urgencia');
   const mensaje = document.getElementById('impactoMensaje');
+  const resultadoModal = document.getElementById('impactoResultadoModal');
   const error = document.getElementById('impactoError');
   const matriz = JSON.parse(document.getElementById('matrizPrioridad').textContent);
+  const tipoRegistro = document.getElementById('id_tipo_registro');
+  const codigoHallazgo = document.getElementById('hallazgoCode');
+  const codigoStatus = document.getElementById('hallazgoCodeStatus');
+  const codigosSac = JSON.parse(document.getElementById('codigosSac').textContent);
+  const opcionesTecnologia = document.querySelectorAll('input[name="origen_tecnologico"]');
+  const ticketRemedy = document.getElementById('id_ticket_remedy');
+  const ticketAyuda = document.getElementById('ticketTecnologicoAyuda');
+  const ticketContenedor = ticketRemedy.closest('.val');
+  const ticketErrores = ticketContenedor.querySelector('.errorlist');
   const etiquetas = {1: 'Bajo', 2: 'Medio', 3: 'Alto'};
+
+  function actualizarTicketTecnologico() {
+    const seleccion = document.querySelector('input[name="origen_tecnologico"]:checked');
+    const esTecnologico = seleccion && seleccion.value === 'True';
+    ticketRemedy.required = Boolean(esTecnologico);
+    ticketRemedy.setAttribute('aria-required', esTecnologico ? 'true' : 'false');
+    ticketContenedor.classList.toggle('ticket-required', Boolean(esTecnologico));
+    if (ticketErrores) ticketErrores.hidden = !esTecnologico;
+    ticketAyuda.hidden = !esTecnologico || Boolean(ticketErrores);
+  }
+
+  function actualizarCodigoHallazgo() {
+    const codigo = codigosSac[tipoRegistro.value] || 'Selecciona un tipo de registro';
+    codigoHallazgo.value = codigo;
+    codigoStatus.textContent = codigo.startsWith('SAC-') ? `Número de hallazgo previsto: ${codigo}` : codigo;
+  }
 
   function niveles() {
     return ['impacto_clientes', 'impacto_tiempo', 'impacto_soles'].map(nombre => {
@@ -102,6 +151,7 @@
     const resultado = Math.max(...valores);
     error.hidden = true;
     impacto.value = etiquetas[resultado];
+    resultadoModal.textContent = etiquetas[resultado];
     mensaje.textContent = `Impacto ${etiquetas[resultado]} calculado automáticamente.`;
     actualizarPrioridad(resultado);
     if (cerrar) detalles.open = false;
@@ -110,11 +160,20 @@
 
   document.getElementById('guardarImpacto').addEventListener('click', () => guardarEvaluacion(true));
   document.getElementById('cancelarImpacto').addEventListener('click', () => { detalles.open = false; });
+  document.getElementById('cerrarImpacto').addEventListener('click', () => { detalles.open = false; });
   urgencia.addEventListener('change', () => {
     const valores = niveles();
     actualizarPrioridad(valores.every(Boolean) ? Math.max(...valores) : null);
   });
-  document.querySelectorAll('input[name^="impacto_"]').forEach(control => control.addEventListener('change', () => { error.hidden = true; }));
+  document.querySelectorAll('input[name^="impacto_"]').forEach(control => control.addEventListener('change', () => {
+    error.hidden = true;
+    const valores = niveles();
+    resultadoModal.textContent = valores.every(Boolean) ? etiquetas[Math.max(...valores)] : 'Pendiente';
+  }));
+  tipoRegistro.addEventListener('change', actualizarCodigoHallazgo);
+  opcionesTecnologia.forEach(opcion => opcion.addEventListener('change', actualizarTicketTecnologico));
+  actualizarCodigoHallazgo();
+  actualizarTicketTecnologico();
   if (niveles().every(Boolean)) guardarEvaluacion(false);
 })();
 </script>

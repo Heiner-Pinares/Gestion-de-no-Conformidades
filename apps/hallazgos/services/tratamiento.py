@@ -1,3 +1,4 @@
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.utils import timezone
 from apps.hallazgos.models import ComunicacionHallazgo, EvaluacionEficacia, PBI
@@ -56,7 +57,10 @@ class EficaciaService:
     @transaction.atomic
     def evaluar(*, usuario, hallazgo, datos):
         hallazgo = bloquear(hallazgo)
-        validar(usuario, hallazgo, "evaluar_eficacia")
+        try:
+            validar(usuario, hallazgo, "evaluar_eficacia")
+        except PermissionDenied:
+            gestionar(usuario, hallazgo)
         editable(hallazgo, {"EN_VERIFICACION"})
         campos_permitidos(datos, ["fecha_evaluacion", "resultado", "comentario"])
         ciclo = tratamiento_completo(hallazgo)

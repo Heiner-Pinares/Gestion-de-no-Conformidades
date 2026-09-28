@@ -6,7 +6,7 @@ from django.utils import timezone
 from apps.accounts.permissions import puede_gestionar, puede_validar
 from apps.hallazgos.models import CicloTratamiento, Hallazgo, HistorialHallazgo, Notificacion
 
-TRATAMIENTO = {"ACCION_INMEDIATA", "EN_ANALISIS", "PBI_EN_GESTION", "PLAN_ACCION", "EN_IMPLEMENTACION", "REABIERTO"}
+TRATAMIENTO = {"ACCION_INMEDIATA", "EN_ANALISIS", "PBI_EN_GESTION", "PLAN_ACCION", "EN_IMPLEMENTACION", "EN_VERIFICACION", "REABIERTO"}
 
 
 def bloquear(hallazgo, version=None):
@@ -72,23 +72,33 @@ def campos_permitidos(datos, campos):
 
 
 def requiere_inmediata(ciclo):
-    acciones = ciclo.acciones.filter(tipo="INMEDIATA")
-    exigir(acciones.exists() and not acciones.exclude(estado="COMPLETADA").exists(), "Complete al menos una acción inmediata y todas las inmediatas del ciclo.")
-    exigir(ciclo.comunicaciones.exists(), "Registre la comunicación del tratamiento inmediato.")
+    acciones = ciclo.acciones.filter(tipo="INMEDIATA").exclude(estado="CANCELADA")
+    exigir(acciones.exists() and not acciones.exclude(estado="COMPLETADA").exists(), "Termine al menos una solución inmediata y todas las soluciones inmediatas vigentes del ciclo.")
 
 
 def analisis_completo(ciclo):
     return ciclo.analisis_fin is not None
 
 
+def actividades_completas(ciclo):
+    """El paso 4 solo se habilita cuando cada actividad llegó al 100 %."""
+    acciones = ciclo.acciones.exclude(estado="CANCELADA")
+    return acciones.exists() and not acciones.exclude(
+        estado="COMPLETADA", porcentaje_avance=100
+    ).exists()
+
+
 def tratamiento_completo(hallazgo):
     from django.conf import settings
     ciclo = ciclo_vigente(hallazgo)
+    exigir(
+        actividades_completas(ciclo),
+        "Termine todas las actividades al 100 % antes de pasar a la evaluación de eficacia. Las canceladas no se consideran.",
+    )
     requiere_inmediata(ciclo)
-    exigir(not ciclo.acciones.exclude(estado="COMPLETADA").exists(), "Complete todas las acciones del ciclo antes de evaluar o cerrar.")
     if hallazgo.es_critica == "SI":
         exigir(analisis_completo(ciclo), "Finalice el análisis de causa del ciclo.")
-        exigir(ciclo.acciones.filter(tipo="CORRECTIVA").exists(), "Registre al menos una acción correctiva.")
+        exigir(ciclo.acciones.filter(tipo="CORRECTIVA").exclude(estado="CANCELADA").exists(), "Registre al menos una acción correctiva vigente.")
         if hallazgo.origen_tecnologico:
             exigir(ciclo.pbis.exists(), "Registre la referencia PBI para el caso crítico tecnológico.")
             if getattr(settings, "REQUIRE_CLOSED_PBI", False):

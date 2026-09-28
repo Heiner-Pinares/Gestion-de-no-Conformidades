@@ -1,7 +1,7 @@
 """Consultas con alcance por usuario; compartidas por búsqueda, panel y reportes."""
 from django.db.models import Count, Q
 from django.utils import timezone
-from apps.accounts.permissions import puede_gestionar, puede_validar
+from apps.accounts.permissions import es_administrador, puede_gestionar, puede_validar
 from .models import EvaluacionEficacia, Hallazgo
 from .services.workflow import TRANSICIONES
 
@@ -29,15 +29,19 @@ def acciones_disponibles(usuario, hallazgo):
             continue
         if codigo in {"validar", "devolver", "cancelar"} and not puede_validar(usuario, hallazgo):
             continue
-        if codigo in {"cerrar", "reabrir"}:
-            permiso = "cerrar_hallazgo" if codigo == "cerrar" else "evaluar_eficacia"
-            if not puede_validar(usuario, hallazgo) or not usuario.has_perm(f"accounts.{permiso}"):
+        if codigo == "cerrar":
+            if not es_administrador(usuario):
                 continue
-            if codigo == "cerrar":
-                ciclo = hallazgo.ciclo_actual
-                ultima = ciclo.evaluaciones.first() if ciclo else None
-                if not ultima or ultima.resultado != "EFICAZ":
-                    continue
+            ciclo = hallazgo.ciclo_actual
+            ultima = ciclo.evaluaciones.first() if ciclo else None
+            actividades_vigentes = ciclo.acciones.exclude(estado="CANCELADA") if ciclo else None
+            if (not ciclo or not ultima or ultima.resultado != "EFICAZ"
+                    or not actividades_vigentes.exists()
+                    or actividades_vigentes.exclude(estado="COMPLETADA", porcentaje_avance=100).exists()):
+                continue
+        if codigo == "reabrir":
+            if not puede_validar(usuario, hallazgo) or not usuario.has_perm("accounts.evaluar_eficacia"):
+                continue
         if codigo == "enviar":
             if usuario.pk not in {hallazgo.registrado_por_id, hallazgo.responsable_id} or not usuario.has_perm("accounts.registrar_hallazgo"):
                 continue
@@ -51,6 +55,13 @@ def acciones_disponibles(usuario, hallazgo):
             continue
         if codigo == "enviar_verificacion" and hallazgo.es_critica == "SI" and hallazgo.estado != "EN_IMPLEMENTACION":
             continue
+        if codigo == "enviar_verificacion":
+            ciclo = hallazgo.ciclo_actual
+            actividades_vigentes = ciclo.acciones.exclude(estado="CANCELADA") if ciclo else None
+            if not ciclo or not actividades_vigentes.exists() or actividades_vigentes.exclude(
+                estado="COMPLETADA", porcentaje_avance=100
+            ).exists():
+                continue
         acciones.append((codigo, etiqueta))
     return acciones
 
@@ -76,13 +87,14 @@ def timeline_hallazgo(hallazgo):
     estados[actual - 1] = "Actual"
     if actual > 1:
         estados[0] = "Completado"
-    # Una corrección inmediata puede preceder al análisis: no marcarlo realizado.
-    if estado in {"PLAN_ACCION", "EN_IMPLEMENTACION", "EN_VERIFICACION", "CERRADO"}:
+    if estado in {"ACCION_INMEDIATA", "PLAN_ACCION", "EN_IMPLEMENTACION", "EN_VERIFICACION", "CERRADO"}:
         estados[1] = "Completado"
     if estado in {"EN_VERIFICACION", "CERRADO"}:
         estados[2] = "Completado"
     if estado == "CERRADO":
         estados[3] = "Completado"
+    if hallazgo.es_critica == "NO" and estado in {"ACCION_INMEDIATA", "EN_VERIFICACION", "CERRADO"}:
+        estados[1] = "No aplica"
     if estado == "CANCELADO":
         estados[0] = "Cancelado"
     return [
@@ -97,7 +109,6 @@ def indicadores(usuario):
     hoy = timezone.localdate()
     datos = consulta.aggregate(
         total=Count("pk", distinct=True),
-        borradores=Count("pk", filter=Q(estado="BORRADOR"), distinct=True),
         abiertos=Count("pk", filter=~Q(estado__in=["CERRADO", "CANCELADO"]), distinct=True),
         pendientes=Count("pk", filter=Q(estado="PENDIENTE_VALIDACION"), distinct=True),
         en_analisis=Count("pk", filter=Q(estado__in=["EN_ANALISIS", "PBI_EN_GESTION"]), distinct=True),

@@ -18,14 +18,16 @@ class EtapasPrototipo(SimpleTestCase):
         self.assertIn('4. Evaluación de eficacia<br>y cierre', html)
         self.assertNotIn('Validación', html)
 
-    def test_no_confunde_correccion_inmediata_con_analisis_realizado(self):
+    def test_el_paso_tres_muestra_el_analisis_completado(self):
         pasos = timeline_hallazgo(Hallazgo(estado='ACCION_INMEDIATA', es_critica='SI'))
-        self.assertEqual(pasos[1]['estado'], 'Pendiente')
+        self.assertEqual(pasos[1]['estado'], 'Completado')
         self.assertEqual(pasos[2]['estado'], 'Actual')
         pasos = timeline_hallazgo(Hallazgo(estado='EN_ANALISIS', es_critica='SI'))
         self.assertEqual(pasos[1]['estado'], 'Actual')
         self.assertEqual(pasos[2]['estado'], 'Pendiente')
 
-    def test_cierre_no_critico_incluye_el_analisis(self):
+    def test_no_critico_marca_analisis_como_no_aplica(self):
+        pasos = timeline_hallazgo(Hallazgo(estado='ACCION_INMEDIATA', es_critica='NO'))
+        self.assertEqual([p['estado'] for p in pasos], ['Completado', 'No aplica', 'Actual', 'Pendiente'])
         pasos = timeline_hallazgo(Hallazgo(estado='CERRADO', es_critica='NO'))
-        self.assertEqual([p['estado'] for p in pasos], ['Completado', 'Completado', 'Completado', 'Completado'])
+        self.assertEqual([p['estado'] for p in pasos], ['Completado', 'No aplica', 'Completado', 'Completado'])

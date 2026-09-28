@@ -15,7 +15,7 @@ class Usuario(AbstractUser):
             ("validar_hallazgo", "Validar hallazgos de procesos asignados"),
             ("gestionar_tratamiento", "Gestionar tratamiento de procesos asignados"),
             ("evaluar_eficacia", "Evaluar eficacia de procesos asignados"),
-            ("cerrar_hallazgo", "Cerrar hallazgos de procesos asignados"),
+            ("cerrar_hallazgo", "Dar visto bueno administrativo y cerrar hallazgos"),
             ("ver_todos_hallazgos", "Consultar todos los hallazgos"),
             ("administrar_plataforma", "Administrar plataforma y catálogos"),
         ]

@@ -4,6 +4,10 @@ import environ
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(DEBUG=(bool, False))
+# Los secretos locales tienen prioridad y nunca deben versionarse.
+local_env = BASE_DIR / ".env.local"
+if local_env.exists():
+    environ.Env.read_env(local_env)
 environ.Env.read_env(BASE_DIR / ".env")
 SECRET_KEY = env("SECRET_KEY")
 DEBUG = env("DEBUG")
@@ -87,6 +91,11 @@ SECURE_HSTS_PRELOAD = False
 SAC_SEQUENCE_SCOPE = env("SAC_SEQUENCE_SCOPE", default="TYPE")
 REQUIRE_CLOSED_PBI = env.bool("REQUIRE_CLOSED_PBI", default=False)
 ENABLE_DEMO_DATA = env.bool("ENABLE_DEMO_DATA", default=False)
+MICROSOFT_SSO_ENABLED = env.bool("MICROSOFT_SSO_ENABLED", default=False)
+MICROSOFT_TENANT_ID = env("MICROSOFT_TENANT_ID", default="")
+MICROSOFT_CLIENT_ID = env("MICROSOFT_CLIENT_ID", default="")
+MICROSOFT_CLIENT_SECRET = env("MICROSOFT_CLIENT_SECRET", default="")
+MICROSOFT_REDIRECT_URI = env("MICROSOFT_REDIRECT_URI", default="")
 LOGGING = {
     "version": 1, "disable_existing_loggers": False,
     "formatters": {"standard": {"format": "{asctime} {levelname} {name}: {message}", "style": "{"}},

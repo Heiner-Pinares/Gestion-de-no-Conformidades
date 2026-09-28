@@ -6,7 +6,7 @@ from apps.hallazgos.models import Accion
 from .common import (bloquear, campos_permitidos, ciclo_vigente, editable, exigir,
     gestionar, notificar, registrar)
 
-CAMPOS_ACCION = ["tipo", "descripcion", "responsable", "fecha_inicio", "fet_inicial", "resultado_esperado", "comentario"]
+CAMPOS_ACCION = ["tipo", "descripcion", "responsable", "fecha_inicio", "fet_inicial", "estado", "resultado_esperado", "comentario"]
 
 
 def bloquear_accion(usuario, accion):
@@ -16,7 +16,7 @@ def bloquear_accion(usuario, accion):
         raise PermissionDenied("No tiene autorización sobre esta acción.")
     editable(hallazgo)
     ciclo_vigente(hallazgo, accion)
-    exigir(accion.estado != "COMPLETADA", "Una acción completada es histórica; cree una nueva acción en el ciclo correspondiente.")
+    exigir(accion.estado not in {"COMPLETADA", "CANCELADA"}, "Una acción terminada o cancelada es histórica; cree una nueva acción en el ciclo correspondiente.")
     return hallazgo, accion
 
 
@@ -28,7 +28,7 @@ class AccionService:
         gestionar(usuario, hallazgo)
         campos_permitidos(datos, CAMPOS_ACCION)
         tipo = datos.get("tipo")
-        if tipo == "INMEDIATA":
+        if tipo in {"INMEDIATA", "ACCION_INMEDIATA"}:
             editable(hallazgo, {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION"})
         elif tipo == "CORRECTIVA":
             editable(hallazgo, {"PLAN_ACCION"})
@@ -36,9 +36,20 @@ class AccionService:
         else:
             exigir(False, "Seleccione un tipo de acción válido.")
         ciclo = ciclo_vigente(hallazgo)
-        exigir(datos.get("responsable") and datos["responsable"].is_active, "Seleccione un responsable activo.")
-        exigir(datos.get("fet_inicial") and datos.get("fecha_inicio"), "Indique las fechas de inicio y compromiso.")
-        exigir(datos["fet_inicial"] >= timezone.localdate(), "La fecha compromiso inicial no puede ser anterior a hoy.")
+        responsable = datos.get("responsable")
+        exigir(responsable is None or responsable.is_active, "Seleccione un responsable activo.")
+        exigir(datos.get("fecha_inicio"), "Indique la fecha de inicio.")
+        if datos.get("fet_inicial"):
+            exigir(datos["fet_inicial"] >= timezone.localdate(), "La fecha compromiso inicial no puede ser anterior a hoy.")
+        estado = datos.get("estado", "PENDIENTE")
+        exigir(estado in dict(Accion.ESTADOS), "Estado de acción no válido.")
+        datos = {**datos, "estado": estado}
+        if estado == "COMPLETADA":
+            datos.update(porcentaje_avance=100, fecha_real=timezone.localdate())
+        elif estado == "EN_PROCESO":
+            datos.update(porcentaje_avance=50, fecha_real=None)
+        else:
+            datos.update(porcentaje_avance=0, fecha_real=None)
         numero = Accion.objects.filter(ciclo__hallazgo=hallazgo).count() + 1
         accion = Accion(ciclo=ciclo, codigo=f"{hallazgo.codigo}-A{numero:02d}", fecha_vigente=datos["fet_inicial"], **datos)
         accion.full_clean()
@@ -59,11 +70,12 @@ class AccionService:
         exigir(isinstance(avance, int) and 0 <= avance <= 100, "El avance debe estar entre 0 y 100.")
         fecha_real = datos.get("fecha_real")
         if estado == "COMPLETADA":
-            exigir(avance == 100 and fecha_real is not None, "Una acción completada requiere 100% de avance y fecha real.")
+            exigir(avance == 100 and fecha_real is not None, "Una acción terminada requiere 100% de avance y fecha real.")
             exigir(accion.fecha_inicio <= fecha_real <= timezone.localdate(), "La fecha real debe estar entre el inicio y hoy.")
         else:
-            exigir(avance < 100 and fecha_real is None, "Una acción abierta no puede tener 100% ni fecha real de finalización.")
+            exigir(avance < 100 and fecha_real is None, "Una acción no terminada no puede tener 100% ni fecha real de finalización.")
             exigir(estado != "PENDIENTE" or avance == 0, "Una acción pendiente debe tener avance 0%.")
+            exigir(estado != "CANCELADA" or avance == 0, "Una acción cancelada debe tener avance 0%.")
         accion.estado, accion.porcentaje_avance, accion.fecha_real = estado, avance, fecha_real
         accion.comentario = datos["comentario"]
         accion.full_clean()

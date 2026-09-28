@@ -15,6 +15,16 @@ CAMPOS_HALLAZGO = ["titulo", "tipo_registro", "fuente_deteccion", "proceso", "su
 
 class CodigoSACService:
     @staticmethod
+    def previsualizar(*, tipo):
+        """Muestra el próximo código probable sin reservar ni alterar el correlativo."""
+        anio = timezone.localdate().year
+        modo = getattr(settings, "SAC_SEQUENCE_SCOPE", "TYPE")
+        exigir(modo in {"TYPE", "YEAR"}, "SAC_SEQUENCE_SCOPE debe ser TYPE o YEAR.")
+        ambito = tipo.codigo if modo == "TYPE" else "GLOBAL"
+        ultimo = CorrelativoSAC.objects.filter(anio=anio, ambito=ambito).values_list("ultimo_numero", flat=True).first() or 0
+        return f"SAC-{tipo.codigo}-{anio}-{ultimo + 1:04d}"
+
+    @staticmethod
     @transaction.atomic
     def generar(*, tipo):
         anio = timezone.localdate().year
@@ -107,23 +117,40 @@ class HallazgoService:
 
     @staticmethod
     @transaction.atomic
-    def actualizar(*, usuario, hallazgo, datos, version=None):
+    def actualizar(*, usuario, hallazgo, datos, version=None, completo=False):
         hallazgo = bloquear(hallazgo, version)
         campos_permitidos(datos, CAMPOS_HALLAZGO)
         es_autor = usuario.pk in {hallazgo.registrado_por_id, hallazgo.responsable_id} and usuario.has_perm("accounts.registrar_hallazgo")
         es_revisor = hallazgo.estado == "PENDIENTE_VALIDACION" and puede_validar(usuario, hallazgo)
-        if not (es_autor and hallazgo.estado in {"BORRADOR", "DEVUELTO"}) and not es_revisor:
-            raise PermissionDenied("La identificación solo se puede corregir en borrador o devolución; el validador revisa los pendientes.")
-        if "tipo_registro" in datos:
-            exigir(datos["tipo_registro"].pk == hallazgo.tipo_registro_id, "El tipo y el código SAC son inmutables después de la creación.")
+        ciclo = hallazgo.ciclo_actual
+        accion_sin_actividades = hallazgo.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()
+        if not (es_autor and (hallazgo.estado in {"BORRADOR", "DEVUELTO", "EN_ANALISIS"} or accion_sin_actividades)) and not es_revisor:
+            raise PermissionDenied("La identificación solo se puede corregir antes de registrar actividades o tras una devolución.")
+        tipo_nuevo = datos.get("tipo_registro", hallazgo.tipo_registro)
+        cambio_tipo = tipo_nuevo.pk != hallazgo.tipo_registro_id
+        if cambio_tipo:
+            exigir(
+                es_autor and (hallazgo.estado == "EN_ANALISIS" or accion_sin_actividades),
+                "El tipo solo puede corregirse antes de registrar actividades.",
+            )
         if es_revisor:
             # No puede reasignar proceso para atribuirse autoridad sobre otro caso.
             exigir(datos.get("proceso", hallazgo.proceso).pk == hallazgo.proceso_id, "El proceso solo puede corregirse tras devolver el registro.")
-        anterior = {k: str(getattr(hallazgo, k)) for k in datos}
+        estado_anterior = hallazgo.estado
+        datos_anteriores = {k: str(getattr(hallazgo, k)) for k in datos}
+        codigo_anterior = hallazgo.codigo
+        if cambio_tipo:
+            hallazgo.codigo = CodigoSACService.generar(tipo=tipo_nuevo)
         fecha_cambiada = datos.get("fecha_solucion", hallazgo.fecha_solucion) != hallazgo.fecha_solucion
         for campo, valor in datos.items():
             setattr(hallazgo, campo, valor)
-        validar_datos(hallazgo, fecha_cambiada=fecha_cambiada)
+        if hallazgo.estado in {"EN_ANALISIS", "ACCION_INMEDIATA"} and ciclo is not None and not ciclo.acciones.exists():
+            hallazgo.estado = "EN_ANALISIS" if hallazgo.es_critica == "SI" else "ACCION_INMEDIATA"
+        validar_datos(hallazgo, completo=completo, fecha_cambiada=fecha_cambiada)
         hallazgo.save()
-        registrar(hallazgo, usuario, "ACTUALIZACION", metadata={"antes": anterior, "despues": {k: str(getattr(hallazgo, k)) for k in datos}})
+        metadata = {"antes": datos_anteriores, "despues": {k: str(getattr(hallazgo, k)) for k in datos}}
+        if cambio_tipo:
+            metadata["codigo_anterior"] = codigo_anterior
+            metadata["codigo_nuevo"] = hallazgo.codigo
+        registrar(hallazgo, usuario, "ACTUALIZACION", anterior=estado_anterior, metadata=metadata)
         return hallazgo

@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Solución inmediata y acciones correctivas{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=3">{% endblock %}
+{% block content %}
+<div class="shell activity-page">
+  <div class="crumb"><a href="{% url 'inicio' %}">Panel principal</a> / Registro / {{ hallazgo.codigo }}</div>
+  <h1 class="page-title">3. Solución inmediata y acciones correctivas</h1>
+  <p class="page-sub">Cada acción se convierte en una actividad vinculada al código de la No Conformidad.</p>
+  {% include 'includes/stepper.html' %}
+
+  <div class="info activity-info"><div class="i">i</div><div><b>Relación de códigos:</b> una No Conformidad puede tener varias actividades. El sistema genera códigos relacionados como <strong class="case-code">{{ hallazgo.codigo }}-A01, A02, A03</strong>, etc. El estado puede ser Pendiente, En proceso, Terminado o Cancelado. Todas las actividades vigentes deberán estar Terminadas al 100 % para habilitar el paso 4.</div></div>
+
+  <form method="post" class="card activity-plan" data-activity-plan data-next-number="{{ siguiente_numero }}" data-codigo="{{ hallazgo.codigo }}">
+    {% csrf_token %}
+    {{ formset.management_form }}
+    {% if formset.non_form_errors %}<div class="form-errors" role="alert">{{ formset.non_form_errors }}</div>{% endif %}
+    <div class="section-h activity-section-title">
+      <span>3. Plan de actividades</span>
+      <button class="btn activity-add" type="button" data-add-activity>＋ Agregar actividad</button>
+    </div>
+    <div class="activity-rows" data-activity-rows>
+      {% for form in formset %}
+        <div class="activity-row" data-activity-row>
+          <div class="activity-main">
+            <input class="activity-code input" value="" readonly aria-label="Código de actividad">
+            {{ form.descripcion }}
+            {{ form.descripcion.errors }}
+          </div>
+          <div>{{ form.tipo }}{{ form.tipo.errors }}</div>
+          <div>{{ form.responsable }}{{ form.responsable.errors }}</div>
+          <div>{{ form.fet_inicial }}{{ form.fet_inicial.errors }}</div>
+          <div>{{ form.estado }}{{ form.estado.errors }}</div>
+          <div class="activity-remove-wrap">
+            <button class="btn activity-remove" type="button" data-remove-activity>Quitar</button>
+            <span class="activity-delete">{{ form.DELETE }}</span>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+    <template data-empty-activity>
+      <div class="activity-row" data-activity-row>
+        <div class="activity-main">
+          <input class="activity-code input" value="" readonly aria-label="Código de actividad">
+          {{ formset.empty_form.descripcion }}
+        </div>
+        <div>{{ formset.empty_form.tipo }}</div>
+        <div>{{ formset.empty_form.responsable }}</div>
+        <div>{{ formset.empty_form.fet_inicial }}</div>
+        <div>{{ formset.empty_form.estado }}</div>
+        <div class="activity-remove-wrap">
+          <button class="btn activity-remove" type="button" data-remove-activity>Quitar</button>
+          <span class="activity-delete">{{ formset.empty_form.DELETE }}</span>
+        </div>
+      </div>
+    </template>
+    <div class="form-actions activity-plan-actions">
+      {% if puede_volver_identificacion %}<a class="btn" href="{% url 'hallazgo_editar' hallazgo.pk %}">Volver a identificación</a>{% else %}<a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver</a>{% endif %}
+      <button class="btn primary" type="submit" data-save-activities>Guardar actividades →</button>
+    </div>
+  </form>
+
+  <div class="activity-confirm-overlay" data-activity-confirm hidden>
+    <section class="activity-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="activity-confirm-title" aria-describedby="activity-confirm-description">
+      <div class="activity-confirm-icon" aria-hidden="true">➤</div>
+      <h2 id="activity-confirm-title">¿Enviar actividades?</h2>
+      <p id="activity-confirm-description">Estas actividades se enviarán a tu jefe para su revisión.</p>
+      <div class="activity-confirm-actions">
+        <button class="btn" type="button" data-cancel-activities>Cancelar</button>
+        <button class="btn primary" type="button" data-confirm-activities>Enviar actividades</button>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=2"></script>{% endblock %}

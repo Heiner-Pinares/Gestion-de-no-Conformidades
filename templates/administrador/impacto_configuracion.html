@@ -1,0 +1,38 @@
+{% extends 'base_admin.html' %}
+{% block title %}Configuración de evaluación de impacto{% endblock %}
+{% block content %}
+<div class="admin-page-head"><div><h1>Configuración de evaluación de impacto</h1><p>Define los rangos que verá el usuario al evaluar un hallazgo.</p></div></div>
+<form method="post" class="admin-impact-form" novalidate>
+  {% csrf_token %}
+  <section class="admin-impact-intro">
+    <span aria-hidden="true">♙⚙</span>
+    <div><strong>Vista Administrador</strong><small>Define los rangos usados para explicar y calcular el impacto automáticamente.</small></div>
+    <label class="admin-impact-default">{{ form.predeterminada }} <span>{{ form.predeterminada.label }}</span></label>
+  </section>
+  {% if form.non_field_errors %}<div class="alert error" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+
+  <section class="admin-impact-criterion">
+    <header><span aria-hidden="true">♟</span><div><h2>Clientes afectados</h2><p>Define el rango de cantidad de clientes para cada nivel de impacto.</p></div></header>
+    <div class="admin-impact-level low"><h3>○ Bajo</h3><div class="range-pair"><label>Desde {{ form.clientes_bajo_desde }}</label><i>a</i><label>Hasta {{ form.clientes_bajo_hasta }}</label></div><small>cuentas</small></div>
+    <div class="admin-impact-level medium"><h3>◉ Medio</h3><div class="range-pair"><label>Desde {{ form.clientes_medio_desde }}</label><i>a</i><label>Hasta {{ form.clientes_medio_hasta }}</label></div><small>cuentas</small></div>
+    <div class="admin-impact-level high"><h3>○ Alto</h3><div class="range-pair single"><label>Desde {{ form.clientes_alto_desde }}</label><b>o más</b></div><small>cuentas</small></div>
+  </section>
+
+  <section class="admin-impact-criterion">
+    <header><span aria-hidden="true">◷</span><div><h2>Tiempo de afectación</h2><p>Define el rango de tiempo de afectación para cada nivel de impacto.</p></div></header>
+    <div class="admin-impact-level low"><h3>○ Bajo</h3><div class="range-pair"><label>Desde {{ form.tiempo_bajo_desde }}</label><i>a</i><label>Hasta {{ form.tiempo_bajo_hasta }}</label></div><small>min</small></div>
+    <div class="admin-impact-level medium"><h3>◉ Medio</h3><div class="range-pair"><label>Desde {{ form.tiempo_medio_desde }}</label><i>a</i><label>Hasta {{ form.tiempo_medio_hasta }}</label></div><small>min</small></div>
+    <div class="admin-impact-level high"><h3>○ Alto</h3><div class="range-pair single"><label>Desde {{ form.tiempo_alto_desde }}</label><b>o más</b></div><small>min</small></div>
+  </section>
+
+  <section class="admin-impact-criterion">
+    <header><span aria-hidden="true">●</span><div><h2>Impacto financiero</h2><p>Define el rango de pérdida económica potencial para cada nivel de impacto.</p></div></header>
+    <div class="admin-impact-level low"><h3>○ Bajo</h3><div class="range-pair"><label>Desde {{ form.financiero_bajo_desde }}</label><i>a</i><label>Hasta {{ form.financiero_bajo_hasta }}</label></div><small>S/</small></div>
+    <div class="admin-impact-level medium"><h3>◉ Medio</h3><div class="range-pair"><label>Desde {{ form.financiero_medio_desde }}</label><i>a</i><label>Hasta {{ form.financiero_medio_hasta }}</label></div><small>S/</small></div>
+    <div class="admin-impact-level high"><h3>○ Alto</h3><div class="range-pair single"><label>Desde {{ form.financiero_alto_desde }}</label><b>o más</b></div><small>S/</small></div>
+  </section>
+
+  {% for field in form %}{% if field.errors %}<div class="alert error" role="alert"><b>{{ field.label }}:</b> {{ field.errors }}</div>{% endif %}{% endfor %}
+  <div class="admin-impact-actions"><a class="btn" href="{% url 'catalogos' %}">Cancelar</a><button class="admin-primary" type="submit">Guardar parámetros</button></div>
+</form>
+{% endblock %}

@@ -1,0 +1,18 @@
+<div class="impact-criterion">
+  <div class="impact-criterion-label">
+    <span class="impact-criterion-icon" aria-hidden="true">{{ icono }}</span>
+    <div><strong>{{ titulo }}</strong><small>{{ descripcion }}</small></div>
+  </div>
+  <div class="impact-levels">
+    {% for radio in campo %}
+    <label class="impact-level impact-level-{{ forloop.counter }}">
+      {{ radio.tag }}
+      <span>
+        <b>{{ radio.choice_label }}</b>
+        <small>{% if forloop.counter == 1 %}{{ rangos.bajo }}{% elif forloop.counter == 2 %}{{ rangos.medio }}{% else %}{{ rangos.alto }}{% endif %}</small>
+      </span>
+    </label>
+    {% endfor %}
+  </div>
+  {{ campo.errors }}
+</div>

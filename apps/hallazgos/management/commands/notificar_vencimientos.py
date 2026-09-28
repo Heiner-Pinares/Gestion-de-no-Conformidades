@@ -17,13 +17,13 @@ class Command(BaseCommand):
         if not 0 <= dias <= 30:
             raise CommandError("La ventana debe estar entre 0 y 30 días.")
         hoy = timezone.localdate()
-        ids = Accion.objects.filter(fecha_vigente__lte=hoy+timedelta(days=dias), ciclo__fecha_fin__isnull=True).exclude(estado="COMPLETADA").values_list("pk", "ciclo__hallazgo_id")
+        ids = Accion.objects.filter(fecha_vigente__lte=hoy+timedelta(days=dias), ciclo__fecha_fin__isnull=True).exclude(estado__in={"COMPLETADA", "CANCELADA"}).values_list("pk", "ciclo__hallazgo_id")
         creados = 0
         for accion_id, hallazgo_id in list(ids):
             with transaction.atomic():
                 h = Hallazgo.objects.select_for_update().get(pk=hallazgo_id)
                 a = Accion.objects.select_for_update().select_related("ciclo").get(pk=accion_id)
-                if h.estado in {"CERRADO", "CANCELADO"} or a.estado == "COMPLETADA" or a.ciclo.fecha_fin or a.fecha_vigente > hoy+timedelta(days=dias):
+                if h.estado in {"CERRADO", "CANCELADO"} or a.estado in {"COMPLETADA", "CANCELADA"} or a.ciclo.fecha_fin or a.fecha_vigente > hoy+timedelta(days=dias):
                     continue
                 tipo = f"vencimiento_{hoy.isoformat()}_{a.pk}"
                 _, nuevo = Notificacion.objects.get_or_create(usuario=a.responsable, hallazgo=h, tipo=tipo, defaults={
