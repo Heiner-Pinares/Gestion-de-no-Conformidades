@@ -19,7 +19,7 @@
     </div>
   </form>
 
-  <p class="helper">{{ pagina.paginator.count }} filas · Una fila por acción y ciclo. También aparecen los hallazgos sin acciones. FET muestra la fecha vigente; Estado corresponde a la acción, o al hallazgo si aún no hay acción. El filtro de estado corresponde al hallazgo.</p>
+  <p class="helper">{{ pagina.paginator.count }} filas · Una fila por acción y plan. También aparecen los hallazgos sin acciones. FET muestra la fecha vigente; Estado corresponde a la acción, o al hallazgo si aún no hay acción. El filtro de estado corresponde al hallazgo.</p>
 
   <section class="card registro-card" data-registro-view>
     <div class="registro-table-toolbar">
@@ -39,7 +39,7 @@
 
     <div class="table-scroll registro-scroll" data-registro-scroll tabindex="0" role="region" aria-label="Registro general; desplázate horizontalmente para consultar todas las columnas">
       <table class="registro-tabla">
-        <caption>Se incluyen ciclos anteriores. Los campos sin información permanecen vacíos.</caption>
+        <caption>Se incluyen planes anteriores. Los campos sin información permanecen vacíos.</caption>
         <thead>
           <tr>{% for titulo in columnas %}<th scope="col">{{ titulo }}</th>{% endfor %}</tr>
         </thead>

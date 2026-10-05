@@ -10,6 +10,6 @@ def perfil(request):
         "es_admin": es_administrador(usuario),
         "es_calidad": es_validador(usuario),
         "puede_registrar": tiene_permiso(usuario, "registrar_hallazgo"),
-        "roles_usuario": list(usuario.groups.values_list("name", flat=True)),
+        "roles_usuario": list(usuario.roles or []),
         "notificaciones_no_leidas": usuario.notificaciones.filter(leida=False, hallazgo__in=hallazgos_visibles(usuario)).count(),
     }

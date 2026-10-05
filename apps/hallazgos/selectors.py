@@ -12,9 +12,11 @@ def hallazgos_visibles(usuario):
         return consulta.none()
     if usuario.has_perm("accounts.ver_todos_hallazgos"):
         return consulta
-    alcance = Q(registrado_por=usuario) | Q(responsable=usuario) | Q(ciclos__acciones__responsable=usuario)
+    alcance = (Q(registrado_por=usuario) | Q(responsable=usuario) | Q(ciclos__acciones__responsable=usuario)
+               | Q(historial__accion="SOLICITUD_REPROGRAMACION",
+                   historial__metadata_json__aprobador_id=usuario.pk))
     if usuario.has_perm("accounts.validar_hallazgo"):
-        alcance |= Q(proceso__validadores=usuario)
+        alcance |= Q(proceso__validadores_ids__contains=[usuario.pk])
     return consulta.filter(alcance).distinct()
 
 
@@ -110,7 +112,10 @@ def indicadores(usuario):
     datos = consulta.aggregate(
         total=Count("pk", distinct=True),
         abiertos=Count("pk", filter=~Q(estado__in=["CERRADO", "CANCELADO"]), distinct=True),
-        pendientes=Count("pk", filter=Q(estado="PENDIENTE_VALIDACION"), distinct=True),
+        # En el panel, "Pendientes" representa los hallazgos que todavía
+        # requieren atención, independientemente de la etapa interna del flujo.
+        pendientes=Count("pk", filter=~Q(estado__in=["CERRADO", "CANCELADO"]), distinct=True),
+        pendientes_validacion=Count("pk", filter=Q(estado="PENDIENTE_VALIDACION"), distinct=True),
         en_analisis=Count("pk", filter=Q(estado__in=["EN_ANALISIS", "PBI_EN_GESTION"]), distinct=True),
         en_verificacion=Count("pk", filter=Q(estado="EN_VERIFICACION"), distinct=True),
         cerrados=Count("pk", filter=Q(estado="CERRADO"), distinct=True),

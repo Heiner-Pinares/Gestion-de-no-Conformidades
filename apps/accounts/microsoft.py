@@ -14,7 +14,6 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from django.conf import settings
-from django.contrib.auth.models import Group
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 
@@ -194,6 +193,5 @@ def sync_user(profile: dict) -> Usuario:
     user.save()
 
     if created:
-        default_group, _ = Group.objects.get_or_create(name="USUARIO")
-        user.groups.add(default_group)
+        user.add_role("USUARIO")
     return user

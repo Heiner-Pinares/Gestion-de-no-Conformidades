@@ -19,7 +19,7 @@ class CausaService:
         if analisis.analisis_inicio is None:
             analisis.analisis_inicio = timezone.now()
             analisis.analisis_responsable = usuario
-        exigir(analisis.analisis_fin is None, "El análisis finalizado es histórico. Un nuevo tratamiento requiere un nuevo ciclo.")
+        exigir(analisis.analisis_fin is None, "El análisis finalizado es histórico. Una nueva gestión requiere un nuevo plan.")
         if not analisis.checklist_snapshot:
             preguntas = PreguntaCausa.objects.filter(activo=True, categoria__activo=True).order_by("categoria__orden", "orden")
             analisis.checklist_snapshot = [{
@@ -36,12 +36,12 @@ class CausaService:
             if version.get("es_otro", version["texto"].strip().rstrip(":").casefold() == "otro")
         }
         otros_activos = {str(clave) for clave in datos.get("otros_activos", [])}
-        exigir(otros_activos <= otros_validos, "La pregunta adicional no pertenece al cuestionario del ciclo.")
+        exigir(otros_activos <= otros_validos, "La pregunta adicional no pertenece al cuestionario del plan.")
         for item in datos.get("respuestas", []):
             campos_permitidos(item, ["pregunta", "texto_personalizado", "respuesta", "comentario"])
             pregunta = item.get("pregunta")
             clave = str(getattr(pregunta, "pk", pregunta))
-            exigir(clave in snapshot and clave not in recibidos, "La pregunta no pertenece al cuestionario del ciclo o está duplicada.")
+            exigir(clave in snapshot and clave not in recibidos, "La pregunta no pertenece al cuestionario del plan o está duplicada.")
             recibidos.add(clave)
             exigir(item.get("respuesta") in {"SI", "NO", "NA"}, "Cada respuesta debe ser Sí, No o No aplica.")
             version = snapshot[clave]
@@ -77,7 +77,7 @@ class CausaService:
         if finalizar:
             obligatorias = set(snapshot) - otros_validos
             respondidas = {str(item["pregunta_id"]) for item in analisis.respuestas}
-            exigir(obligatorias <= respondidas, "Responda todas las preguntas del checklist 6M del ciclo.")
+            exigir(obligatorias <= respondidas, "Responda todas las preguntas del checklist 6M del plan.")
             analisis.analisis_fin = timezone.now()
         analisis.save()
         registrar(hallazgo, usuario, "FINALIZAR_ANALISIS" if finalizar else "GUARDAR_ANALISIS", metadata={"analisis": analisis.pk, "ciclo": ciclo.numero, "respuestas": len(respuestas)})

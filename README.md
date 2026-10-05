@@ -2,13 +2,13 @@
 
 Primera versión funcional local con Django 5.2 LTS, Python 3.12 y PostgreSQL. Conserva el CSS y los SVG del prototipo v8. La autenticación, autorización, persistencia, workflow y cálculos se ejecutan en Python. No utiliza JavaScript propio ni localStorage para negocio.
 
-## Estructura actual: 10 tablas y Registro general
+## Estructura actual: 6 tablas físicas y ninguna vista
 
-Se simplificó de 39 a **10 tablas físicas**, conservando funcionalidades y datos. Nueve tablas guardan el núcleo transaccional y `sistema_registro_auxiliar` concentra los registros pequeños en JSON. Las entidades anteriores se exponen como vistas de compatibilidad para el ORM; no son tablas adicionales. La sesión de acceso se firma en una cookie HttpOnly y ya no se persiste en `django_session`.
+PostgreSQL contiene exactamente **6 tablas físicas**: `usuario`, `configuracion`, `registro_general`, `actividad`, `evento` y `django_migrations`. No hay vistas, vistas materializadas, triggers, funciones ni tipos personalizados. `configuracion` y `evento` usan un discriminador para alojar entidades pequeñas relacionadas; el backend las expone como modelos lógicos normales. La sesión se firma en una cookie HttpOnly y no requiere `django_session`.
 
-El menú **Registro general** abre `/registro-general/` con las 31 columnas solicitadas, filtros y exportación CSV. La consulta también está en pgAdmin: `public → Views → registro_general`. Se actualiza al consultar; no duplica datos. Gerencia se completa en Catálogos → Procesos.
+El menú **Registro general** abre `/registro-general/` con las 34 columnas solicitadas, filtros y exportación CSV. La tabla física `registro_general` conserva cada hallazgo y la fotografía de los tres rangos de impacto seleccionados; el backend combina sus actividades y eventos al mostrar o exportar el informe, sin duplicar datos ni crear una vista SQL.
 
-Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual, la justificación y la forma de verlo en pgAdmin o Vertabelo. Pasaron 32 pruebas sobre PostgreSQL.
+Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual y la forma de comprobarlo. Pasan 53 pruebas funcionales sobre PostgreSQL.
 
 ## Abrir la instalación preparada en este equipo
 
@@ -27,7 +27,7 @@ Usuarios existentes: `usuario.demo`, `validador.demo` y `admin.demo`, con las co
 
 En pgAdmin, actualiza Databases del servidor PostgreSQL 18 y abre `gestion_no_conformidades → Schemas → public → Tables`. Para consultar una tabla, usa View/Edit Data → All Rows.
 
-La migración original al puerto 5432 conservó los datos y la compactación posterior redujo el esquema a 10 tablas. Se guardó un respaldo inmediatamente anterior en `.runtime/backups/maximo-10-tablas-20260922-222739/`. La copia anterior de `.runtime/postgres` se conserva; los cambios nuevos del portal se guardan en 5432.
+La compactación conserva los datos y deja el esquema en seis tablas. El respaldo inmediatamente anterior está en `.runtime/backups/antes-seis-tablas-20260928-213335/antes.dump`.
 
 ## Instalación en otro equipo
 
@@ -85,7 +85,7 @@ La autoridad usa el tenant corporativo indicado, por lo que no acepta cuentas pe
 | Calidad | Acompañar el tratamiento, evaluar eficacia y cerrar | Solo procesos asignados; no aprueba la identificación inicial |
 | Administrador | Usuarios, roles, catálogos, procesos, reportes y auditoría | Configura la plataforma; no valida hallazgos |
 
-Un usuario puede tener varios grupos. El menú combina sus permisos. El administrador asigna validadores desde Catálogos → Procesos. El superusuario técnico se crea con `createsuperuser`; no debe utilizarse como perfil cotidiano de negocio. El admin técnico complementario está en `/admin-tecnico/` y presenta el dominio de tratamiento como consulta.
+Un usuario puede tener varios roles. El menú combina sus permisos. El administrador asigna validadores desde Catálogos → Procesos. La administración funcional se realiza desde las pantallas propias del portal.
 
 ## Flujo disponible
 

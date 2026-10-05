@@ -1,0 +1,23 @@
+{% extends 'base_admin.html' %}
+{% block title %}Configuración de evaluación de urgencia{% endblock %}
+{% block content %}
+<div class="admin-page-head"><div><h1>Configuración de evaluación de urgencia</h1><p>Define los rangos que se aplican según la jefatura del usuario.</p></div></div>
+<form method="post" class="admin-impact-form" novalidate>
+  {% csrf_token %}
+  <section class="admin-impact-intro">
+    <span aria-hidden="true">◷⚙</span>
+    <div><strong>Vista Administrador</strong><small>Los cambios se aplican a nuevas evaluaciones. Los hallazgos guardados conservan el rango que se usó originalmente.</small></div>
+  </section>
+  {% for fila in filas %}
+  <section class="admin-impact-criterion urgency-admin-row">
+    <header><span aria-hidden="true">{% if fila.codigo == 'FACTURACION' %}▣{% else %}◷{% endif %}</span><div><h2>{{ fila.titulo }}</h2><p>Jefatura: {{ fila.area }}</p><label class="urgency-active">{{ fila.form.activo }} Criterio activo</label></div></header>
+    <div class="admin-impact-level low"><h3>○ Bajo</h3><div class="range-pair"><label>Desde {{ fila.form.bajo_desde }}</label><i>a</i><label>Hasta {{ fila.form.bajo_hasta }}</label></div><small>horas</small></div>
+    <div class="admin-impact-level medium"><h3>◉ Medio</h3><div class="range-pair"><label>Desde {{ fila.form.medio_desde }}</label><i>a</i><label>Hasta {{ fila.form.medio_hasta }}</label></div><small>horas</small></div>
+    <div class="admin-impact-level high"><h3>○ Alto</h3><div class="range-pair single"><label>Desde {{ fila.form.alto_desde }}</label><b>o más</b></div><small>horas</small></div>
+  </section>
+  {% if fila.form.non_field_errors %}<div class="alert error" role="alert">{{ fila.form.non_field_errors }}</div>{% endif %}
+  {% for field in fila.form %}{% if field.errors %}<div class="alert error" role="alert"><b>{{ field.label }}:</b> {{ field.errors }}</div>{% endif %}{% endfor %}
+  {% endfor %}
+  <div class="admin-impact-actions"><a class="btn" href="{% url 'catalogos' %}">Cancelar</a><button class="admin-primary" type="submit">Guardar parámetros</button></div>
+</form>
+{% endblock %}

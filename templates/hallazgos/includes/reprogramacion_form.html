@@ -1,0 +1,23 @@
+<form method="post" enctype="multipart/form-data" action="{% if accion %}{% url 'accion_reprogramar' accion.pk %}{% endif %}" data-reprogram-form>
+  {% csrf_token %}
+  <header class="follow-head reprogram-head">
+    <span class="follow-head-icon" aria-hidden="true">▣</span>
+    <div><h2 id="reprogram-title">Solicitar reprogramación</h2><p>Registra la nueva fecha propuesta y el motivo para su evaluación.</p></div>
+    <a class="follow-close" href="{% url 'hallazgo_detalle' hallazgo.pk %}" data-reprogram-close aria-label="Cerrar">×</a>
+  </header>
+  <div class="follow-content reprogram-content">
+    <div class="reprogram-warning"><b>!</b><span>La reprogramación debe ser aprobada por el responsable de cada jefatura antes de hacerse efectiva.</span></div>
+    {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+    <section class="reprogram-info" aria-label="Información de la acción">
+      <div><span>Código de acción</span><strong data-reprogram-code>{{ accion.codigo }}</strong></div>
+      <div><span>Acción</span><strong data-reprogram-description>{{ accion.descripcion }}</strong></div>
+      <div><span>Responsable</span><strong data-reprogram-owner>{% if accion %}{{ accion.responsable|default:'Sin asignar' }}{% endif %}</strong></div>
+      <div><span>Fecha vigente actual</span><strong data-reprogram-current>{{ accion.fecha_vigente|date:'d/m/Y'|default:'—' }}</strong></div>
+    </section>
+    <label class="reprogram-field"><span>{{ form.nueva_fecha.label }} <b>*</b></span>{{ form.nueva_fecha }}{{ form.nueva_fecha.errors }}</label>
+    <label class="reprogram-field reprogram-reason"><span>{{ form.motivo.label }} <b>*</b></span>{{ form.motivo }}<small><b data-reprogram-count>{{ form.motivo.value|default:''|length }}</b>/500</small>{{ form.motivo.errors }}</label>
+    <div class="reprogram-field"><span>Evidencia <em>(opcional)</em></span><label class="follow-drop" data-reprogram-drop>{{ form.archivo }}<span class="reprogram-clip">⌕</span><span>Arrastra un archivo aquí o <u>selecciona un archivo</u><small>Formatos permitidos: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG. Máx. 10 MB.</small></span></label>{{ form.archivo.errors }}<div class="follow-file" data-reprogram-file-row hidden><span class="follow-file-icon">DOC</span><span><b data-reprogram-file-name></b><small data-reprogram-file-size></small></span><button type="button" data-reprogram-file-remove aria-label="Quitar archivo">×</button></div></div>
+    <label class="reprogram-field"><span>{{ form.aprobador.label }} <b>*</b></span>{{ form.aprobador }}{{ form.aprobador.errors }}</label>
+  </div>
+  <footer class="follow-actions"><a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}" data-reprogram-close>Cancelar</a><button class="btn primary" type="submit">➤ Enviar a aprobación</button></footer>
+</form>

@@ -1,85 +1,53 @@
-# Estructura optimizada: máximo 10 tablas
+# Estructura optimizada: 6 tablas físicas y 0 vistas
 
-## Resultado comprobado
+La base `gestion_no_conformidades` usa PostgreSQL y contiene exactamente seis tablas físicas. La migración conserva usuarios, catálogos, hallazgos, actividades, ciclos, evaluaciones, evidencias, historial, notificaciones y auditoría.
 
-La base `gestion_no_conformidades` de PostgreSQL 5432 tiene **exactamente 10 tablas físicas**. Los datos existentes se conservaron y las 32 pruebas funcionales pasan sobre una base creada desde cero.
+| # | Tabla | Contenido |
+|---|---|---|
+| 1 | `usuario` | Credenciales, perfil corporativo, estado y roles funcionales en JSON. |
+| 2 | `configuracion` | Catálogos, procesos, subprocesos, validadores, matriz de prioridad, preguntas 6M, rangos de impacto y rangos de urgencia por jefatura. `registro_tipo` separa cada entidad. |
+| 3 | `registro_general` | Fila principal de cada hallazgo, con identificación, impacto, rangos seleccionados como fotografía histórica, prioridad, responsable y estado. |
+| 4 | `actividad` | Soluciones y acciones del plan, sus responsables, fechas, avance y estado. |
+| 5 | `evento` | Ciclos, análisis, PBI, evaluaciones, comunicaciones, evidencias, historial, notificaciones y auditoría. `registro_tipo` separa cada entidad. |
+| 6 | `django_migrations` | Historial técnico de migraciones aplicadas. |
+
+No se crean vistas, vistas materializadas, triggers, funciones ni tipos PostgreSQL personalizados. Los índices, secuencias de identidad y restricciones pertenecen internamente a las tablas y permiten buscar, numerar y proteger datos.
+
+## Registro general de 34 columnas
+
+`registro_general` es la tabla principal de hallazgos. La pantalla `/registro-general/` combina en Python esa tabla con `actividad` y `evento` para presentar una fila por actividad y ciclo. Los filtros, paginación y exportación CSV siguen disponibles sin una vista SQL y sin duplicar información.
+
+Los campos `impacto_clientes_seleccion`, `impacto_tiempo_seleccion` e `impacto_financiero_seleccion` guardan el texto exacto del rango mostrado al usuario cuando realiza la evaluación. Los cambios posteriores en la configuración administrativa se aplican a evaluaciones nuevas y no reescriben los hallazgos anteriores.
+
+`urgencia_seleccion` y `urgencia_area` conservan de la misma forma el rango y la jefatura usados en la evaluación de urgencia. La regla activa se resuelve desde `usuario.area`: Facturación usa Emisión de facturación y Post facturación usa Vencimiento de ciclo.
+
+## Modelos lógicos sobre tablas compartidas
+
+El backend usa modelos tipados. Por ejemplo, `Proceso`, `PreguntaCausa`, `ConfiguracionImpacto` y `ConfiguracionUrgencia` consultan `configuracion` filtrando automáticamente su `registro_tipo`; `CicloTratamiento`, `Evidencia` y `Notificacion` hacen lo mismo sobre `evento`. Las reglas y formularios conservan sus APIs de dominio aunque compartan almacenamiento físico.
+
+Los roles `USUARIO`, `VALIDADOR` y `ADMINISTRADOR` se guardan en `usuario.roles`. Los permisos se resuelven en Python. La asignación de validadores de un proceso se guarda en `configuracion.validadores_ids`. La sesión permanece en una cookie firmada HttpOnly.
+
+## Comprobación en pgAdmin
+
+1. Abre `gestion_no_conformidades → Schemas → public → Tables`: deben aparecer las seis tablas de la lista.
+2. Abre `Views`: debe estar vacío.
+3. Comprueba las tablas con:
 
 ```sql
 SELECT tablename
 FROM pg_tables
 WHERE schemaname = 'public'
 ORDER BY tablename;
+
+SELECT viewname
+FROM pg_views
+WHERE schemaname = 'public';
 ```
 
-| N.º | Tabla física | Justificación |
-|---:|---|---|
-| 1 | `accounts_usuario` | Identidad, contraseña con hash y datos del usuario. |
-| 2 | `catalogos_catalogo` | Tipos, fuentes, impacto, urgencia, prioridad y categorías en una tabla discriminada por clase. |
-| 3 | `catalogos_proceso` | Gerencia, proceso, responsable y estado activo. |
-| 4 | `hallazgos_hallazgo` | Registro principal con los datos de identificación solicitados. |
-| 5 | `hallazgos_ciclotratamiento` | Análisis 6M, causa raíz, control, evaluación y cierre por ciclo. |
-| 6 | `hallazgos_accion` | Acciones inmediatas/correctivas, responsable, FET, estado y avance. |
-| 7 | `hallazgos_historialhallazgo` | Trazabilidad, seguimientos y reprogramaciones. |
-| 8 | `hallazgos_correlativosac` | Reserva transaccional del número SAC sin duplicados concurrentes. |
-| 9 | `django_migrations` | Control de versión del esquema; evita aplicar cambios dos veces. |
-| 10 | `sistema_registro_auxiliar` | Almacén JSON único para registros pequeños y variables. |
+La primera consulta devuelve seis filas y la segunda ninguna.
 
-## Qué pasó con las tablas anteriores
+## Migración y respaldo
 
-Matriz de prioridad, preguntas 6M, subprocesos, validadores, roles, permisos, auditoría administrativa, PBI, comunicaciones, evaluaciones, evidencias y notificaciones se concentran en `sistema_registro_auxiliar`. La columna `tipo` separa cada conjunto y `datos` conserva sus campos en JSON.
+La migración `apps/hallazgos/migrations/0013_seis_tablas_fisicas.py` copia los datos al esquema tipado, actualiza las relaciones y retira los objetos de compatibilidad. Las migraciones 0014 y 0015 completan la compatibilidad de pruebas y eliminan los tipos auxiliares heredados. La migración 0018 agrega las fotografías históricas del impacto y la migración 0020 agrega las de urgencia dentro de `registro_general`.
 
-El backend continúa usando nombres como `catalogos_preguntacausa` o `hallazgos_evidencia` mediante **vistas de compatibilidad tipadas**. Un trigger genérico traduce altas, cambios y eliminaciones a la tabla auxiliar. Esto mantiene los formularios y servicios existentes mientras PostgreSQL cuenta una sola tabla física. Las reglas de negocio y permisos siguen en `apps/hallazgos/services/` y `apps/accounts/permissions.py`.
-
-Las vistas no deben importarse como tablas en Vertabelo. Al crear el modelo, selecciona únicamente **Tables** y excluye **Views**. Para ver el modelo de negocio consolidado, incluye también `registro_general`, que expone las 31 columnas aprobadas sin duplicar información.
-
-## Inicio de sesión sin tabla
-
-`django_session` ya no es una tabla. Django usa `django.contrib.sessions.backends.signed_cookies`: el backend firma el contenido, el navegador lo guarda en una cookie HttpOnly y cada petición valida la firma. La aplicación no crea una fila para medir el inicio ni almacena la contraseña en la cookie.
-
-La duración de ocho horas y el cierre al cerrar el navegador permanecen configurados en `config/settings.py`. El inicio de sesión conserva CSRF, hash de contraseña, SameSite y cierre por POST.
-
-## Registro general de 31 columnas
-
-`public.registro_general` es una vista de consulta con las columnas pedidas: gerencia, proceso, subproceso, fuente, tipo, número de hallazgo, Remedy, descripción, referencia, responsables, fechas, impacto, urgencia, prioridad, criticidad, causa raíz, acción, FET, estado, evidencia, avance, eficacia, cierre y comentarios.
-
-En pgAdmin:
-
-1. Actualiza `gestion_no_conformidades → Schemas → public` con **Refresh**.
-2. Abre **Tables**: deben aparecer las 10 tablas de este documento.
-3. Abre **Views → registro_general** para consultar la matriz de 31 columnas.
-4. Ejecuta `SELECT * FROM public.registro_general ORDER BY numero;` si quieres verla en Query Tool.
-
-## Ejecutar manualmente
-
-El portal queda detenido. Para iniciarlo tú mismo:
-
-```sh
-cd "/Users/heinerpinares/Documents/Gestion de no Conformidades/Automatizacion/portal_nc"
-.venv/bin/python manage.py runserver 127.0.0.1:8000
-```
-
-Luego abre `http://127.0.0.1:8000/`. Para detenerlo, vuelve a esa Terminal y pulsa `Ctrl+C`. PostgreSQL debe permanecer encendido; no necesitas volver a ejecutar migraciones ni semillas.
-
-## Dónde entender el código
-
-1. `apps/hallazgos/models.py`: expediente, ciclos, acciones, evidencias e historial.
-2. `apps/hallazgos/services/`: validaciones y transacciones de cada etapa.
-3. `apps/catalogos/models.py`: catálogos, procesos, matriz y preguntas 6M.
-4. `apps/accounts/permissions.py`: roles y alcance por proceso.
-5. `apps/hallazgos/registro.py`: contrato de las 31 columnas.
-6. `docs/registro_general.sql`: consulta consolidada.
-7. `apps/hallazgos/migrations/0006_maximo_diez_tablas.py`: compactación y vistas de compatibilidad.
-8. `config/settings.py`: conexión PostgreSQL y sesión firmada.
-
-## Comprobaciones y respaldo
-
-```sh
-.venv/bin/python manage.py check
-.venv/bin/python manage.py makemigrations --check --dry-run
-.venv/bin/python manage.py test apps.hallazgos.tests
-.venv/bin/python scripts/verificar_migracion_compacta.py
-```
-
-Respaldo anterior a esta reducción: `.runtime/backups/maximo-10-tablas-20260922-222739/antes.dump`. El archivo `codigo-antes.tar.gz` contiene el código previo. La migración es deliberadamente irreversible hacia atrás; para recuperar el diseño anterior se restaura el respaldo en otra base y se valida antes de cambiar la conexión.
-
-La matriz inicial conserva su condición DEMO hasta que negocio apruebe sus valores. La reducción física no cambia esa regla ni inventa integraciones externas.
+Respaldo anterior a la reducción: `.runtime/backups/antes-seis-tablas-20260928-213335/antes.dump`.

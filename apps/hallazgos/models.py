@@ -7,6 +7,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
+from apps.shared_models import TypedSharedModel
 
 from .estados import ESTADOS
 
@@ -18,13 +19,25 @@ def ruta_evidencia(instance, filename):
     return f"evidencias/{instance.hallazgo_id}/{uuid4().hex}{Path(filename).suffix.lower()}"
 
 
-class CorrelativoSAC(models.Model):
+class EventoRegistro(models.Model):
+    """Representante físico para que Django incluya la tabla en flush/backup."""
+    id = models.BigAutoField(primary_key=True)
+
+    class Meta:
+        managed = True
+        db_table = "evento"
+        default_permissions = ()
+
+
+class CorrelativoSAC(TypedSharedModel):
+    REGISTRO_TIPO = "CORRELATIVO_SAC"
+    id = models.BigAutoField(primary_key=True)
     anio = models.PositiveSmallIntegerField()
     ambito = models.CharField(max_length=10)
     ultimo_numero = models.PositiveIntegerField(default=0)
 
-    class Meta:
-        constraints = [models.UniqueConstraint(fields=["anio", "ambito"], name="sac_anio_ambito_unico")]
+    class Meta(TypedSharedModel.Meta):
+        db_table = "configuracion"
 
 
 class Hallazgo(models.Model):
@@ -45,8 +58,13 @@ class Hallazgo(models.Model):
     impacto_clientes = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(3)])
     impacto_tiempo = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(3)])
     impacto_soles = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(1), MaxValueValidator(3)])
+    impacto_clientes_seleccion = models.CharField(max_length=180, blank=True, editable=False)
+    impacto_tiempo_seleccion = models.CharField(max_length=180, blank=True, editable=False)
+    impacto_financiero_seleccion = models.CharField(max_length=180, blank=True, editable=False)
     impacto_resultante = models.PositiveSmallIntegerField(null=True, blank=True, editable=False)
     urgencia = models.ForeignKey("catalogos.Urgencia", related_name="+", null=True, blank=True, on_delete=models.PROTECT)
+    urgencia_seleccion = models.CharField(max_length=180, blank=True, editable=False)
+    urgencia_area = models.CharField(max_length=80, blank=True, editable=False)
     prioridad = models.ForeignKey("catalogos.Prioridad", related_name="+", null=True, blank=True, on_delete=models.PROTECT, editable=False)
     prioridad_snapshot = models.CharField(max_length=180, blank=True, editable=False)
     aplica_impacto = models.BooleanField(default=True)
@@ -61,6 +79,7 @@ class Hallazgo(models.Model):
     updated_by = models.ForeignKey(USER, null=True, on_delete=models.PROTECT, related_name="hallazgos_actualizados")
 
     class Meta:
+        db_table = "registro_general"
         ordering = ["-fecha_registro", "-pk"]
         indexes = [models.Index(fields=["estado", "fecha_registro"]), models.Index(fields=["responsable", "estado"]), models.Index(fields=["proceso", "fecha_solucion"])]
         constraints = [
@@ -85,7 +104,9 @@ class Hallazgo(models.Model):
         return self.codigo
 
 
-class CicloTratamiento(models.Model):
+class CicloTratamiento(TypedSharedModel):
+    REGISTRO_TIPO = "CICLO_TRATAMIENTO"
+    id = models.BigAutoField(primary_key=True)
     hallazgo = models.ForeignKey(Hallazgo, on_delete=models.PROTECT, related_name="ciclos")
     numero = models.PositiveIntegerField()
     motivo = models.TextField()
@@ -105,18 +126,22 @@ class CicloTratamiento(models.Model):
     resultado_cierre = models.CharField(max_length=12, blank=True)
 
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["numero"]
-        constraints = [models.UniqueConstraint(fields=["hallazgo", "numero"], name="ciclo_hallazgo_numero_unico")]
 
     def __str__(self):
-        return f"{self.hallazgo.codigo} · Ciclo {self.numero}"
+        return f"{self.hallazgo.codigo} · Plan {self.numero}"
 
 
 class Accion(models.Model):
     TIPOS = [
         ("INMEDIATA", "Solución inmediata"),
         ("ACCION_INMEDIATA", "Acción inmediata"),
+        ("CORRECTIVA", "Acción correctiva"),
+    ]
+    TIPOS_PLAN = [
+        ("INMEDIATA", "Solución inmediata"),
         ("CORRECTIVA", "Acción correctiva"),
     ]
     ESTADOS = [
@@ -142,6 +167,7 @@ class Accion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        db_table = "actividad"
         ordering = ["pk"]
         constraints = [
             models.CheckConstraint(condition=Q(porcentaje_avance__lte=100), name="accion_avance_max_100"),
@@ -174,7 +200,9 @@ class Accion(models.Model):
         return self.codigo
 
 
-class PBI(models.Model):
+class PBI(TypedSharedModel):
+    REGISTRO_TIPO = "PBI"
+    id = models.BigAutoField(primary_key=True)
     ciclo = models.ForeignKey(CicloTratamiento, on_delete=models.PROTECT, related_name="pbis")
     numero_pbi = models.CharField(max_length=100)
     ticket_incidente = models.CharField(max_length=100, blank=True)
@@ -183,14 +211,16 @@ class PBI(models.Model):
     responsable_ti = models.ForeignKey(USER, on_delete=models.PROTECT)
     estado = models.CharField(max_length=10, choices=[("ABIERTO", "Abierto"), ("CERRADO", "Cerrado")], default="ABIERTO")
     fecha_creacion = models.DateTimeField(default=timezone.now)
-    fecha_cierre = models.DateField(null=True, blank=True)
+    fecha_cierre = models.DateField(null=True, blank=True, db_column="fecha_cierre_pbi")
     observacion = models.TextField(blank=True)
 
-    class Meta:
-        constraints = [models.UniqueConstraint(fields=["ciclo", "numero_pbi"], name="pbi_referencia_ciclo_unico"), models.CheckConstraint(condition=Q(estado="ABIERTO", fecha_cierre__isnull=True) | Q(estado="CERRADO", fecha_cierre__isnull=False), name="pbi_cierre_coherente")]
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
 
 
-class EvaluacionEficacia(models.Model):
+class EvaluacionEficacia(TypedSharedModel):
+    REGISTRO_TIPO = "EVALUACION_EFICACIA"
+    id = models.BigAutoField(primary_key=True)
     RESULTADOS = [("EFICAZ", "Eficaz"), ("NO_EFICAZ", "No eficaz")]
     ciclo = models.ForeignKey(CicloTratamiento, on_delete=models.PROTECT, related_name="evaluaciones")
     evaluador = models.ForeignKey(USER, on_delete=models.PROTECT)
@@ -199,12 +229,14 @@ class EvaluacionEficacia(models.Model):
     comentario = models.TextField()
     fecha_registro = models.DateTimeField(default=timezone.now)
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["-fecha_registro", "-pk"]
-        constraints = [models.CheckConstraint(condition=Q(resultado__in=["EFICAZ", "NO_EFICAZ"]), name="eficacia_resultado_valido")]
 
 
-class ComunicacionHallazgo(models.Model):
+class ComunicacionHallazgo(TypedSharedModel):
+    REGISTRO_TIPO = "COMUNICACION"
+    id = models.BigAutoField(primary_key=True)
     ciclo = models.ForeignKey(CicloTratamiento, on_delete=models.PROTECT, related_name="comunicaciones")
     registrado_por = models.ForeignKey(USER, on_delete=models.PROTECT)
     destinatarios = models.CharField(max_length=500)
@@ -212,11 +244,14 @@ class ComunicacionHallazgo(models.Model):
     descripcion = models.TextField()
     fecha = models.DateTimeField(default=timezone.now)
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["-fecha"]
 
 
-class Evidencia(models.Model):
+class Evidencia(TypedSharedModel):
+    REGISTRO_TIPO = "EVIDENCIA"
+    id = models.BigAutoField(primary_key=True)
     hallazgo = models.ForeignKey(Hallazgo, on_delete=models.PROTECT, related_name="evidencias")
     accion = models.ForeignKey(Accion, on_delete=models.PROTECT, null=True, blank=True, related_name="evidencias")
     analisis = models.ForeignKey(CicloTratamiento, related_name="evidencias_analisis", on_delete=models.PROTECT, null=True, blank=True)
@@ -230,12 +265,14 @@ class Evidencia(models.Model):
     fecha_carga = models.DateTimeField(default=timezone.now)
     descripcion = models.TextField(blank=True)
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["-fecha_carga"]
-        constraints = [models.CheckConstraint(condition=(Q(accion__isnull=True, analisis__isnull=True, evaluacion__isnull=True) | Q(accion__isnull=True, analisis__isnull=True, cierre__isnull=True) | Q(accion__isnull=True, evaluacion__isnull=True, cierre__isnull=True) | Q(analisis__isnull=True, evaluacion__isnull=True, cierre__isnull=True)), name="evidencia_un_contexto_maximo")]
 
 
-class HistorialHallazgo(models.Model):
+class HistorialHallazgo(TypedSharedModel):
+    REGISTRO_TIPO = "HISTORIAL"
+    id = models.BigAutoField(primary_key=True)
     accion_relacionada = models.ForeignKey(Accion, null=True, blank=True, on_delete=models.PROTECT, related_name="eventos")
     hallazgo = models.ForeignKey(Hallazgo, on_delete=models.PROTECT, related_name="historial")
     usuario = models.ForeignKey(USER, on_delete=models.PROTECT)
@@ -246,11 +283,14 @@ class HistorialHallazgo(models.Model):
     comentario = models.TextField(blank=True)
     metadata_json = models.JSONField(default=dict, blank=True)
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["-fecha_hora", "-pk"]
 
 
-class Notificacion(models.Model):
+class Notificacion(TypedSharedModel):
+    REGISTRO_TIPO = "NOTIFICACION"
+    id = models.BigAutoField(primary_key=True)
     usuario = models.ForeignKey(USER, on_delete=models.PROTECT, related_name="notificaciones")
     hallazgo = models.ForeignKey(Hallazgo, on_delete=models.PROTECT, related_name="notificaciones")
     tipo = models.CharField(max_length=50)
@@ -260,9 +300,9 @@ class Notificacion(models.Model):
     fecha_creacion = models.DateTimeField(default=timezone.now)
     fecha_lectura = models.DateTimeField(null=True, blank=True)
 
-    class Meta:
+    class Meta(TypedSharedModel.Meta):
+        db_table = "evento"
         ordering = ["-fecha_creacion"]
-        indexes = [models.Index(fields=["usuario", "leida", "fecha_creacion"])]
 
 
-from .registro import RegistroGeneral  # Modelo de la vista SQL de consulta.
+from .registro import RegistroGeneral  # Proyección de consulta calculada en Python.

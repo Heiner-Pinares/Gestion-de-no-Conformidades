@@ -37,9 +37,9 @@ def editable(hallazgo, estados=TRATAMIENTO):
 
 def ciclo_vigente(hallazgo, contexto=None):
     ciclo = hallazgo.ciclo_actual
-    exigir(ciclo is not None and ciclo.fecha_fin is None, "No existe un ciclo de tratamiento activo.")
+    exigir(ciclo is not None and ciclo.fecha_fin is None, "No existe un plan de compromisos activo.")
     if contexto is not None:
-        exigir(contexto.ciclo_id == ciclo.pk, "Los ciclos anteriores son históricos y no se pueden modificar.")
+        exigir(contexto.ciclo_id == ciclo.pk, "Los planes anteriores son históricos y no se pueden modificar.")
     return ciclo
 
 
@@ -47,7 +47,7 @@ def registrar(hallazgo, usuario, accion, comentario="", anterior=None, metadata=
     hallazgo.version += 1
     hallazgo.updated_by = usuario
     hallazgo.save(update_fields=["estado", "version", "updated_by", "updated_at"])
-    HistorialHallazgo.objects.create(hallazgo=hallazgo, usuario=usuario, accion=accion, accion_relacionada=accion_relacionada,
+    return HistorialHallazgo.objects.create(hallazgo=hallazgo, usuario=usuario, accion=accion, accion_relacionada=accion_relacionada,
         estado_anterior=anterior if anterior is not None else hallazgo.estado,
         estado_nuevo=hallazgo.estado, comentario=comentario, metadata_json=metadata or {})
 
@@ -73,7 +73,7 @@ def campos_permitidos(datos, campos):
 
 def requiere_inmediata(ciclo):
     acciones = ciclo.acciones.filter(tipo="INMEDIATA").exclude(estado="CANCELADA")
-    exigir(acciones.exists() and not acciones.exclude(estado="COMPLETADA").exists(), "Termine al menos una solución inmediata y todas las soluciones inmediatas vigentes del ciclo.")
+    exigir(acciones.exists() and not acciones.exclude(estado="COMPLETADA").exists(), "Termine al menos una solución inmediata y todas las soluciones inmediatas vigentes del plan.")
 
 
 def analisis_completo(ciclo):
@@ -97,7 +97,7 @@ def tratamiento_completo(hallazgo):
     )
     requiere_inmediata(ciclo)
     if hallazgo.es_critica == "SI":
-        exigir(analisis_completo(ciclo), "Finalice el análisis de causa del ciclo.")
+        exigir(analisis_completo(ciclo), "Finalice el análisis de causa del plan.")
         exigir(ciclo.acciones.filter(tipo="CORRECTIVA").exclude(estado="CANCELADA").exists(), "Registre al menos una acción correctiva vigente.")
         if hallazgo.origen_tecnologico:
             exigir(ciclo.pbis.exists(), "Registre la referencia PBI para el caso crítico tecnológico.")

@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.catalogos.models import ConfiguracionImpacto, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro
+from apps.catalogos.models import ConfiguracionImpacto, ConfiguracionUrgencia, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro, Urgencia
 from .estados import ESTADOS
 from .models import Accion, CicloTratamiento, ComunicacionHallazgo, EvaluacionEficacia, Hallazgo, PBI, SI_NO_NA
 from .services.evidencia import validar_archivo
@@ -36,7 +36,7 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         widgets = {"fecha_deteccion": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"), "fecha_solucion": FECHA,
             "descripcion": forms.Textarea(attrs={"rows": 4}), "criterio_categoria": forms.Textarea(attrs={"rows": 2}),
             "requisito_referencia": forms.Textarea(attrs={"rows": 2}), "justificacion_no_impacto": forms.Textarea(attrs={"rows": 2})}
-        labels = {"tipo_registro": "Tipo de registro", "fuente_deteccion": "Fuente de detección", "es_critica": "¿No conformidad crítica?", "criterio_categoria": "Criterio de categorización", "requisito_referencia": "Requisito o referencia incumplida", "aplica_impacto": "Aplica evaluación de impacto", "ticket_remedy": "N.º ticket Remedy (si aplica)"}
+        labels = {"tipo_registro": "Tipo de registro", "fuente_deteccion": "Fuente de detección", "es_critica": "¿No conformidad crítica?", "criterio_categoria": "Criterio de categorización", "requisito_referencia": "Requisito o referencia incumplida", "aplica_impacto": "Aplica evaluación de impacto", "ticket_remedy": "N.º ticket Remedy"}
 
     def __init__(self, data=None, instance=None, usuario=None, **kwargs):
         self.usuario = usuario
@@ -46,13 +46,16 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
                 del self.fields[nombre]
         for nombre in ("tipo_registro", "fuente_deteccion", "proceso", "subproceso", "urgencia"):
             self.fields[nombre].queryset = self.fields[nombre].queryset.filter(activo=True)
-        self.fields["ticket_remedy"].widget.attrs["placeholder"] = "Ej. REM-589632"
+        self.fields["ticket_remedy"].widget.attrs["placeholder"] = "Ej. INC000001305088"
         self.fields["actividad"].required = False
         self.fields["actividad"].label = "Actividad (opcional)"
         self.fields["actividad"].widget.attrs["placeholder"] = "Ej. Conciliación, validación o tarea relacionada"
         self.fields["descripcion"].widget.attrs["placeholder"] = "Describe de forma clara y concisa la no conformidad encontrada..."
         for nombre in ("tipo_registro", "fuente_deteccion", "urgencia"):
             self.fields[nombre].empty_label = "Seleccionar"
+        self.codigo_urgencia_area = ConfiguracionUrgencia.codigo_para_area(usuario.area if usuario else "")
+        if self.codigo_urgencia_area:
+            self.fields["urgencia"].widget = forms.HiddenInput()
         self.fields["es_critica"].choices = [
             ("", "Seleccionar"),
             ("SI", "Sí - Crítica"),
@@ -143,7 +146,10 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
     @property
     def matriz_prioridad(self):
         return {
-            f"{fila.impacto.valor}-{fila.urgencia_id}": fila.prioridad.nombre
+            f"{fila.impacto.valor}-{fila.urgencia_id}": {
+                "nombre": fila.prioridad.nombre,
+                "es_critica": fila.prioridad.codigo == "CRITICA",
+            }
             for fila in MatrizPrioridad.objects.select_related("impacto", "prioridad").filter(
                 activo=True, prioridad__activo=True
             )
@@ -151,7 +157,52 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
 
     @property
     def configuracion_impacto(self):
-        return ConfiguracionImpacto.objects.filter(pk=1).first() or ConfiguracionImpacto()
+        return ConfiguracionImpacto.objects.first() or ConfiguracionImpacto()
+
+    @property
+    def urgencia_configurable(self):
+        return bool(self.codigo_urgencia_area)
+
+    @property
+    def urgencia_resumen(self):
+        if self.is_bound:
+            valor = self.data.get(self.add_prefix("urgencia"))
+            return Urgencia.objects.filter(pk=valor).values_list("nombre", flat=True).first() or "Sin evaluar"
+        if self.instance.pk and self.instance.urgencia_id:
+            return self.instance.urgencia.nombre
+        return "Sin evaluar"
+
+    @property
+    def configuraciones_urgencia(self):
+        niveles = {obj.valor: obj for obj in Urgencia.objects.filter(activo=True, valor__in=(1, 2, 3))}
+        configuraciones = {obj.codigo: obj for obj in ConfiguracionUrgencia.objects.all()}
+        filas = []
+        for codigo, titulo, subtitulo, icono in (
+            ("POST_FACTURACION", "Vencimiento de ciclo", "Post facturación", "◷"),
+            ("FACTURACION", "Emisión de facturación", "Facturación", "▣"),
+        ):
+            config = configuraciones.get(codigo) or ConfiguracionUrgencia(codigo=codigo, nombre=titulo)
+            rangos = config.rangos_usuario
+            filas.append({
+                "codigo": codigo, "titulo": titulo, "subtitulo": subtitulo, "icono": icono,
+                "aplicable": codigo == self.codigo_urgencia_area and config.activo,
+                "niveles": [
+                    {"nivel": niveles.get(1), "nombre": "Bajo", "rango": rangos["bajo"], "clase": "low"},
+                    {"nivel": niveles.get(2), "nombre": "Medio", "rango": rangos["medio"], "clase": "medium"},
+                    {"nivel": niveles.get(3), "nombre": "Alto", "rango": rangos["alto"], "clase": "high"},
+                ],
+                "meta": config.medio_desde,
+            })
+        return filas
+
+    @property
+    def urgencia_meta(self):
+        config = ConfiguracionUrgencia.objects.filter(codigo=self.codigo_urgencia_area, activo=True).first()
+        return config.medio_desde if config else 28
+
+    @property
+    def urgencia_area_nombre(self):
+        return dict(ConfiguracionUrgencia.AREAS).get(self.codigo_urgencia_area, "")
 
     @property
     def campos_proceso(self):
@@ -313,17 +364,15 @@ class AccionForm(EstiloForm, forms.ModelForm):
 
 
 class ActividadPlanForm(EstiloForm, forms.Form):
-    tipo = forms.ChoiceField(choices=Accion.TIPOS)
+    tipo = forms.ChoiceField(choices=Accion.TIPOS_PLAN)
     descripcion = forms.CharField(widget=forms.TextInput(attrs={"placeholder": "Describe la actividad"}))
-    responsable = forms.ModelChoiceField(queryset=get_user_model().objects.none(), required=False, empty_label="Responsable AC")
-    fet_inicial = forms.DateField(label="FET inicial", required=False, widget=FECHA)
+    responsable = forms.ModelChoiceField(queryset=get_user_model().objects.none(), empty_label="Responsable AC")
+    fet_inicial = forms.DateField(label="FET inicial", widget=FECHA)
     estado = forms.ChoiceField(choices=Accion.ESTADOS)
 
     def __init__(self, *args, es_critica=True, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["responsable"].queryset = get_user_model().objects.filter(is_active=True).order_by("first_name", "last_name", "username")
-        if not es_critica:
-            self.fields["tipo"].choices = Accion.TIPOS[:2]
         self.fields["fet_inicial"].widget.attrs["min"] = timezone.localdate().isoformat()
         self.estilizar()
 
@@ -369,30 +418,109 @@ class SeguimientoLineaForm(forms.Form):
 
 
 class SeguimientoForm(EstiloForm, forms.Form):
-    estado = forms.ChoiceField(choices=Accion.ESTADOS)
-    porcentaje_avance = forms.IntegerField(label="Porcentaje de avance", min_value=0, max_value=100)
-    fecha_real = forms.DateField(label="Fecha real de finalización", required=False, widget=FECHA)
-    comentario = forms.CharField(widget=forms.Textarea)
+    porcentaje_avance = forms.IntegerField(
+        label="Nuevo avance (%)", min_value=0, max_value=100,
+        widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
+    )
+    fecha_seguimiento = forms.DateTimeField(
+        label="Fecha de seguimiento", required=False, disabled=True,
+        widget=FECHA_HORA,
+    )
+    comentario = forms.CharField(
+        label="Comentario de seguimiento", max_length=500,
+        widget=forms.Textarea(attrs={"rows": 4, "maxlength": 500}),
+    )
+    archivo = forms.FileField(
+        label="Adjuntar evidencia", required=False,
+        help_text="PDF, PNG o JPEG; máximo 10 MB.",
+    )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, accion=None, **kwargs):
+        self.accion = accion
         super().__init__(*args, **kwargs)
+        self.fields["porcentaje_avance"].widget.attrs.update({"data-follow-progress": "", "class": "input"})
+        self.fields["comentario"].widget.attrs.update({"data-follow-comment": ""})
+        self.fields["archivo"].widget.attrs.update({"accept": ".pdf,.png,.jpg,.jpeg", "data-follow-file": ""})
         self.estilizar()
+
+    def clean_porcentaje_avance(self):
+        avance = self.cleaned_data["porcentaje_avance"]
+        if self.accion and avance < self.accion.porcentaje_avance:
+            raise ValidationError("El nuevo avance no puede ser menor que el avance actual.")
+        return avance
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data.get("archivo")
+        if archivo:
+            validar_archivo(archivo)
+        return archivo
+
+    def datos_servicio(self):
+        avance = self.cleaned_data["porcentaje_avance"]
+        if avance == 0:
+            estado, fecha_real = "PENDIENTE", None
+        elif avance == 100:
+            estado, fecha_real = "COMPLETADA", timezone.localdate()
+        else:
+            estado, fecha_real = "EN_PROCESO", None
+        return {
+            "estado": estado,
+            "porcentaje_avance": avance,
+            "fecha_real": fecha_real,
+            "comentario": self.cleaned_data["comentario"].strip(),
+        }
+
+
+class AprobadorReprogramacionField(forms.ModelChoiceField):
+    def label_from_instance(self, usuario):
+        nombre = usuario.get_full_name() or usuario.username
+        return f"{nombre} – {usuario.cargo}" if usuario.cargo else nombre
 
 
 class ReprogramacionForm(EstiloForm, forms.Form):
-    nueva_fecha = forms.DateField(label="Nueva fecha compromiso", widget=FECHA)
-    motivo = forms.CharField(widget=forms.Textarea)
+    nueva_fecha = forms.DateField(label="Nueva fecha propuesta", widget=FECHA)
+    motivo = forms.CharField(
+        label="Motivo de la reprogramación", max_length=500,
+        widget=forms.Textarea(attrs={"rows": 5, "maxlength": 500, "placeholder": "Describe el motivo de la reprogramación..."}),
+    )
+    archivo = forms.FileField(
+        label="Evidencia", required=False,
+        help_text="PDF, DOC, DOCX, XLS, XLSX, JPG o PNG; máximo 10 MB.",
+    )
+    aprobador = AprobadorReprogramacionField(
+        label="Responsable de jefatura que aprobará",
+        queryset=get_user_model().objects.none(), empty_label="Seleccionar responsable",
+    )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, solicitante=None, accion=None, **kwargs):
+        self.accion = accion
         super().__init__(*args, **kwargs)
+        aprobadores = get_user_model().objects.filter(is_active=True)
+        if solicitante is not None:
+            aprobadores = aprobadores.exclude(pk=solicitante.pk)
+        self.fields["aprobador"].queryset = aprobadores.order_by("first_name", "last_name", "username")
         self.fields["nueva_fecha"].widget.attrs["min"] = timezone.localdate().isoformat()
+        self.fields["archivo"].widget.attrs.update({
+            "accept": ".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg", "data-reprogram-file": "",
+        })
+        self.fields["motivo"].widget.attrs["data-reprogram-reason"] = ""
         self.estilizar()
 
     def clean_nueva_fecha(self):
         valor = self.cleaned_data["nueva_fecha"]
         if valor < timezone.localdate():
             raise ValidationError("La nueva fecha no puede ser anterior a hoy.")
+        if self.accion and valor < self.accion.fecha_inicio:
+            raise ValidationError("La nueva fecha no puede ser anterior al inicio de la acción.")
+        if self.accion and valor == self.accion.fecha_vigente:
+            raise ValidationError("La nueva fecha debe ser distinta de la fecha vigente.")
         return valor
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data.get("archivo")
+        if archivo:
+            validar_archivo(archivo)
+        return archivo
 
 
 class EvaluacionEficaciaForm(EstiloForm, forms.ModelForm):

@@ -5,6 +5,7 @@
 <div class="admin-page-head"><div><h1>Catálogos</h1><p>Gestión de listas maestras y configuración del sistema.</p></div></div>
 <section class="admin-catalog-grid">
   <article class="admin-catalog-card"><span class="admin-catalog-icon">▥</span><div><h2>Evaluación de impacto</h2><p>Configura los rangos de clientes, tiempo e impacto financiero.</p></div><div class="admin-catalog-meta"><span>3 criterios</span><a href="{% url 'configuracion_impacto' %}">Ver / Editar →</a></div></article>
+  <article class="admin-catalog-card"><span class="admin-catalog-icon">◷</span><div><h2>Evaluación de urgencia</h2><p>Configura los rangos para Facturación y Post facturación.</p></div><div class="admin-catalog-meta"><span>2 jefaturas</span><a href="{% url 'configuracion_urgencia' %}">Ver / Editar →</a></div></article>
   {% for item in resumen_catalogos %}<article class="admin-catalog-card"><span class="admin-catalog-icon">{% cycle '▤' '◎' '⚙' '◉' '◇' %}</span><div><h2>{{ item.titulo }}</h2><p>Consulta y administra los valores disponibles para este catálogo.</p></div><div class="admin-catalog-meta"><span>◉ {{ item.total }} registros</span><a href="?tipo={{ item.clave }}">Ver / Editar →</a></div></article>{% endfor %}
 </section>
 {% else %}

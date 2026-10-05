@@ -5,8 +5,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = plan.querySelector('[name="actividades-TOTAL_FORMS"]');
     const template = plan.querySelector("[data-empty-activity]");
     const firstNumber = Number(plan.dataset.nextNumber || 1);
+    const requirementMessage = plan.querySelector("[data-activity-requirements]");
+    const requiresCorrective = plan.dataset.requiresCorrective === "true";
+    const hasExistingImmediate = plan.dataset.hasImmediate === "true";
+    const hasExistingCorrective = plan.dataset.hasCorrective === "true";
 
     const visibleRows = () => [...rows.querySelectorAll("[data-activity-row]")].filter((row) => !row.hidden);
+    const validateRequiredTypes = () => {
+      const selectedTypes = new Set(
+        visibleRows().map((row) => row.querySelector('select[name$="-tipo"]')?.value).filter(Boolean)
+      );
+      const hasImmediate = hasExistingImmediate || selectedTypes.has("INMEDIATA");
+      const hasCorrective = hasExistingCorrective || selectedTypes.has("CORRECTIVA");
+      const isValid = hasImmediate && (!requiresCorrective || hasCorrective);
+      if (isValid) {
+        requirementMessage.hidden = true;
+        requirementMessage.textContent = "";
+        return true;
+      }
+      requirementMessage.textContent = requiresCorrective
+        ? "No puedes guardar todavía: una no conformidad crítica debe incluir como mínimo una Solución inmediata y una Acción correctiva."
+        : "No puedes guardar todavía: una no conformidad no crítica debe incluir como mínimo una Solución inmediata.";
+      requirementMessage.hidden = false;
+      requirementMessage.scrollIntoView({ behavior: "smooth", block: "center" });
+      return false;
+    };
     const updateCodes = () => {
       visibleRows().forEach((row, index) => {
         row.querySelector(".activity-code").value = `${plan.dataset.codigo || ""}-A${String(firstNumber + index).padStart(2, "0")}`;
@@ -49,6 +72,10 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     plan.addEventListener("submit", (event) => {
+      if (!validateRequiredTypes()) {
+        event.preventDefault();
+        return;
+      }
       if (confirmed || !confirmation) {
         confirmed = false;
         return;
@@ -57,6 +84,9 @@ document.addEventListener("DOMContentLoaded", () => {
       confirmation.hidden = false;
       document.body.classList.add("activity-modal-open");
       confirmButton.focus();
+    });
+    rows.addEventListener("change", (event) => {
+      if (event.target.matches('select[name$="-tipo"]')) validateRequiredTypes();
     });
 
     cancelButton?.addEventListener("click", closeConfirmation);

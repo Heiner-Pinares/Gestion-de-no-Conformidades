@@ -1,11 +1,10 @@
 """Semilla idempotente: maestros, roles y preguntas exactas del HTML."""
 import json
 from pathlib import Path
-from django.contrib.auth.models import Group, Permission
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.catalogos.models import (
-    CategoriaCausa, ConfiguracionImpacto, FuenteDeteccion, Impacto, MatrizPrioridad,
+    CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
     PreguntaCausa, Prioridad, TipoRegistro, Urgencia,
 )
 
@@ -27,12 +26,6 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
-        for nombre, codenames in ROLES.items():
-            grupo, _ = Group.objects.get_or_create(name=nombre)
-            permisos = Permission.objects.filter(content_type__app_label="accounts", codename__in=codenames)
-            if permisos.count() != len(codenames):
-                raise RuntimeError("Ejecuta migrate antes de la semilla.")
-            grupo.permissions.set(permisos)
         for codigo, nombre in [("INC", "Incidente"), ("PBI", "Problema (PBI)"), ("SNC", "Salida No Conforme"), ("NOC", "No Conforme")]:
             TipoRegistro.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre})
         for codigo, nombre in FUENTES:
@@ -43,7 +36,10 @@ class Command(BaseCommand):
             Urgencia.objects.get_or_create(valor=valor, defaults={"nombre": nombre})
         for codigo, nombre in [("BAJA", "Baja"), ("MEDIA", "Media"), ("ALTA", "Alta"), ("CRITICA", "Crítica")]:
             Prioridad.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre})
-        ConfiguracionImpacto.objects.get_or_create(pk=1)
+        if not ConfiguracionImpacto.objects.exists():
+            ConfiguracionImpacto.objects.create()
+        for codigo, nombre in (("FACTURACION", "Emisión de facturación"), ("POST_FACTURACION", "Vencimiento de ciclo")):
+            ConfiguracionUrgencia.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre, "activo": True})
         # TODO negocio: reemplazar esta matriz DEMO por la oficial aprobada.
         demo = [["BAJA", "MEDIA", "ALTA"], ["MEDIA", "ALTA", "ALTA"], ["ALTA", "ALTA", "CRITICA"]]
         for impacto, fila in enumerate(demo, 1):
@@ -54,4 +50,4 @@ class Command(BaseCommand):
             obj, _ = CategoriaCausa.objects.get_or_create(codigo=categoria["codigo"], defaults={"nombre": categoria["nombre"], "orden": int(categoria["codigo"])})
             for orden, pregunta in enumerate(categoria["preguntas"], 1):
                 PreguntaCausa.objects.get_or_create(codigo=pregunta["codigo"], defaults={"categoria": obj, "texto": pregunta["texto"], "orden": orden})
-        self.stdout.write(self.style.SUCCESS("Maestros, 3 roles y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."))
+        self.stdout.write(self.style.SUCCESS("Maestros, roles integrados y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."))

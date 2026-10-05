@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -18,7 +18,7 @@ from .forms import (
     EvaluacionEficaciaForm, EvidenciaForm, HallazgoForm, PBIForm,
     ReprogramacionForm, SeguimientoForm, SeguimientoLineaForm, TransicionForm,
 )
-from .models import Accion, Evidencia, Hallazgo, Notificacion
+from .models import Accion, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
 from .selectors import acciones_disponibles, hallazgos_visibles, indicadores, timeline_hallazgo
 from .services import (
     AccionService, CausaService, CodigoSACService, ComunicacionService, EficaciaService,
@@ -28,6 +28,51 @@ from .services import (
 
 def obtener_hallazgo(usuario, pk):
     return get_object_or_404(hallazgos_visibles(usuario), pk=pk)
+
+
+def preparar_historial_hallazgo(pagina, hallazgo):
+    """Añade presentación legible a la auditoría sin alterar los datos guardados."""
+    tipos = {
+        "EVALUACION_EFICACIA": ("evaluacion", "Evaluación de eficacia"),
+        "SEGUIMIENTO_ACCION": ("seguimiento", "Seguimiento de compromiso"),
+        "EVIDENCIA": ("evidencia", "Evidencia adjunta"),
+        "REPROGRAMACION": ("reprogramacion", "Reprogramación aprobada"),
+        "SOLICITUD_REPROGRAMACION": ("reprogramacion", "Solicitud de reprogramación"),
+        "REPROGRAMACION_RECHAZADA": ("alerta", "Reprogramación rechazada"),
+        "CREAR_ACCION": ("seguimiento", "Compromiso registrado"),
+        "COMUNICACION": ("evidencia", "Comunicación registrada"),
+        "REGISTRO_PBI": ("evidencia", "Referencia PBI registrada"),
+        "FINALIZAR_ANALISIS": ("evaluacion", "Análisis de causa finalizado"),
+        "GUARDAR_ANALISIS": ("seguimiento", "Análisis de causa actualizado"),
+        "CREACION": ("general", "Hallazgo creado"),
+        "ACTUALIZACION": ("general", "Identificación actualizada"),
+        "DEVOLVER": ("alerta", "Corrección solicitada"),
+        "CANCELAR": ("alerta", "Hallazgo cancelado"),
+    }
+    transiciones = {
+        "ENVIAR", "VALIDAR", "INICIAR_INMEDIATA", "INICIAR_ANALISIS",
+        "INICIAR_PBI", "PLANIFICAR", "INICIAR_IMPLEMENTACION",
+        "ENVIAR_VERIFICACION", "CERRAR", "REABRIR",
+        "CONTINUAR_IDENTIFICACION", "COMPLETAR_ANALISIS",
+    }
+    eventos = list(pagina.object_list)
+    evidencia_ids = {
+        evento.metadata_json.get("evidencia")
+        for evento in eventos
+        if evento.accion == "EVIDENCIA" and evento.metadata_json.get("evidencia")
+    }
+    evidencias = {
+        evidencia.pk: evidencia
+        for evidencia in hallazgo.evidencias.filter(pk__in=evidencia_ids)
+    }
+    for evento in eventos:
+        evento.historial_tipo, evento.historial_etiqueta = tipos.get(
+            evento.accion,
+            ("transicion", "Transición de estado") if evento.accion in transiciones else ("general", "Detalle"),
+        )
+        evento.evidencia_detalle = evidencias.get(evento.metadata_json.get("evidencia"))
+    pagina.object_list = eventos
+    return pagina
 
 
 def exigir_gestion(usuario, hallazgo):
@@ -124,7 +169,7 @@ def inicio(request):
             {
                 "valor": resumen["pendientes"], "etiqueta": "Pendientes",
                 "detalle": "Requieren atención", "tono": "amber", "icono": "clock",
-                **variacion(qs.filter(estado="PENDIENTE_VALIDACION"), favorable_al_subir=False),
+                **variacion(qs.exclude(estado__in=["CERRADO", "CANCELADO"]), favorable_al_subir=False),
             },
             {
                 "valor": resumen["en_analisis"], "etiqueta": "En análisis",
@@ -285,12 +330,67 @@ def hallazgo_detalle(request, pk):
     h = obtener_hallazgo(request.user, pk)
     ciclo = h.ciclo_actual
     gestionar = puede_gestionar(request.user, h)
-    actividades = list(ciclo.acciones.select_related("responsable").prefetch_related("eventos") if ciclo else [])
+    actividades = list(
+        ciclo.acciones.select_related("responsable").prefetch_related(
+            Prefetch(
+                "eventos",
+                queryset=HistorialHallazgo.objects.select_related("usuario").order_by("-fecha_hora", "-pk"),
+            ),
+            "evidencias",
+        )
+        if ciclo else []
+    )
     en_tratamiento = h.estado in {"ACCION_INMEDIATA", "EN_ANALISIS", "PBI_EN_GESTION", "PLAN_ACCION", "EN_IMPLEMENTACION", "REABIERTO"}
     for a in actividades:
+        a.historial_compacto = [
+            evento for evento in a.eventos.all()
+            if evento.accion in {"SEGUIMIENTO_ACCION", "REPROGRAMACION"}
+        ]
+        evidencias_accion = list(a.evidencias.all())
+        evidencias_por_id = {evidencia.pk: evidencia for evidencia in evidencias_accion}
+        eventos_por_id = {evento.pk: evento for evento in a.eventos.all()}
+        evidencias_usadas = set()
+        for evento in a.historial_compacto:
+            metadata = evento.metadata_json or {}
+            ids = list(metadata.get("evidencia_ids") or [])
+            if metadata.get("evidencia_id"):
+                ids.append(metadata["evidencia_id"])
+            solicitud = eventos_por_id.get(metadata.get("solicitud_id"))
+            metadata_solicitud = solicitud.metadata_json or {} if solicitud else {}
+            if metadata_solicitud.get("evidencia_id"):
+                ids.append(metadata_solicitud["evidencia_id"])
+            evento.evidencias_detalle = [
+                evidencias_por_id[evidencia_id]
+                for evidencia_id in dict.fromkeys(ids)
+                if evidencia_id in evidencias_por_id
+            ]
+            if not evento.evidencias_detalle and evento.accion == "SEGUIMIENTO_ACCION":
+                descripcion = f"Seguimiento: {evento.comentario.strip()}"
+                candidatas = [
+                    evidencia for evidencia in evidencias_accion
+                    if evidencia.pk not in evidencias_usadas and evidencia.descripcion == descripcion
+                ]
+                if candidatas:
+                    evento.evidencias_detalle = [min(
+                        candidatas,
+                        key=lambda evidencia: abs((evidencia.fecha_carga - evento.fecha_hora).total_seconds()),
+                    )]
+            evidencias_usadas.update(evidencia.pk for evidencia in evento.evidencias_detalle)
+        a.reprogramaciones_count = sum(
+            evento.accion == "REPROGRAMACION" for evento in a.historial_compacto
+        )
         a.puede_actualizar = en_tratamiento and a.estado not in {"COMPLETADA", "CANCELADA"} and (gestionar or (a.responsable_id == request.user.pk and request.user.has_perm("accounts.registrar_hallazgo")))
+        a.solicitud_reprogramacion = next((evento for evento in a.eventos.all()
+            if evento.accion == "SOLICITUD_REPROGRAMACION" and evento.metadata_json.get("estado") == "PENDIENTE"), None)
+        a.puede_aprobar_reprogramacion = bool(
+            a.solicitud_reprogramacion
+            and a.solicitud_reprogramacion.metadata_json.get("aprobador_id") == request.user.pk
+        )
     autor = request.user.has_perm("accounts.registrar_hallazgo") and request.user.pk in {h.registrado_por_id, h.responsable_id}
-    historial = Paginator(h.historial.select_related("usuario"), 20).get_page(request.GET.get("page"))
+    historial = preparar_historial_hallazgo(
+        Paginator(h.historial.select_related("usuario"), 20).get_page(request.GET.get("page")),
+        h,
+    )
     transiciones = acciones_disponibles(request.user, h)
     ultima_evaluacion = ciclo.evaluaciones.first() if ciclo else None
     actividades_vigentes = [a for a in actividades if a.estado != "CANCELADA"]
@@ -311,12 +411,10 @@ def hallazgo_detalle(request, pk):
         "acciones": actividades,
         "gestionar": gestionar and en_tratamiento, "puede_editar": (autor and (h.estado in {"BORRADOR", "DEVUELTO", "EN_ANALISIS"} or (h.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()))) or (puede_validar(request.user, h) and h.estado == "PENDIENTE_VALIDACION"),
         "puede_causa": gestionar and h.estado == "EN_ANALISIS",
-        "puede_accion": gestionar and h.estado in {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION"},
+        "puede_accion": gestionar and h.estado in {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION", "EN_IMPLEMENTACION"},
         "puede_pbi": gestionar and h.estado in {"PBI_EN_GESTION", "PLAN_ACCION", "EN_IMPLEMENTACION"} and h.origen_tecnologico,
         "puede_evaluar": puede_validar(request.user, h) and request.user.has_perm("accounts.evaluar_eficacia") and h.estado == "EN_VERIFICACION",
-        "puede_evidencia": h.estado not in {"CERRADO", "CANCELADO"} and (gestionar or autor),
         "historial": historial,
-        "evidencias": h.evidencias.select_related("subido_por")[:50],
         "ciclos": h.ciclos.prefetch_related("evaluaciones__evaluador", "acciones__responsable", "comunicaciones", "pbis"),
         "mostrar_cierre_administrativo": h.estado == "EN_VERIFICACION",
         "es_administrador": es_administrador(request.user),
@@ -325,6 +423,7 @@ def hallazgo_detalle(request, pk):
         "ultima_evaluacion": ultima_evaluacion,
         "total_actividades": total_actividades,
         "actividades_completadas": actividades_completadas,
+        "reprogramacion_form": ReprogramacionForm(solicitante=request.user),
     }
     return render(request, "hallazgos/detalle.html", context)
 
@@ -391,12 +490,24 @@ def hallazgo_causa(request, pk):
 def hallazgo_accion(request, pk):
     h = obtener_hallazgo(request.user, pk)
     exigir_gestion(request.user, h)
-    if h.estado not in {"ACCION_INMEDIATA", "PLAN_ACCION"}:
+    if h.estado not in {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION", "EN_IMPLEMENTACION"}:
         raise PermissionDenied
     ActividadFormSet = forms.formset_factory(ActividadPlanForm, extra=0, can_delete=True, min_num=1, validate_min=True)
-    inicial = [{"tipo": "INMEDIATA", "descripcion": "Registrar solución inmediata", "estado": "PENDIENTE", "fet_inicial": timezone.localdate()}]
-    if h.es_critica == "SI":
-        inicial.append({"tipo": "CORRECTIVA", "descripcion": "Definir acción correctiva", "estado": "PENDIENTE"})
+    ciclo = h.ciclo_actual
+    acciones_existentes = ciclo.acciones.count()
+    tipos_existentes = set(
+        ciclo.acciones.exclude(estado="CANCELADA").values_list("tipo", flat=True)
+    )
+    if acciones_existentes:
+        requiere_correctiva = h.estado == "PLAN_ACCION" and h.es_critica == "SI" and not ciclo.acciones.filter(tipo="CORRECTIVA").exclude(estado="CANCELADA").exists()
+        inicial = [{
+            "tipo": "CORRECTIVA",
+            "descripcion": "Definir acción correctiva" if requiere_correctiva else "",
+            "estado": "PENDIENTE",
+            "fet_inicial": timezone.localdate(),
+        }]
+    else:
+        inicial = [{"tipo": "INMEDIATA", "descripcion": "Registrar solución inmediata", "estado": "PENDIENTE", "fet_inicial": timezone.localdate()}]
     formset = ActividadFormSet(
         request.POST or None,
         initial=inicial if request.method == "GET" else None,
@@ -406,11 +517,18 @@ def hallazgo_accion(request, pk):
     if request.method == "POST" and formset.is_valid():
         formularios = [f for f in formset.forms if f.cleaned_data and not f.cleaned_data.get("DELETE")]
         try:
-            tipos = {f.cleaned_data["tipo"] for f in formularios}
-            if "INMEDIATA" not in tipos:
-                raise ValidationError("Registre al menos una solución inmediata.")
-            if h.es_critica == "SI" and "CORRECTIVA" not in tipos:
-                raise ValidationError("Una no conformidad crítica requiere al menos una acción correctiva.")
+            tipos = set(tipos_existentes)
+            tipos.update(f.cleaned_data["tipo"] for f in formularios)
+            if h.es_critica == "SI" and not {"INMEDIATA", "CORRECTIVA"}.issubset(tipos):
+                raise ValidationError(
+                    "No puedes guardar todavía: una no conformidad crítica debe incluir como mínimo "
+                    "una Solución inmediata y una Acción correctiva."
+                )
+            if h.es_critica != "SI" and "INMEDIATA" not in tipos:
+                raise ValidationError(
+                    "No puedes guardar todavía: una no conformidad no crítica debe incluir como mínimo "
+                    "una Solución inmediata."
+                )
             with transaction.atomic():
                 for formulario in formularios:
                     AccionService.crear(usuario=request.user, hallazgo=h, datos=formulario.datos_servicio())
@@ -421,11 +539,14 @@ def hallazgo_accion(request, pk):
             formset._non_form_errors = formset.error_class(error.messages)
         else:
             return redirect("hallazgo_acciones_creadas", pk=h.pk)
-    acciones_existentes = h.ciclo_actual.acciones.count()
     siguiente = acciones_existentes + 1
     return render(request, "hallazgos/plan_actividades.html", {
         "hallazgo": h, "formset": formset, "timeline": timeline_hallazgo(h), "siguiente_numero": siguiente,
         "puede_volver_identificacion": acciones_existentes == 0,
+        "modo_adicional": acciones_existentes > 0,
+        "requiere_accion_correctiva": h.es_critica == "SI",
+        "tiene_solucion_inmediata": "INMEDIATA" in tipos_existentes,
+        "tiene_accion_correctiva": "CORRECTIVA" in tipos_existentes,
     })
 
 
@@ -512,26 +633,105 @@ def obtener_accion(usuario, pk):
 @login_required
 def accion_seguimiento(request, pk):
     a = obtener_accion(request.user, pk)
-    form = SeguimientoForm(request.POST or None, initial={"estado": a.estado, "porcentaje_avance": a.porcentaje_avance, "fecha_real": a.fecha_real})
-    return completar_formulario(request, form, "Registrar seguimiento", lambda d: AccionService.seguir(usuario=request.user, accion=a, datos=d), a.hallazgo, accion=a)
+    ahora = timezone.localtime().replace(second=0, microsecond=0)
+    form = SeguimientoForm(
+        request.POST or None,
+        request.FILES or None,
+        accion=a,
+        initial={"porcentaje_avance": a.porcentaje_avance, "fecha_seguimiento": ahora},
+    )
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                actualizada = AccionService.seguir(
+                    usuario=request.user,
+                    accion=a,
+                    datos=form.datos_servicio(),
+                )
+                archivo = form.cleaned_data.get("archivo")
+                if archivo:
+                    evidencia = EvidenciaService.subir(
+                        usuario=request.user,
+                        hallazgo=actualizada.hallazgo,
+                        accion=actualizada,
+                        archivo=archivo,
+                        descripcion=f"Seguimiento: {form.cleaned_data['comentario'].strip()}",
+                    )
+                    seguimiento = actualizada.seguimientos.filter(usuario=request.user).order_by(
+                        "-fecha_hora", "-pk"
+                    ).first()
+                    metadata = dict(seguimiento.metadata_json or {})
+                    metadata["evidencia_ids"] = list(dict.fromkeys([
+                        *(metadata.get("evidencia_ids") or []), evidencia.pk,
+                    ]))
+                    seguimiento.metadata_json = metadata
+                    seguimiento.save(update_fields=["metadata_json"])
+        except ValidationError as error:
+            errores(form, error)
+        else:
+            messages.success(request, f"El seguimiento de {a.codigo} fue guardado.")
+            return redirect("hallazgo_detalle", pk=a.hallazgo.pk)
+    return render(request, "hallazgos/seguimiento_accion.html", {
+        "form": form,
+        "hallazgo": a.hallazgo,
+        "accion": a,
+        "fecha_seguimiento": ahora,
+    })
 
 
 @login_required
 def accion_reprogramar(request, pk):
     a = obtener_accion(request.user, pk)
-    form = ReprogramacionForm(request.POST or None)
+    form = ReprogramacionForm(request.POST or None, request.FILES or None, solicitante=request.user, accion=a)
     if request.method == "POST" and form.is_valid():
         try:
-            AccionService.reprogramar(usuario=request.user, accion=a, **form.cleaned_data)
+            with transaction.atomic():
+                solicitud = AccionService.solicitar_reprogramacion(
+                    usuario=request.user, accion=a,
+                    nueva_fecha=form.cleaned_data["nueva_fecha"],
+                    motivo=form.cleaned_data["motivo"],
+                    aprobador=form.cleaned_data["aprobador"],
+                )
+                archivo = form.cleaned_data.get("archivo")
+                if archivo:
+                    evidencia = EvidenciaService.subir(
+                        usuario=request.user, hallazgo=a.hallazgo, accion=a, archivo=archivo,
+                        descripcion=f"Solicitud de reprogramación: {form.cleaned_data['motivo'].strip()}",
+                    )
+                    metadata = dict(solicitud.metadata_json)
+                    metadata["evidencia_id"] = evidencia.pk
+                    solicitud.metadata_json = metadata
+                    solicitud.save(update_fields=["metadata_json"])
         except ValidationError as error:
             errores(form, error)
         else:
-            messages.success(request, f"La actividad {a.codigo} fue reprogramada.")
-            return redirect("hallazgo_acciones_seguimiento", pk=a.hallazgo.pk)
-    return render(request, "hallazgos/formulario.html", {
-        "form": form, "titulo": "Reprogramar acción", "hallazgo": a.hallazgo, "accion": a,
-        "aviso": "Se conserva la FET inicial y cada cambio de fecha. Se permiten hasta tres reprogramaciones por acción.",
+            messages.success(request, f"La solicitud para reprogramar {a.codigo} fue enviada a aprobación.")
+            return redirect("hallazgo_detalle", pk=a.hallazgo.pk)
+    return render(request, "hallazgos/reprogramacion_accion.html", {
+        "form": form, "hallazgo": a.hallazgo, "accion": a,
     })
+
+
+@login_required
+@require_POST
+def accion_reprogramacion_resolver(request, pk, decision):
+    if decision not in {"aprobar", "rechazar"}:
+        raise Http404
+    solicitud = get_object_or_404(
+        HistorialHallazgo.objects.select_related("accion_relacionada__ciclo__hallazgo"),
+        pk=pk, accion="SOLICITUD_REPROGRAMACION",
+    )
+    hallazgo = solicitud.hallazgo
+    try:
+        AccionService.resolver_reprogramacion(
+            usuario=request.user, solicitud_id=solicitud.pk, aprobar=decision == "aprobar",
+        )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        resultado = "aprobada" if decision == "aprobar" else "rechazada"
+        messages.success(request, f"La solicitud de reprogramación fue {resultado}.")
+    return redirect("hallazgo_detalle", pk=hallazgo.pk)
 
 
 @login_required
@@ -595,7 +795,12 @@ def evidencia_descargar(request, pk):
     if not puede_ver(request.user, evidencia.hallazgo):
         raise Http404
     try:
-        respuesta = FileResponse(evidencia.archivo.open("rb"), as_attachment=True, filename=evidencia.nombre_original, content_type=evidencia.mime_type)
+        respuesta = FileResponse(
+            evidencia.archivo.open("rb"),
+            as_attachment=request.GET.get("ver") != "1",
+            filename=evidencia.nombre_original,
+            content_type=evidencia.mime_type,
+        )
     except FileNotFoundError as error:
         raise Http404("La evidencia no está disponible.") from error
     respuesta["X-Content-Type-Options"] = "nosniff"

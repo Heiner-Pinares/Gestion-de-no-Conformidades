@@ -1,0 +1,51 @@
+<div class="activity-row" data-activity-row>
+  <div class="activity-field activity-field--code">
+    <span class="activity-field-label">Código de actividad</span>
+    <div class="activity-control">
+      <svg class="activity-field-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm7 1v4h4M9 12h6m-6 4h6"/></svg>
+      <input class="activity-code input" value="" readonly aria-label="Código de actividad">
+    </div>
+  </div>
+  <div class="activity-field activity-field--action">
+    <label class="activity-field-label" for="{{ form.descripcion.id_for_label }}">Acción <span aria-hidden="true">*</span></label>
+    <div class="activity-control">
+      <svg class="activity-field-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h12M4 11h8M4 16h6m8-7v9m-4-4 4 4 4-4"/></svg>
+      {{ form.descripcion }}
+    </div>
+    {{ form.descripcion.errors }}
+  </div>
+  <div class="activity-field activity-field--type">
+    <label class="activity-field-label" for="{{ form.tipo.id_for_label }}">Tipo <span aria-hidden="true">*</span></label>
+    <div class="activity-control">
+      <svg class="activity-field-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 8 4-8 4-8-4 8-4Zm-8 9 8 4 8-4M4 17l8 4 8-4"/></svg>
+      {{ form.tipo }}
+    </div>
+    {{ form.tipo.errors }}
+  </div>
+  <div class="activity-field activity-field--owner">
+    <label class="activity-field-label" for="{{ form.responsable.id_for_label }}">Responsable AC <span aria-hidden="true">*</span></label>
+    <div class="activity-control">
+      <svg class="activity-field-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0"/></svg>
+      {{ form.responsable }}
+    </div>
+    {{ form.responsable.errors }}
+  </div>
+  <div class="activity-field activity-field--date">
+    <label class="activity-field-label" for="{{ form.fet_inicial.id_for_label }}">FET compromiso <span aria-hidden="true">*</span></label>
+    <div class="activity-control">
+      <svg class="activity-field-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M7 3v3m10-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z"/></svg>
+      {{ form.fet_inicial }}
+    </div>
+    {{ form.fet_inicial.errors }}
+  </div>
+  <div class="activity-field activity-field--status">
+    <label class="activity-field-label" for="{{ form.estado.id_for_label }}">Estado <span aria-hidden="true">*</span></label>
+    <div class="activity-control activity-control--plain">{{ form.estado }}</div>
+    {{ form.estado.errors }}
+  </div>
+  <div class="activity-remove-wrap">
+    <span class="activity-field-label" aria-hidden="true">&nbsp;</span>
+    <button class="btn activity-remove" type="button" data-remove-activity>Quitar</button>
+    <span class="activity-delete">{{ form.DELETE }}</span>
+  </div>
+</div>

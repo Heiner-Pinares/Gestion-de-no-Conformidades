@@ -49,6 +49,31 @@ class ImpactoService:
         exigir(all(valor in (1, 2, 3) and not isinstance(valor, bool) for valor in valores), "Seleccione un nivel válido (1 a 3) para clientes, tiempo y soles.")
         return max(valores)
 
+    @staticmethod
+    def selecciones(*, clientes, tiempo, soles):
+        """Captura los rangos visibles al evaluar; no dependen de cambios futuros."""
+        from apps.catalogos.models import ConfiguracionImpacto
+
+        configuracion = ConfiguracionImpacto.objects.first() or ConfiguracionImpacto()
+        rangos = configuracion.rangos_usuario
+        claves = {1: "bajo", 2: "medio", 3: "alto"}
+        return {
+            "impacto_clientes_seleccion": rangos["clientes"][claves[clientes]],
+            "impacto_tiempo_seleccion": rangos["tiempo"][claves[tiempo]],
+            "impacto_financiero_seleccion": rangos["financiero"][claves[soles]],
+        }
+
+
+class UrgenciaService:
+    @staticmethod
+    def seleccion(*, area, urgencia):
+        from apps.catalogos.models import ConfiguracionUrgencia
+        codigo = ConfiguracionUrgencia.codigo_para_area(area)
+        configuracion = ConfiguracionUrgencia.objects.filter(codigo=codigo, activo=True).first() if codigo else None
+        if configuracion:
+            return configuracion.seleccion_para(urgencia.valor), configuracion.get_codigo_display()
+        return urgencia.nombre, area or ""
+
 
 class PrioridadService:
     @staticmethod
@@ -60,7 +85,7 @@ class PrioridadService:
         return matriz.prioridad
 
 
-def validar_datos(hallazgo, *, completo=False, fecha_cambiada=True):
+def validar_datos(hallazgo, *, completo=False, fecha_cambiada=True, actualizar_snapshot_impacto=False, actualizar_snapshot_urgencia=False):
     if fecha_cambiada and hallazgo.fecha_solucion:
         exigir(hallazgo.fecha_solucion >= timezone.localdate(), "La fecha de solución no puede ser anterior a la fecha actual.")
     if hallazgo.fecha_deteccion:
@@ -76,17 +101,34 @@ def validar_datos(hallazgo, *, completo=False, fecha_cambiada=True):
         exigir(not hallazgo.origen_tecnologico, "El impacto es obligatorio para un origen tecnológico.")
         exigir(bool(hallazgo.justificacion_no_impacto.strip()), "Justifique por qué no aplica el impacto.")
         hallazgo.impacto_clientes = hallazgo.impacto_tiempo = hallazgo.impacto_soles = None
+        hallazgo.impacto_clientes_seleccion = ""
+        hallazgo.impacto_tiempo_seleccion = ""
+        hallazgo.impacto_financiero_seleccion = ""
         hallazgo.impacto_resultante = hallazgo.urgencia = hallazgo.prioridad = None
+        hallazgo.urgencia_seleccion = hallazgo.urgencia_area = ""
         hallazgo.prioridad_snapshot = "No aplica: " + hallazgo.justificacion_no_impacto[:150]
     else:
         valores = [hallazgo.impacto_clientes, hallazgo.impacto_tiempo, hallazgo.impacto_soles]
         exigir(all(v is None or (v in (1, 2, 3) and not isinstance(v, bool)) for v in valores), "Los niveles de impacto deben ser 1, 2 o 3.")
+        if actualizar_snapshot_impacto and None not in valores:
+            for campo, seleccion in ImpactoService.selecciones(
+                clientes=valores[0], tiempo=valores[1], soles=valores[2]
+            ).items():
+                setattr(hallazgo, campo, seleccion)
         hallazgo.impacto_resultante = ImpactoService.calcular(clientes=valores[0], tiempo=valores[1], soles=valores[2]) if None not in valores else None
         hallazgo.prioridad = None
         hallazgo.prioridad_snapshot = ""
         if hallazgo.impacto_resultante and hallazgo.urgencia_id:
+            if actualizar_snapshot_urgencia:
+                hallazgo.urgencia_seleccion, hallazgo.urgencia_area = UrgenciaService.seleccion(
+                    area=hallazgo.registrado_por.area, urgencia=hallazgo.urgencia
+                )
             hallazgo.prioridad = PrioridadService.calcular(impacto=hallazgo.impacto_resultante, urgencia=hallazgo.urgencia)
             hallazgo.prioridad_snapshot = hallazgo.prioridad.nombre
+    # La matriz prevalece sobre cualquier valor enviado por el navegador.
+    # Una prioridad crítica siempre requiere el recorrido de causa raíz.
+    if hallazgo.prioridad_id and hallazgo.prioridad.codigo == "CRITICA":
+        hallazgo.es_critica = "SI"
     if completo:
         obligatorios = ["titulo", "descripcion", "fuente_deteccion", "fecha_deteccion", "fecha_solucion"]
         faltantes = [nombre.replace('_', ' ') for nombre in obligatorios if not getattr(hallazgo, nombre)]
@@ -107,7 +149,7 @@ class HallazgoService:
         exigir(all(datos.get(n) for n in ["titulo", "tipo_registro", "proceso", "responsable"]), "Complete título, tipo, proceso y responsable.")
         hallazgo = Hallazgo(**datos, registrado_por=usuario, updated_by=usuario, estado="BORRADOR")
         hallazgo.codigo = CodigoSACService.generar(tipo=hallazgo.tipo_registro)
-        validar_datos(hallazgo, completo=not borrador)
+        validar_datos(hallazgo, completo=not borrador, actualizar_snapshot_impacto=True, actualizar_snapshot_urgencia=True)
         hallazgo.save()
         registrar(hallazgo, usuario, "CREACION", "Hallazgo creado como borrador.", anterior="")
         if not borrador:
@@ -139,6 +181,11 @@ class HallazgoService:
         estado_anterior = hallazgo.estado
         datos_anteriores = {k: str(getattr(hallazgo, k)) for k in datos}
         codigo_anterior = hallazgo.codigo
+        impacto_cambiado = any(
+            campo in datos and datos[campo] != getattr(hallazgo, campo)
+            for campo in ("impacto_clientes", "impacto_tiempo", "impacto_soles", "aplica_impacto")
+        )
+        urgencia_cambiada = "urgencia" in datos and datos["urgencia"] != hallazgo.urgencia
         if cambio_tipo:
             hallazgo.codigo = CodigoSACService.generar(tipo=tipo_nuevo)
         fecha_cambiada = datos.get("fecha_solucion", hallazgo.fecha_solucion) != hallazgo.fecha_solucion
@@ -146,7 +193,13 @@ class HallazgoService:
             setattr(hallazgo, campo, valor)
         if hallazgo.estado in {"EN_ANALISIS", "ACCION_INMEDIATA"} and ciclo is not None and not ciclo.acciones.exists():
             hallazgo.estado = "EN_ANALISIS" if hallazgo.es_critica == "SI" else "ACCION_INMEDIATA"
-        validar_datos(hallazgo, completo=completo, fecha_cambiada=fecha_cambiada)
+        validar_datos(
+            hallazgo,
+            completo=completo,
+            fecha_cambiada=fecha_cambiada,
+            actualizar_snapshot_impacto=impacto_cambiado,
+            actualizar_snapshot_urgencia=urgencia_cambiada,
+        )
         hallazgo.save()
         metadata = {"antes": datos_anteriores, "despues": {k: str(getattr(hallazgo, k)) for k in datos}}
         if cambio_tipo:

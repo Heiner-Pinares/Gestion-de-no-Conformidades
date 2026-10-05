@@ -1,6 +1,6 @@
 from django import forms
 from .models import (
-    CategoriaCausa, ConfiguracionImpacto, FuenteDeteccion, Impacto, MatrizPrioridad, PreguntaCausa,
+    CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad, PreguntaCausa,
     Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
 )
 
@@ -35,6 +35,29 @@ class ConfiguracionImpactoForm(forms.ModelForm):
                 raise forms.ValidationError("Los rangos deben ser continuos: cada nivel comienza inmediatamente después del anterior.")
         return datos
 
+class ConfiguracionUrgenciaForm(forms.ModelForm):
+    class Meta:
+        model = ConfiguracionUrgencia
+        fields = ("activo", "bajo_desde", "bajo_hasta", "medio_desde", "medio_hasta", "alto_desde")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for nombre, campo in self.fields.items():
+            if nombre != "activo":
+                campo.widget.attrs.update({"class": "input impact-range-input", "min": "0", "step": "1"})
+
+    def clean(self):
+        datos = super().clean()
+        valores = [datos.get(nombre) for nombre in ("bajo_desde", "bajo_hasta", "medio_desde", "medio_hasta", "alto_desde")]
+        if None not in valores:
+            bajo_desde, bajo_hasta, medio_desde, medio_hasta, alto_desde = valores
+            if not (bajo_desde <= bajo_hasta < medio_desde <= medio_hasta < alto_desde):
+                raise forms.ValidationError("Los rangos deben estar ordenados y no pueden superponerse.")
+            if medio_desde != bajo_hasta + 1 or alto_desde != medio_hasta + 1:
+                raise forms.ValidationError("Los rangos deben ser continuos: cada nivel comienza inmediatamente después del anterior.")
+        return datos
+
+
 # Lista explícita: nunca aceptar un nombre de modelo enviado por el navegador.
 CATALOGOS = {
     "tipos": (TipoRegistro, ["nombre", "activo"], "Tipos de registro"),
@@ -52,8 +75,18 @@ CATALOGOS = {
 
 def formulario_catalogo(tipo, *args, instance=None, **kwargs):
     modelo, campos, _ = CATALOGOS[tipo]
-    form_class = forms.modelform_factory(modelo, fields=campos)
+    campos_modelo = [campo for campo in campos if campo != "validadores"]
+    form_class = forms.modelform_factory(modelo, fields=campos_modelo)
     form = form_class(*args, instance=instance, **kwargs)
+    if "validadores" in campos:
+        from apps.accounts.models import Usuario
+        form.fields["validadores"] = forms.ModelMultipleChoiceField(
+            queryset=Usuario.objects.filter(is_active=True, roles__contains=["VALIDADOR"]),
+            required=False,
+            widget=forms.SelectMultiple(attrs={"class": "input"}),
+            initial=instance.validadores.all() if instance and instance.pk else None,
+            help_text="Selecciona los validadores autorizados. Usa Ctrl o Cmd para seleccionar varios.",
+        )
     # Identificadores históricos no se renombran.
     if instance and instance.pk:
         for nombre in ("codigo", "impacto", "urgencia"):
@@ -61,9 +94,6 @@ def formulario_catalogo(tipo, *args, instance=None, **kwargs):
                 form.fields[nombre].disabled = True
     for nombre, campo in form.fields.items():
         campo.widget.attrs.setdefault("class", "input")
-        if nombre == "validadores":
-            campo.queryset = campo.queryset.filter(is_active=True, groups__name="VALIDADOR").distinct()
-            campo.help_text = "Selecciona los validadores autorizados para este proceso. Usa Ctrl o Cmd para seleccionar varios."
         if nombre in ("responsable", "responsable_ti"):
             campo.queryset = campo.queryset.filter(is_active=True)
     return form

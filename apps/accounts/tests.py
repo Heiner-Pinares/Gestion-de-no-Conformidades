@@ -1,7 +1,11 @@
 from urllib.parse import parse_qs, urlparse
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from zipfile import ZipFile
 
-from django.contrib.auth.models import Group
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -23,6 +27,8 @@ class MicrosoftLoginTests(TestCase):
         response = self.client.get(reverse("login"))
         self.assertContains(response, "Ingresar con Microsoft")
         self.assertContains(response, reverse("microsoft_start"))
+        self.assertContains(response, "login-user-symbol")
+        self.assertNotContains(response, ">♙<")
 
     def test_inicio_crea_state_y_pkce(self):
         response = self.client.get(reverse("microsoft_start"), {"next": "/buscar/"})
@@ -74,7 +80,7 @@ class MicrosoftLoginTests(TestCase):
             "microsoft:tenant-corporativo:abc-123",
         )
         self.assertFalse(user.has_usable_password())
-        self.assertTrue(user.groups.filter(name="USUARIO").exists())
+        self.assertTrue(user.has_role("USUARIO"))
         self.assertEqual(int(self.client.session["_auth_user_id"]), user.pk)
         self.assertNotIn("microsoft_oauth", self.client.session)
         self.assertNotIn("token-temporal", str(dict(self.client.session)))
@@ -136,3 +142,55 @@ class MicrosoftDisabledTests(TestCase):
         response = self.client.get(reverse("microsoft_start"), follow=True)
         self.assertRedirects(response, reverse("login"))
         self.assertContains(response, "todavía no está configurado")
+
+
+class ImportarUsuariosOperacionesTests(TestCase):
+    @staticmethod
+    def crear_xlsx(ruta):
+        filas = [
+            ["Cod. Comunicación", "Correo electrónico", "Jefe", "Nombre completo", "Área", "Gerencia", "Dirección"],
+            ["C10001", "carlos1@claro.com.pe", "MARIA GOMEZ PEREZ", "CARLOS VICENTE FARFAN ACHAMISO", "Facturación", "Operaciones", "Operaciones Comerciales"],
+            ["C10002", "carlos2@claro.com.pe", "MARIA GOMEZ PEREZ", "CARLOS EDUARDO FARFAN CASTRO", "Facturación", "Operaciones", "Operaciones Comerciales"],
+            ["C10003", "maria.gomez@claro.com.pe", "", "MARIA GOMEZ PEREZ", "Operaciones", "Operaciones", "Operaciones Comerciales"],
+        ]
+        def celda(columna, fila, valor):
+            return f'<c r="{columna}{fila}" t="inlineStr"><is><t>{valor}</t></is></c>'
+        letras = "ABCDEFG"
+        cuerpo = "".join(
+            f'<row r="{numero}">{"".join(celda(letras[i], numero, valor) for i, valor in enumerate(valores))}</row>'
+            for numero, valores in enumerate(filas, 1)
+        )
+        xml = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            f'<sheetData>{cuerpo}</sheetData></worksheet>'
+        )
+        with ZipFile(ruta, "w") as archivo:
+            archivo.writestr("xl/worksheets/sheet1.xml", xml)
+
+    def test_importa_perfiles_claves_jefaturas_y_resuelve_usuario_duplicado(self):
+        with TemporaryDirectory() as carpeta:
+            ruta = Path(carpeta) / "usuarios.xlsx"
+            self.crear_xlsx(ruta)
+            salida = StringIO()
+            call_command("importar_usuarios_operaciones", ruta, dry_run=True, stdout=salida)
+            self.assertIn("3 usuarios", salida.getvalue())
+            self.assertFalse(Usuario.objects.exists())
+
+            call_command("importar_usuarios_operaciones", ruta, stdout=StringIO())
+
+        self.assertEqual(Usuario.objects.count(), 3)
+        primero = Usuario.objects.get(email="carlos1@claro.com.pe")
+        segundo = Usuario.objects.get(email="carlos2@claro.com.pe")
+        jefa = Usuario.objects.get(email="maria.gomez@claro.com.pe")
+        self.assertEqual((primero.username, segundo.username, jefa.username), (
+            "carlos.farfan", "carlos.farfan.2", "maria.gomez",
+        ))
+        self.assertTrue(primero.check_password("C10001"))
+        self.assertTrue(segundo.check_password("C10002"))
+        self.assertEqual(primero.roles, ["USUARIO"])
+        self.assertEqual(primero.area, "Facturación")
+        self.assertEqual(primero.gerencia, "Operaciones")
+        self.assertEqual(primero.direccion, "Operaciones Comerciales")
+        self.assertEqual(primero.jefe, jefa)
+        self.assertEqual(jefa.cargo, "Jefe")

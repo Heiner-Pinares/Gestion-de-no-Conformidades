@@ -34,7 +34,7 @@
           </div>
         </div>
         <div class="pair">
-          <div class="lab"><label for="{{ form.ticket_remedy.id_for_label }}">N° Ticket remedy (si aplica)</label></div>
+          <div class="lab"><label for="{{ form.ticket_remedy.id_for_label }}">N° Ticket remedy</label></div>
           <div class="val">
             <div class="ticket-remedy-control">
               {{ form.ticket_remedy }}
@@ -50,9 +50,9 @@
       <div class="identificacion-columna">
         <div class="pair"><div class="lab"><label for="fechaRegistro">Fecha de registro</label></div><div class="val"><input id="fechaRegistro" class="input readonly-strong" type="date" value="{% if hallazgo %}{{ hallazgo.fecha_registro|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" readonly><div class="helper">Se completa automáticamente con la fecha actual y no puede modificarse.</div></div></div>
         {% include 'includes/identificacion_campo.html' with field=form.fecha_deteccion etiqueta='Fecha de detección' %}
-        {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución' ayuda='No se permiten fechas anteriores a la fecha actual.' %}
+        {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución estimada' ayuda='No se permiten fechas anteriores a la fecha actual.' %}
         <div class="pair">
-          <div class="lab"><label for="impactoResumen">Impacto (si aplica)</label></div>
+          <div class="lab"><label for="impactoResumen">Impacto</label></div>
           <div class="val">
             <div class="inline-control">
               <input id="impactoResumen" class="input readonly-strong" value="{{ form.impacto_resumen }}" readonly>
@@ -66,19 +66,60 @@
                     {% include 'includes/impacto_criterio.html' with campo=form.impacto_tiempo titulo='Tiempo de afectación' descripcion='Duración del servicio afectado.' icono='◷' rangos=rangos.tiempo %}
                     {% include 'includes/impacto_criterio.html' with campo=form.impacto_soles titulo='Impacto financiero' descripcion='Pérdida económica potencial del incidente.' icono='●' rangos=rangos.financiero %}
                   {% endwith %}
-                  <div class="impact-result-preview"><span aria-hidden="true">▥</span><strong>Impacto resultante:</strong><b id="impactoResultadoModal">Pendiente</b></div>
+                  <div id="impactoResultadoContenedor" class="impact-result-preview"><span aria-hidden="true">▥</span><strong>Impacto resultante:</strong><b id="impactoResultadoModal">Pendiente</b></div>
                   <p id="impactoError" class="impacto-error" role="alert" hidden>Selecciona Bajo, Medio o Alto en los tres criterios.</p>
                   <div class="impacto-acciones"><button type="button" class="btn" id="cancelarImpacto">Cancelar</button><button type="button" class="btn primary" id="guardarImpacto">Guardar evaluación</button></div>
                   </div>
                 </div>
               </details>
             </div>
-            <div class="matrix-result"><span class="matrix-dot"></span><span id="impactoMensaje">Completa la matriz Clientes / Tiempo / Soles.</span></div>
+            <div class="matrix-result"><span id="impactoIndicador" class="matrix-dot"></span><span id="impactoMensaje">Completa la matriz Clientes / Tiempo / Soles.</span></div>
           </div>
         </div>
-        {% include 'includes/identificacion_campo.html' with field=form.urgencia etiqueta='Urgencia (si aplica)' %}
-        <div class="pair"><div class="lab"><label for="prioridadResumen">Prioridad / Criticidad (si aplica)</label></div><div class="val"><input id="prioridadResumen" class="input readonly-strong" value="{% if hallazgo.prioridad_snapshot %}{{ hallazgo.prioridad_snapshot }}{% else %}Pendiente de cálculo{% endif %}" readonly><div class="helper">Se calcula automáticamente según el impacto máximo y la urgencia seleccionada.</div></div></div>
-        {% include 'includes/identificacion_campo.html' with field=form.es_critica ayuda='Esta clasificación determina si el análisis de causa raíz es obligatorio.' %}
+        {% if form.urgencia_configurable %}
+        <div class="pair">
+          <div class="lab"><label for="urgenciaResumen">Urgencia</label></div>
+          <div class="val">
+            {{ form.urgencia }}
+            <div class="inline-control">
+              <input id="urgenciaResumen" class="input readonly-strong" value="{{ form.urgencia_resumen }}" readonly>
+              <details id="urgenciaDetails" class="impacto-desplegable urgencia-desplegable">
+                <summary class="btn matrix">Evaluar urgencia</summary>
+                <div class="impacto-panel urgencia-panel" role="dialog" aria-modal="true" aria-labelledby="urgenciaTitulo">
+                  <div class="impact-modal-head"><strong id="urgenciaTitulo">Evaluación de urgencia</strong><button type="button" id="cerrarUrgencia" aria-label="Cerrar evaluación de urgencia">×</button></div>
+                  <div class="urgencia-contexto"><span>Proceso registrado: <b>{{ form.urgencia_area_nombre }}</b></span><small>Meta: {{ form.urgencia_meta }} horas</small></div>
+                  <div class="impact-modal-body urgency-modal-body">
+                    {% for fila in form.configuraciones_urgencia %}
+                    <section class="impact-criterion urgency-criterion{% if not fila.aplicable %} disabled{% endif %}">
+                      <div class="impact-criterion-label"><span class="impact-criterion-icon">{{ fila.icono }}</span><span><strong>{{ fila.titulo }}</strong><small>{{ fila.subtitulo }}</small><em>{% if fila.aplicable %}Activo{% else %}Desactivado{% endif %}</em></span></div>
+                      <div class="impact-levels">
+                        {% for item in fila.niveles %}<label class="impact-level {{ item.clase }}"><input type="radio" name="urgencia_visual" value="{{ item.nivel.pk|default:'' }}" data-label="{{ item.nombre }}" data-level="{{ item.nivel.valor|default:'' }}"{% if not fila.aplicable or not item.nivel %} disabled{% endif %}><span><b>{{ item.nombre }}</b><small>{{ item.rango }}</small></span></label>{% endfor %}
+                      </div>
+                    </section>
+                    {% endfor %}
+                    <p id="urgenciaError" class="impacto-error" role="alert" hidden>Selecciona un nivel de urgencia.</p>
+                    <div class="impacto-acciones"><button type="button" class="btn" id="cancelarUrgencia">Cancelar</button><button type="button" class="btn primary" id="guardarUrgencia">Guardar evaluación</button></div>
+                  </div>
+                </div>
+              </details>
+            </div>
+            {{ form.urgencia.errors }}
+          </div>
+        </div>
+        {% else %}
+          {% include 'includes/identificacion_campo.html' with field=form.urgencia etiqueta='Urgencia' %}
+        {% endif %}
+        <div class="pair"><div class="lab"><label for="prioridadResumen">Prioridad / Criticidad</label></div><div class="val"><input id="prioridadResumen" class="input readonly-strong" value="{% if hallazgo.prioridad_snapshot %}{{ hallazgo.prioridad_snapshot }}{% else %}Pendiente de cálculo{% endif %}" readonly><div class="helper">Se calcula automáticamente según el impacto máximo y la urgencia seleccionada.</div></div></div>
+        <div class="pair">
+          <div class="lab"><label for="{{ form.es_critica.id_for_label }}">¿No conformidad crítica?</label></div>
+          <div class="val">
+            {{ form.es_critica }}
+            <input type="hidden" id="criticidadForzada" name="{{ form.es_critica.html_name }}" value="SI" disabled>
+            <div id="criticidadEditableAyuda" class="helper">Esta clasificación determina si el análisis de causa raíz es obligatorio.</div>
+            <div id="criticidadAutomaticaAyuda" class="helper" hidden>La prioridad Crítica establece automáticamente “Sí - Crítica” y no permite modificarlo.</div>
+            {{ form.es_critica.errors }}
+          </div>
+        </div>
       </div>
     </div>
 
@@ -95,9 +136,17 @@
   const detalles = document.getElementById('impactoDetails');
   const impacto = document.getElementById('impactoResumen');
   const prioridad = document.getElementById('prioridadResumen');
+  const criticidad = document.getElementById('id_es_critica');
+  const criticidadForzada = document.getElementById('criticidadForzada');
+  const criticidadEditableAyuda = document.getElementById('criticidadEditableAyuda');
+  const criticidadAutomaticaAyuda = document.getElementById('criticidadAutomaticaAyuda');
   const urgencia = document.getElementById('id_urgencia');
+  const detallesUrgencia = document.getElementById('urgenciaDetails');
+  const urgenciaResumen = document.getElementById('urgenciaResumen');
   const mensaje = document.getElementById('impactoMensaje');
+  const indicadorImpacto = document.getElementById('impactoIndicador');
   const resultadoModal = document.getElementById('impactoResultadoModal');
+  const resultadoContenedor = document.getElementById('impactoResultadoContenedor');
   const error = document.getElementById('impactoError');
   const matriz = JSON.parse(document.getElementById('matrizPrioridad').textContent);
   const tipoRegistro = document.getElementById('id_tipo_registro');
@@ -110,6 +159,14 @@
   const ticketContenedor = ticketRemedy.closest('.val');
   const ticketErrores = ticketContenedor.querySelector('.errorlist');
   const etiquetas = {1: 'Bajo', 2: 'Medio', 3: 'Alto'};
+  const clasesNivel = {1: 'level-low', 2: 'level-medium', 3: 'level-high'};
+  const clasesPunto = {1: 'low', 2: 'medium', 3: 'high'};
+
+  function aplicarColorNivel(elemento, nivel) {
+    if (!elemento) return;
+    elemento.classList.remove('level-low', 'level-medium', 'level-high');
+    if (clasesNivel[nivel]) elemento.classList.add(clasesNivel[nivel]);
+  }
 
   function actualizarTicketTecnologico() {
     const seleccion = document.querySelector('input[name="origen_tecnologico"]:checked');
@@ -134,12 +191,25 @@
     });
   }
 
+  function actualizarCriticidad(configuracion) {
+    const esPrioridadCritica = Boolean(configuracion && configuracion.es_critica);
+    if (esPrioridadCritica) criticidad.value = 'SI';
+    criticidad.disabled = esPrioridadCritica;
+    criticidad.setAttribute('aria-disabled', esPrioridadCritica ? 'true' : 'false');
+    criticidadForzada.disabled = !esPrioridadCritica;
+    criticidadEditableAyuda.hidden = esPrioridadCritica;
+    criticidadAutomaticaAyuda.hidden = !esPrioridadCritica;
+  }
+
   function actualizarPrioridad(nivel) {
     if (!nivel || !urgencia.value) {
       prioridad.value = 'Pendiente de cálculo';
+      actualizarCriticidad(null);
       return;
     }
-    prioridad.value = matriz[`${nivel}-${urgencia.value}`] || 'Combinación sin configurar';
+    const configuracion = matriz[`${nivel}-${urgencia.value}`];
+    prioridad.value = configuracion ? configuracion.nombre : 'Combinación sin configurar';
+    actualizarCriticidad(configuracion);
   }
 
   function guardarEvaluacion(cerrar) {
@@ -152,7 +222,12 @@
     error.hidden = true;
     impacto.value = etiquetas[resultado];
     resultadoModal.textContent = etiquetas[resultado];
-    mensaje.textContent = `Impacto ${etiquetas[resultado]} calculado automáticamente.`;
+    mensaje.innerHTML = `Impacto calculado: <b>${etiquetas[resultado]}</b> (se toma el mayor nivel marcado).`;
+    indicadorImpacto.classList.remove('low', 'medium', 'high');
+    indicadorImpacto.classList.add(clasesPunto[resultado]);
+    aplicarColorNivel(impacto, resultado);
+    aplicarColorNivel(mensaje.parentElement, resultado);
+    aplicarColorNivel(resultadoContenedor, resultado);
     actualizarPrioridad(resultado);
     if (cerrar) detalles.open = false;
     return true;
@@ -165,10 +240,33 @@
     const valores = niveles();
     actualizarPrioridad(valores.every(Boolean) ? Math.max(...valores) : null);
   });
+  if (detallesUrgencia) {
+    const radiosUrgencia = [...document.querySelectorAll('input[name="urgencia_visual"]:not(:disabled)')];
+    const urgenciaError = document.getElementById('urgenciaError');
+    const sincronizarRadioUrgencia = () => radiosUrgencia.forEach(radio => { radio.checked = radio.value === urgencia.value; });
+    detallesUrgencia.addEventListener('toggle', () => { if (detallesUrgencia.open) sincronizarRadioUrgencia(); });
+    document.getElementById('guardarUrgencia').addEventListener('click', () => {
+      const seleccionado = radiosUrgencia.find(radio => radio.checked);
+      if (!seleccionado || !seleccionado.value) { urgenciaError.hidden = false; return; }
+      urgencia.value = seleccionado.value;
+      urgenciaResumen.value = seleccionado.dataset.label;
+      aplicarColorNivel(urgenciaResumen, Number(seleccionado.dataset.level));
+      urgenciaError.hidden = true;
+      urgencia.dispatchEvent(new Event('change', {bubbles: true}));
+      detallesUrgencia.open = false;
+    });
+    document.getElementById('cancelarUrgencia').addEventListener('click', () => { sincronizarRadioUrgencia(); detallesUrgencia.open = false; });
+    document.getElementById('cerrarUrgencia').addEventListener('click', () => { sincronizarRadioUrgencia(); detallesUrgencia.open = false; });
+    sincronizarRadioUrgencia();
+    const urgenciaInicial = radiosUrgencia.find(radio => radio.value === urgencia.value);
+    if (urgenciaInicial) aplicarColorNivel(urgenciaResumen, Number(urgenciaInicial.dataset.level));
+  }
   document.querySelectorAll('input[name^="impacto_"]').forEach(control => control.addEventListener('change', () => {
     error.hidden = true;
     const valores = niveles();
-    resultadoModal.textContent = valores.every(Boolean) ? etiquetas[Math.max(...valores)] : 'Pendiente';
+    const resultado = valores.every(Boolean) ? Math.max(...valores) : null;
+    resultadoModal.textContent = resultado ? etiquetas[resultado] : 'Pendiente';
+    aplicarColorNivel(resultadoContenedor, resultado);
   }));
   tipoRegistro.addEventListener('change', actualizarCodigoHallazgo);
   opcionesTecnologia.forEach(opcion => opcion.addEventListener('change', actualizarTicketTecnologico));

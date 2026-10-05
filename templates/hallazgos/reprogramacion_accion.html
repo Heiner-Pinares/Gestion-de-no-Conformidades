@@ -1,0 +1,4 @@
+{% extends 'base.html' %}{% load static %}
+{% block title %}Solicitar reprogramación{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/seguimiento.css' %}?v=2">{% endblock %}
+{% block content %}<div class="follow-page"><section class="follow-modal follow-modal-page reprogram-modal" role="dialog" aria-labelledby="reprogram-title">{% include 'hallazgos/includes/reprogramacion_form.html' %}</section></div>{% endblock %}

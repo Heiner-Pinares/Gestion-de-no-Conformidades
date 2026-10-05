@@ -7,6 +7,7 @@ urlpatterns = [
     path("usuarios/<int:pk>/clave/", views.usuario_password, name="usuario_password"),
     path("catalogos/", views.catalogos, name="catalogos"),
     path("catalogos/evaluacion-impacto/", views.configuracion_impacto, name="configuracion_impacto"),
+    path("catalogos/evaluacion-urgencia/", views.configuracion_urgencia, name="configuracion_urgencia"),
     path("catalogos/<str:tipo>/nuevo/", views.catalogo_editar, name="catalogo_crear"),
     path("catalogos/<str:tipo>/<str:pk>/", views.catalogo_editar, name="catalogo_editar"),
     path("auditoria/", views.auditoria, name="auditoria"),

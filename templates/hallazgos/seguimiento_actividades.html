@@ -35,7 +35,7 @@
       <div class="activity-follow-scroll" data-activity-scroll tabindex="0" role="region" aria-label="Tabla de actividades relacionadas; desplázate horizontalmente para ver todas las columnas">
       <table data-activity-table>
         <thead>
-          <tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>FET inicial</th><th>Reprog. 1</th><th>Reprog. 2</th><th>Reprog. 3</th><th>Fecha vigente</th><th>Fecha real</th><th>Estado</th><th>Eficiencia</th><th>Acción</th></tr>
+          <tr><th>Código actividad</th><th>Actividad</th><th>Responsable</th><th>Fecha de Inicio</th><th>Reprog. 1</th><th>Reprog. 2</th><th>Reprog. 3</th><th>Fecha vigente</th><th>Fecha real</th><th>Estado</th><th>Eficiencia</th><th>Acción</th></tr>
         </thead>
         <tbody>
           {% for linea in lineas %}
@@ -69,6 +69,7 @@
       <a class="btn" href="{% url 'inicio' %}">← Volver al panel</a>
       <div class="activity-follow-actions">
         <button class="btn" type="submit" name="accion" value="guardar">Guardar seguimiento</button>
+        <a class="btn activity-detail-link" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Ver a detalle →</a>
         {% if puede_evaluar %}
           <button class="btn primary" type="submit" name="accion" value="evaluar">Evaluar eficacia →</button>
         {% else %}

@@ -3,7 +3,6 @@ import getpass
 import os
 from datetime import timedelta
 from django.conf import settings
-from django.contrib.auth.models import Group
 from django.contrib.auth.password_validation import validate_password
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
@@ -46,7 +45,7 @@ class Command(BaseCommand):
             elif creado:
                 obj.set_unusable_password()
                 obj.save(update_fields=["password"])
-            obj.groups.add(Group.objects.get(name=rol))
+            obj.add_role(rol)
             usuarios[rol] = obj
         proceso, _ = Proceso.objects.get_or_create(nombre="Operación telecom · DEMO", defaults={"responsable": usuarios["USUARIO"]})
         proceso.validadores.add(usuarios["VALIDADOR"])

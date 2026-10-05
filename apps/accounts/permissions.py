@@ -40,6 +40,11 @@ def puede_ver(usuario, hallazgo):
         return True
     if es_validador(usuario) and asignado_al_proceso(usuario, hallazgo):
         return True
+    if hallazgo.historial.filter(
+        accion="SOLICITUD_REPROGRAMACION",
+        metadata_json__aprobador_id=usuario.pk,
+    ).exists():
+        return True
     return hallazgo.ciclos.filter(acciones__responsable=usuario).exists()
 
 

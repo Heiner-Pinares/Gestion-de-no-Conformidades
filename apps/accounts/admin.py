@@ -1,9 +1,9 @@
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
 from .models import Usuario
 
 
 @admin.register(Usuario)
-class UsuarioAdmin(UserAdmin):
-    fieldsets = UserAdmin.fieldsets + (("Organización", {"fields": ("area", "cargo", "corporate_identifier")}),)
-    list_display = UserAdmin.list_display + ("cargo", "area")
+class UsuarioAdmin(admin.ModelAdmin):
+    list_display = ("username", "email", "cargo", "area", "gerencia", "direccion", "jefe", "is_active")
+    list_filter = ("is_active", "is_staff", "is_superuser", "direccion", "gerencia")
+    search_fields = ("username", "first_name", "last_name", "email", "area", "gerencia", "direccion")

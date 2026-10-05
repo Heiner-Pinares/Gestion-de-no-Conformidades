@@ -1,8 +1,10 @@
-from django.core.exceptions import PermissionDenied
+from datetime import date
+
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from django.utils import timezone
 from apps.accounts.permissions import puede_gestionar
-from apps.hallazgos.models import Accion
+from apps.hallazgos.models import Accion, HistorialHallazgo
 from .common import (bloquear, campos_permitidos, ciclo_vigente, editable, exigir,
     gestionar, notificar, registrar)
 
@@ -16,7 +18,7 @@ def bloquear_accion(usuario, accion):
         raise PermissionDenied("No tiene autorización sobre esta acción.")
     editable(hallazgo)
     ciclo_vigente(hallazgo, accion)
-    exigir(accion.estado not in {"COMPLETADA", "CANCELADA"}, "Una acción terminada o cancelada es histórica; cree una nueva acción en el ciclo correspondiente.")
+    exigir(accion.estado not in {"COMPLETADA", "CANCELADA"}, "Una acción terminada o cancelada es histórica; cree una nueva acción en el plan correspondiente.")
     return hallazgo, accion
 
 
@@ -29,18 +31,17 @@ class AccionService:
         campos_permitidos(datos, CAMPOS_ACCION)
         tipo = datos.get("tipo")
         if tipo in {"INMEDIATA", "ACCION_INMEDIATA"}:
-            editable(hallazgo, {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION"})
+            editable(hallazgo, {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION", "EN_IMPLEMENTACION"})
         elif tipo == "CORRECTIVA":
-            editable(hallazgo, {"PLAN_ACCION"})
-            exigir(hallazgo.es_critica == "SI", "Las acciones correctivas no aplican al caso no crítico.")
+            editable(hallazgo, {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION", "EN_IMPLEMENTACION"})
         else:
             exigir(False, "Seleccione un tipo de acción válido.")
         ciclo = ciclo_vigente(hallazgo)
         responsable = datos.get("responsable")
-        exigir(responsable is None or responsable.is_active, "Seleccione un responsable activo.")
+        exigir(responsable is not None and responsable.is_active, "Seleccione un responsable activo.")
         exigir(datos.get("fecha_inicio"), "Indique la fecha de inicio.")
-        if datos.get("fet_inicial"):
-            exigir(datos["fet_inicial"] >= timezone.localdate(), "La fecha compromiso inicial no puede ser anterior a hoy.")
+        exigir(datos.get("fet_inicial"), "Indique la fecha de compromiso.")
+        exigir(datos["fet_inicial"] >= timezone.localdate(), "La fecha compromiso inicial no puede ser anterior a hoy.")
         estado = datos.get("estado", "PENDIENTE")
         exigir(estado in dict(Accion.ESTADOS), "Estado de acción no válido.")
         datos = {**datos, "estado": estado}
@@ -97,4 +98,95 @@ class AccionService:
         accion.save(update_fields=["fecha_vigente", "updated_at"])
         registrar(hallazgo, usuario, "REPROGRAMACION", motivo, accion_relacionada=accion, metadata={"accion": accion.codigo, "numero": numero, "fecha_anterior": str(fecha_anterior), "nueva_fecha": str(nueva_fecha)})
         notificar(hallazgo, "reprogramacion", f"La acción {accion.codigo} tiene fecha vigente {nueva_fecha}.", {accion.responsable_id})
+        return accion
+
+    @staticmethod
+    @transaction.atomic
+    def solicitar_reprogramacion(*, usuario, accion, nueva_fecha, motivo, aprobador):
+        hallazgo, accion = bloquear_accion(usuario, accion)
+        motivo = motivo.strip()
+        exigir(bool(motivo), "Debe justificar la reprogramación.")
+        exigir(aprobador is not None and aprobador.is_active, "Seleccione un responsable de jefatura activo.")
+        exigir(aprobador.pk != usuario.pk, "La solicitud debe ser aprobada por otra persona.")
+        pendiente = accion.eventos.filter(
+            accion="SOLICITUD_REPROGRAMACION", metadata_json__estado="PENDIENTE",
+        ).exists()
+        exigir(not pendiente, "La acción ya tiene una solicitud de reprogramación pendiente.")
+        numero = accion.reprogramaciones.count() + 1
+        exigir(numero <= 3, "La actividad alcanzó el máximo permitido de reprogramaciones.")
+        exigir(nueva_fecha is not None and nueva_fecha >= timezone.localdate() and nueva_fecha >= accion.fecha_inicio,
+               "La nueva fecha debe ser desde hoy y no anterior al inicio.")
+        exigir(nueva_fecha != accion.fecha_vigente, "La nueva fecha debe ser distinta de la fecha vigente.")
+        solicitud = registrar(
+            hallazgo, usuario, "SOLICITUD_REPROGRAMACION", motivo, accion_relacionada=accion,
+            metadata={
+                "accion": accion.codigo, "numero": numero, "estado": "PENDIENTE",
+                "fecha_anterior": str(accion.fecha_vigente) if accion.fecha_vigente else "",
+                "nueva_fecha": str(nueva_fecha), "aprobador_id": aprobador.pk,
+                "aprobador": aprobador.get_full_name() or aprobador.username,
+                "aprobador_cargo": aprobador.cargo,
+            },
+        )
+        notificar(
+            hallazgo, "aprobacion_reprogramacion",
+            f"{usuario} solicita reprogramar {accion.codigo} para el {nueva_fecha}. Revisa el caso para aprobar o rechazar.",
+            {aprobador.pk},
+        )
+        return solicitud
+
+    @staticmethod
+    @transaction.atomic
+    def resolver_reprogramacion(*, usuario, solicitud_id, aprobar):
+        referencia = HistorialHallazgo.objects.select_related("accion_relacionada__ciclo__hallazgo").get(
+            pk=solicitud_id, accion="SOLICITUD_REPROGRAMACION",
+        )
+        accion_id = referencia.accion_relacionada_id
+        hallazgo = bloquear(referencia.hallazgo)
+        accion = Accion.objects.select_for_update().get(pk=accion_id)
+        solicitud = HistorialHallazgo.objects.select_for_update().get(pk=solicitud_id)
+        metadata = dict(solicitud.metadata_json or {})
+        exigir(metadata.get("estado") == "PENDIENTE", "La solicitud ya fue atendida.")
+        if metadata.get("aprobador_id") != usuario.pk:
+            raise PermissionDenied("Solo el responsable seleccionado puede resolver esta solicitud.")
+        editable(hallazgo)
+        ciclo_vigente(hallazgo, accion)
+        exigir(accion.estado not in {"COMPLETADA", "CANCELADA"}, "La acción ya no admite reprogramaciones.")
+        solicitante_id = solicitud.usuario_id
+        if aprobar:
+            numero = accion.reprogramaciones.count() + 1
+            exigir(numero <= 3, "La actividad alcanzó el máximo permitido de reprogramaciones.")
+            try:
+                nueva_fecha = date.fromisoformat(metadata.get("nueva_fecha", ""))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("La fecha propuesta no es válida.") from exc
+            exigir(nueva_fecha >= timezone.localdate() and nueva_fecha >= accion.fecha_inicio,
+                   "La fecha propuesta venció o es anterior al inicio; solicita una nueva reprogramación.")
+            exigir(nueva_fecha != accion.fecha_vigente, "La fecha propuesta ya coincide con la fecha vigente.")
+            fecha_anterior = accion.fecha_vigente
+            accion.fecha_vigente = nueva_fecha
+            accion.full_clean()
+            accion.save(update_fields=["fecha_vigente", "updated_at"])
+            metadata.update(estado="APROBADA", resuelto_por_id=usuario.pk, resuelto_por=str(usuario),
+                            fecha_resolucion=timezone.now().isoformat())
+            solicitud.metadata_json = metadata
+            solicitud.save(update_fields=["metadata_json"])
+            registrar(
+                hallazgo, usuario, "REPROGRAMACION", solicitud.comentario, accion_relacionada=accion,
+                metadata={"accion": accion.codigo, "numero": numero, "solicitud_id": solicitud.pk,
+                          "fecha_anterior": str(fecha_anterior) if fecha_anterior else "", "nueva_fecha": str(nueva_fecha)},
+            )
+            mensaje = f"La reprogramación de {accion.codigo} fue aprobada. Nueva fecha vigente: {nueva_fecha}."
+            estado = "aprobada"
+        else:
+            metadata.update(estado="RECHAZADA", resuelto_por_id=usuario.pk, resuelto_por=str(usuario),
+                            fecha_resolucion=timezone.now().isoformat())
+            solicitud.metadata_json = metadata
+            solicitud.save(update_fields=["metadata_json"])
+            registrar(
+                hallazgo, usuario, "REPROGRAMACION_RECHAZADA", solicitud.comentario,
+                accion_relacionada=accion, metadata={"accion": accion.codigo, "solicitud_id": solicitud.pk},
+            )
+            mensaje = f"La solicitud de reprogramación de {accion.codigo} fue rechazada."
+            estado = "rechazada"
+        notificar(hallazgo, f"reprogramacion_{estado}", mensaje, {solicitante_id, accion.responsable_id})
         return accion

@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Seguimiento · {{ accion.codigo }}{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/seguimiento.css' %}?v=1">{% endblock %}
+{% block content %}
+<div class="follow-page">
+  <section class="follow-modal follow-modal-page" aria-labelledby="follow-title">
+    <form method="post" enctype="multipart/form-data" data-follow-form>
+      {% csrf_token %}
+      <header class="follow-head">
+        <span class="follow-head-icon" aria-hidden="true">▤</span>
+        <div><h1 id="follow-title">Seguimiento de la acción</h1><p>Actualiza el avance y registra el seguimiento de la actividad.</p></div>
+        <a class="follow-close" href="{% url 'hallazgo_detalle' hallazgo.pk %}" aria-label="Cerrar">×</a>
+      </header>
+      {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
+      <div class="follow-content">
+        <section class="follow-block"><h2>Información de la acción</h2><div class="follow-info-grid">
+          <div><span>Código de acción</span><strong>{{ accion.codigo }}</strong></div>
+          <div><span>Responsable</span><strong>{{ accion.responsable|default:'Sin asignar' }}</strong></div>
+          <div><span>Estado actual</span><strong class="follow-status">{{ accion.get_estado_display }}</strong></div>
+          <div><span>Avance actual</span><strong>{{ accion.porcentaje_avance }}%</strong><progress value="{{ accion.porcentaje_avance }}" max="100"></progress></div>
+          <div><span>F. compromiso</span><strong>{{ accion.fecha_vigente|date:'d/m/Y'|default:'—' }}</strong></div>
+        </div></section>
+        <section class="follow-block follow-register"><h2>Registro de seguimiento</h2>
+          <div class="follow-fields-row">
+            <label><span>{{ form.porcentaje_avance.label }}</span><div class="follow-progress-control">{{ form.porcentaje_avance }}<input type="range" min="{{ accion.porcentaje_avance }}" max="100" value="{{ form.porcentaje_avance.value|default:accion.porcentaje_avance }}" data-follow-range></div>{{ form.porcentaje_avance.errors }}</label>
+            <label><span>{{ form.fecha_seguimiento.label }}</span>{{ form.fecha_seguimiento }}{{ form.fecha_seguimiento.errors }}</label>
+          </div>
+          <label class="follow-comment"><span>{{ form.comentario.label }} <b>*</b></span>{{ form.comentario }}<small><b data-follow-count>{{ form.comentario.value|default:''|length }}</b>/500</small>{{ form.comentario.errors }}</label>
+          <div><span class="follow-label">Adjuntar evidencia <em>(opcional)</em></span><label class="follow-drop" data-follow-drop>{{ form.archivo }}<span class="follow-upload-icon">↥</span><span>Arrastra y suelta un archivo aquí, o haz clic para seleccionar<small>PDF, PNG o JPG. Tamaño máximo: 10 MB.</small></span></label>{{ form.archivo.errors }}<div class="follow-file" data-follow-file-row hidden><span class="follow-file-icon">DOC</span><span><b data-follow-file-name></b><small data-follow-file-size></small></span><button type="button" data-follow-file-remove aria-label="Quitar archivo">×</button></div></div>
+        </section>
+      </div>
+      <footer class="follow-actions"><a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Cancelar</a><button class="btn primary" type="submit">▣ Guardar seguimiento</button></footer>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block extra_js %}<script src="{% static 'js/seguimiento.js' %}?v=1"></script>{% endblock %}

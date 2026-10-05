@@ -1,16 +1,63 @@
 {% extends 'base_admin.html' %}
+{% load static %}
 {% block title %}Indicadores{% endblock %}
+{% block body_class %}admin-indicators-page{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/indicadores.css' %}?v=1">{% endblock %}
 {% block content %}
-<div class="admin-page-head"><div><h1>Indicadores</h1><p>Consulta y analiza los reportes y métricas del sistema.</p></div><div class="toolbar"><a class="btn" href="{% url 'registro_general' %}">Registro general</a><a class="admin-primary" href="?formato=csv">⇩ Exportar reporte</a></div></div>
-<section class="admin-metrics">
-  <article class="admin-metric"><span class="admin-metric-icon blue">▤</span><div><span>Total de hallazgos</span><strong>{{ resumen.Total }}</strong><small>Registros del sistema</small></div></article>
-  <article class="admin-metric"><span class="admin-metric-icon amber">◷</span><div><span>Abiertos</span><strong>{{ resumen.Abiertos }}</strong><small>{{ resumen.Vencidos }} vencidos</small></div></article>
-  <article class="admin-metric"><span class="admin-metric-icon purple">◎</span><div><span>Eficacia registrada</span><strong>{{ eficacia|default:0 }}%</strong><small>{{ n_evaluaciones }} evaluaciones</small></div></article>
-  <article class="admin-metric"><span class="admin-metric-icon green">✓</span><div><span>Tasa de cierre</span><strong>{{ tasa_cierre }}%</strong><small>{{ resumen.Cerrados }} cerrados</small></div></article>
-</section>
-<div class="admin-chart-grid">
-  <section class="admin-panel admin-chart"><h2>Hallazgos por estado</h2><div class="admin-bars">{% for item in estados %}<div class="admin-bar"><div class="admin-bar-label"><span>{{ item.estado__nombre }}</span><b>{{ item.total }}</b></div><div class="admin-bar-track"><div class="admin-bar-fill" style="width:{{ item.porcentaje }}%"></div></div></div>{% empty %}<p class="admin-empty">Sin registros.</p>{% endfor %}</div></section>
-  <section class="admin-panel admin-chart"><h2>Hallazgos por tipo</h2><div class="admin-type-list">{% for item in tipos_hallazgo %}<div class="admin-type-row"><i></i><span>{{ item.tipo_registro__nombre }}</span><b>{{ item.total }} · {{ item.porcentaje }}%</b></div>{% empty %}<p class="admin-empty">Sin registros.</p>{% endfor %}</div></section>
+<div class="indicator-page">
+  <header class="indicator-head">
+    <div><h1>Incidencias · No conformidades</h1><p>Indicadores de hallazgos y actividades.</p></div>
+    <form class="indicator-filters" method="get">
+      <label><span>Año</span><select name="anio" class="input">{% for valor in anios %}<option value="{{ valor }}"{% if valor == anio %} selected{% endif %}>{{ valor }}</option>{% endfor %}</select></label>
+      <label><span>Jefatura</span><select name="jefatura" class="input"><option value="">Todas</option>{% for valor in jefaturas %}<option value="{{ valor }}"{% if valor == jefatura %} selected{% endif %}>{{ valor }}</option>{% endfor %}</select></label>
+      <button class="admin-primary" type="submit">Aplicar filtros</button>
+    </form>
+  </header>
+
+  <div class="indicator-layout">
+    <aside class="indicator-summary-column">
+      <article class="indicator-card indicator-total-card">
+        <h2>Total de hallazgos registrados</h2>
+        <div class="indicator-total-value"><span class="indicator-document-icon">{% include 'includes/admin_icon.html' with icon='document' %}</span><div><strong>{{ total_hallazgos }}</strong><small>Hallazgos registrados</small></div></div>
+      </article>
+      <article class="indicator-card indicator-gauge-card">
+        <h2>Hallazgos cerrados</h2>
+        <div class="indicator-gauge" style="--gauge-angle:{{ angulo_cierre_hallazgos }}deg" role="img" aria-label="{{ tasa_cierre_hallazgos }} por ciento de hallazgos cerrados"><div class="indicator-gauge-arc"></div><div class="indicator-gauge-value"><strong>{{ hallazgos_cerrados }} <span>de {{ total_hallazgos }}</span></strong><b>{{ tasa_cierre_hallazgos }}%</b></div></div>
+      </article>
+      <article class="indicator-card indicator-gauge-card">
+        <h2>Actividades cerradas</h2>
+        <div class="indicator-gauge" style="--gauge-angle:{{ angulo_cierre_acciones }}deg" role="img" aria-label="{{ tasa_cierre_acciones }} por ciento de actividades cerradas"><div class="indicator-gauge-arc"></div><div class="indicator-gauge-value"><strong>{{ acciones_cerradas }} <span>de {{ total_acciones }}</span></strong><b>{{ tasa_cierre_acciones }}%</b></div></div>
+      </article>
+    </aside>
+
+    <section class="indicator-card indicator-month-card">
+      <h2>Estado de hallazgos por mes</h2>
+      <div class="indicator-month-chart" aria-label="Estado mensual de hallazgos durante {{ anio }}">
+        <div class="indicator-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <div class="indicator-month-bars">
+          {% for mes in meses %}<div class="indicator-month"><div class="indicator-stack" title="{{ mes.etiqueta }}: {{ mes.total }} hallazgos">{% for serie in mes.series %}<span class="{{ serie.clave }}" style="height:{{ serie.porcentaje }}%" title="{{ serie.total }}"></span>{% endfor %}</div><b>{{ mes.etiqueta }}</b></div>{% endfor %}
+        </div>
+      </div>
+      {% include 'administrador/includes/indicator_legend.html' %}
+    </section>
+
+    <section class="indicator-card indicator-by-area-card">
+      <h2>Estado de hallazgos por jefatura</h2>
+      {% if hallazgos_por_jefatura %}<div class="indicator-grouped-scroll"><div class="indicator-grouped-chart" style="--groups:{{ hallazgos_por_jefatura|length }}"><div class="indicator-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></div>{% for grupo in hallazgos_por_jefatura %}<div class="indicator-group"><div class="indicator-group-bars">{% for serie in grupo.series %}<span class="{{ serie.clave }}" style="height:{{ serie.porcentaje }}%" title="{{ serie.etiqueta }}: {{ serie.total }}"><b>{{ serie.total }}</b></span>{% endfor %}</div><strong title="{{ grupo.nombre }}">{{ grupo.nombre }}</strong></div>{% endfor %}</div></div>{% else %}<p class="indicator-empty">No hay hallazgos para los filtros seleccionados.</p>{% endif %}
+      {% include 'administrador/includes/indicator_legend.html' %}
+    </section>
+
+    <section class="indicator-card indicator-activity-state-card">
+      <h2>Estado de actividades</h2>
+      <div class="indicator-horizontal-chart">{% for estado in estados_acciones %}<div class="indicator-horizontal-row"><span>{{ estado.etiqueta }}</span><div><i class="{{ estado.clave }}" style="width:{{ estado.porcentaje }}%"></i></div><b>{{ estado.total }}</b></div>{% endfor %}</div>
+    </section>
+
+    <section class="indicator-card indicator-activity-area-card">
+      <h2>Estado de actividades por jefatura</h2>
+      {% if acciones_por_jefatura %}<div class="indicator-grouped-scroll"><div class="indicator-grouped-chart" style="--groups:{{ acciones_por_jefatura|length }}"><div class="indicator-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></div>{% for grupo in acciones_por_jefatura %}<div class="indicator-group"><div class="indicator-group-bars">{% for serie in grupo.series %}<span class="{{ serie.clave }}" style="height:{{ serie.porcentaje }}%" title="{{ serie.etiqueta }}: {{ serie.total }}"><b>{{ serie.total }}</b></span>{% endfor %}</div><strong title="{{ grupo.nombre }}">{{ grupo.nombre }}</strong></div>{% endfor %}</div></div>{% else %}<p class="indicator-empty">No hay actividades para los filtros seleccionados.</p>{% endif %}
+      {% include 'administrador/includes/indicator_legend.html' %}
+    </section>
+  </div>
+  <p class="indicator-source-note">Datos calculados con los registros actuales de la plataforma.</p>
 </div>
-<section class="admin-panel admin-trend"><h2>Tendencia mensual de hallazgos</h2><div class="admin-trend-bars">{% for item in tendencia %}<div class="admin-trend-item"><b>{{ item.total }}</b><div class="admin-trend-column" style="height:{{ item.porcentaje }}%"></div><span>{{ item.mes|date:'M Y' }}</span></div>{% empty %}<p class="admin-empty">Todavía no hay información mensual.</p>{% endfor %}</div></section>
 {% endblock %}

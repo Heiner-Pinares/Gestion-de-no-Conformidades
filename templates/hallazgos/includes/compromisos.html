@@ -1,0 +1,116 @@
+{% if ciclo %}
+<section class="card spaced commitments-card">
+  <header class="commitments-head">
+    <h2>Compromisos · Plan {{ ciclo.numero }}</h2>
+    <span>Plan actual: <strong>{{ ciclo.numero }}</strong> de <strong>{{ ciclos|length }}</strong> <abbr class="cycle-help" title="Un plan agrupa los compromisos de una etapa de gestión. Al reabrir un hallazgo cerrado se crea un plan nuevo y el anterior queda como histórico.">ⓘ</abbr></span>
+  </header>
+
+  <div class="commitments-toolbar">
+    {% if puede_accion %}<a class="btn primary slim" href="{% url 'hallazgo_accion' hallazgo.pk %}">＋ Agregar compromiso</a>{% endif %}
+    <div class="commitments-secondary">
+      {% if gestionar %}<a class="btn slim" href="{% url 'hallazgo_comunicacion' hallazgo.pk %}">Registrar comunicación</a>{% endif %}
+      {% if puede_causa %}<a class="btn slim" href="{% url 'hallazgo_causa' hallazgo.pk %}">Checklist 6M</a>{% endif %}
+      {% if puede_pbi %}<a class="btn slim" href="{% url 'hallazgo_pbi' hallazgo.pk %}">Registrar / actualizar PBI</a>{% endif %}
+      {% if puede_evaluar %}<a class="btn primary slim" href="{% url 'hallazgo_eficacia' hallazgo.pk %}">Evaluar eficacia</a>{% endif %}
+    </div>
+  </div>
+
+  <div class="commitments-scroll" tabindex="0" aria-label="Tabla de compromisos">
+    <table class="commitments-table">
+      <thead>
+        <tr>
+          <th>Acción</th>
+          <th>Responsable</th>
+          <th>F. registro</th>
+          <th>F. compromiso</th>
+          <th>Avance</th>
+          <th>Evidencias</th>
+          <th>Estado</th>
+          <th>Gestión</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in acciones %}
+        <tr>
+          <td class="commitment-action">
+            <strong class="code">{{ a.codigo }}</strong>
+            <p>{{ a.descripcion }}</p>
+            <span class="commitment-type">{{ a.get_tipo_display }}</span>
+          </td>
+          <td class="commitment-owner">
+            <strong>{{ a.responsable|default:'Sin asignar' }}</strong>
+            {% if a.responsable and a.responsable.cargo %}<small>{{ a.responsable.cargo }}</small>{% endif %}
+          </td>
+          <td class="nowrap">{{ a.fecha_inicio|date:'d/m/Y' }}</td>
+          <td class="nowrap">
+            <strong>{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}</strong>
+            <small>{{ a.reprogramaciones_count }} {% if a.reprogramaciones_count == 1 %}reprogramación{% else %}reprogramaciones{% endif %}</small>
+          </td>
+          <td class="commitment-progress">
+            <strong>{{ a.porcentaje_avance }}%</strong>
+            <progress class="commitment-progress-bar status-{{ a.estado|lower }}" value="{{ a.porcentaje_avance }}" max="100">{{ a.porcentaje_avance }}%</progress>
+          </td>
+          <td>
+            <span class="evidence-count" aria-label="{{ a.evidencias.count }} evidencias adjuntas">📎 <strong>{{ a.evidencias.count }}</strong></span>
+            <small>{% if a.evidencias.count %}Adjunta{{ a.evidencias.count|pluralize:"s" }}{% else %}Opcional{% endif %}</small>
+          </td>
+          <td>
+            <span class="commitment-status status-{{ a.estado|lower }}"><i></i>{{ a.get_estado_display }}</span>
+            {% if a.fecha_real %}<small>{{ a.fecha_real|date:'d/m/Y' }}</small>{% endif %}
+          </td>
+          <td class="commitment-management">
+            {% if a.puede_actualizar %}
+            <div class="commitment-buttons">
+              <button class="btn slim" type="button" data-follow-open data-action-url="{% url 'accion_seguimiento' a.pk %}" data-code="{{ a.codigo|escape }}" data-responsable="{{ a.responsable|default:'Sin asignar'|escape }}" data-estado="{{ a.get_estado_display|escape }}" data-avance="{{ a.porcentaje_avance }}" data-fet="{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}">☷ Seguimiento</button>
+              {% if not a.solicitud_reprogramacion %}<a class="btn slim" href="{% url 'accion_reprogramar' a.pk %}" data-reprogram-open data-action-url="{% url 'accion_reprogramar' a.pk %}" data-code="{{ a.codigo|escape }}" data-description="{{ a.descripcion|escape }}" data-owner="{{ a.responsable|default:'Sin asignar'|escape }}" data-current="{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}">▣ Reprogramar</a>{% endif %}
+            </div>
+            {% else %}<span class="commitment-readonly">Consulta</span>{% endif %}
+            {% if a.solicitud_reprogramacion %}<div class="reschedule-pending"><b>Reprogramación pendiente</b><small>{{ a.solicitud_reprogramacion.metadata_json.nueva_fecha }} · {{ a.solicitud_reprogramacion.metadata_json.aprobador }}</small>{% if a.puede_aprobar_reprogramacion %}<div class="reschedule-decisions"><form method="post" action="{% url 'accion_reprogramacion_resolver' a.solicitud_reprogramacion.pk 'aprobar' %}">{% csrf_token %}<button class="btn primary slim" type="submit">Aprobar</button></form><form method="post" action="{% url 'accion_reprogramacion_resolver' a.solicitud_reprogramacion.pk 'rechazar' %}">{% csrf_token %}<button class="btn slim" type="submit">Rechazar</button></form></div>{% endif %}</div>{% endif %}
+            <details class="commitment-history">
+              <summary>Historial{% if a.historial_compacto %} ({{ a.historial_compacto|length }}){% endif %}</summary>
+              <div class="commitment-history-list">
+                {% for evento in a.historial_compacto %}
+                <div class="commitment-history-item">
+                  <span>
+                    {{ evento.fecha_hora|date:'d/m/Y H:i' }} ·
+                    {% if evento.accion == 'SEGUIMIENTO_ACCION' %}{{ evento.metadata_json.avance }}%{% else %}Reprogramación{% endif %}
+                  </span>
+                  <button
+                    type="button"
+                    class="history-detail-link"
+                    data-history-open
+                    data-history-type="{% if evento.accion == 'SEGUIMIENTO_ACCION' %}Seguimiento{% else %}Reprogramación{% endif %}"
+                    data-history-date="{{ evento.fecha_hora|date:'d/m/Y H:i' }}"
+                    data-history-user="{{ evento.usuario|default:'Usuario no disponible'|escape }}"
+                    data-history-progress="{% if evento.accion == 'SEGUIMIENTO_ACCION' %}{{ evento.metadata_json.avance }}%{% else %}No aplica{% endif %}"
+                    data-history-change="{% if evento.accion == 'REPROGRAMACION' %}{{ evento.metadata_json.fecha_anterior|default:'—' }} → {{ evento.metadata_json.nueva_fecha|default:'—' }}{% endif %}"
+                    data-history-comment="{{ evento.comentario|default:'Sin comentario registrado.'|escape }}"
+                    data-history-evidence-key="{{ evento.pk }}"
+                  ><span aria-hidden="true">◉</span> Ver detalle</button>
+                  <template data-history-evidence-template="{{ evento.pk }}">
+                    {% for evidencia in evento.evidencias_detalle %}
+                    <a class="history-evidence-file" href="{% url 'evidencia_descargar' evidencia.pk %}?ver=1" target="_blank" rel="noopener">
+                      <span aria-hidden="true">📎</span>
+                      <span><strong>{{ evidencia.nombre_original }}</strong><small>{{ evidencia.tamanio|filesizeformat }} · {{ evidencia.mime_type }}</small></span>
+                      <b>Abrir documento ↗</b>
+                    </a>
+                    {% empty %}
+                    <p class="history-evidence-empty">Este movimiento no tiene documentos adjuntos.</p>
+                    {% endfor %}
+                  </template>
+                </div>
+                {% empty %}
+                <span class="commitment-history-empty">Sin movimientos registrados.</span>
+                {% endfor %}
+              </div>
+            </details>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="empty">Todavía no hay compromisos en este plan.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}

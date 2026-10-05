@@ -1,0 +1,100 @@
+<section class="card finding-history" id="historial">
+  <header class="finding-history-head">
+    <h2>Historial del hallazgo</h2>
+    <span class="finding-history-count" aria-label="{{ historial.paginator.count }} registros">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+      {{ historial.paginator.count }} registro{{ historial.paginator.count|pluralize:"s" }}
+    </span>
+  </header>
+  {% if historial %}
+  <ol class="finding-timeline">
+    {% for evento in historial %}
+    <li class="finding-event event-{{ evento.historial_tipo }}">
+      <span class="finding-event-dot" aria-hidden="true"></span>
+      <span class="finding-event-icon" aria-hidden="true">
+        {% if evento.historial_tipo == 'evaluacion' %}
+        <svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7M4 21h16M7 3h10v4H7z"/></svg>
+        {% elif evento.historial_tipo == 'transicion' %}
+        <svg viewBox="0 0 24 24"><path d="M4 7h13M14 4l3 3-3 3M20 17H7M10 14l-3 3 3 3"/></svg>
+        {% elif evento.historial_tipo == 'seguimiento' %}
+        <svg viewBox="0 0 24 24"><path d="M9 5h6M9 3h6v4H9zM7 5H5v16h14V5h-2M8 13l3 3 5-6"/></svg>
+        {% elif evento.historial_tipo == 'evidencia' %}
+        <svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6zM14 2v5h5M9 12h6M9 16h6"/></svg>
+        {% elif evento.historial_tipo == 'reprogramacion' %}
+        <svg viewBox="0 0 24 24"><path d="M5 4v3M19 4v3M4 9h16M5 6h14v15H5zM12 12v4l3 2"/></svg>
+        {% elif evento.historial_tipo == 'alerta' %}
+        <svg viewBox="0 0 24 24"><path d="M12 3L2 21h20zM12 9v5M12 18h.01"/></svg>
+        {% else %}
+        <svg viewBox="0 0 24 24"><path d="M6 2h8l4 4v16H6zM14 2v5h5M9 12h6M9 16h6"/></svg>
+        {% endif %}
+      </span>
+      <article class="finding-event-card">
+        <header class="finding-event-head">
+          <div class="finding-event-title">
+            <strong>{{ evento.accion }}</strong>
+            <span class="finding-event-user">{{ evento.usuario.get_full_name|default:evento.usuario.username }}</span>
+          </div>
+          <time datetime="{{ evento.fecha_hora|date:'c' }}">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4v3M19 4v3M4 9h16M5 6h14v15H5z"/></svg>
+            {{ evento.fecha_hora|date:'d/m/Y H:i' }}
+          </time>
+        </header>
+        <div class="finding-event-detail">
+          <h3><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l4 4v16H6zM14 2v5h5M9 12h6"/></svg>{{ evento.historial_etiqueta }}</h3>
+
+          {% if evento.accion == 'EVALUACION_EFICACIA' %}
+          <div class="finding-detail-grid cols-3">
+            <div><span>Plan</span><strong>{{ evento.metadata_json.ciclo|default:'—' }}</strong></div>
+            <div><span>Resultado</span><strong class="history-tag tag-{{ evento.metadata_json.resultado|lower }}">{{ evento.metadata_json.resultado|default:'—' }}</strong></div>
+            <div><span>Evaluación</span><strong>{{ evento.metadata_json.evaluacion|default:'—' }}</strong></div>
+          </div>
+          {% elif evento.estado_anterior != evento.estado_nuevo %}
+          <div class="history-transition">
+            <span class="history-state">{{ evento.estado_anterior|default:'INICIO' }}</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M15 8l4 4-4 4"/></svg>
+            <span class="history-state current">{{ evento.estado_nuevo }}</span>
+          </div>
+          {% elif evento.accion == 'SEGUIMIENTO_ACCION' %}
+          <div class="finding-detail-grid tracking-grid">
+            <div><span>Código de acción</span><strong class="history-code">{{ evento.metadata_json.accion|default:'—' }}</strong></div>
+            <div><span>Avance</span><div class="history-progress"><span><i style="width:{{ evento.metadata_json.avance|default:0 }}%"></i></span><strong>{{ evento.metadata_json.avance|default:0 }}%</strong></div></div>
+            <div><span>Estado</span><strong class="history-tag tag-{{ evento.metadata_json.estado|lower }}">{{ evento.metadata_json.estado|default:'—' }}</strong></div>
+            <div><span>Fecha real</span><strong>{% if evento.metadata_json.fecha_real and evento.metadata_json.fecha_real != 'None' %}{{ evento.metadata_json.fecha_real }}{% else %}—{% endif %}</strong></div>
+          </div>
+          {% elif evento.accion == 'EVIDENCIA' %}
+          <div class="finding-detail-grid evidence-grid">
+            <div><span>Documento</span>{% if evento.evidencia_detalle %}<a href="{% url 'evidencia_descargar' evento.evidencia_detalle.pk %}?ver=1" target="_blank" rel="noopener">{{ evento.metadata_json.nombre }}</a>{% else %}<strong>{{ evento.metadata_json.nombre|default:'Documento registrado' }}</strong>{% endif %}</div>
+            <div><span>Tipo</span><strong>{{ evento.metadata_json.mime|default:'—' }}</strong></div>
+            <div><span>Tamaño</span><strong>{{ evento.metadata_json.tamanio|filesizeformat }}</strong></div>
+          </div>
+          {% elif evento.accion == 'REPROGRAMACION' or evento.accion == 'SOLICITUD_REPROGRAMACION' %}
+          <div class="finding-detail-grid cols-3">
+            <div><span>Acción</span><strong class="history-code">{{ evento.metadata_json.accion|default:'—' }}</strong></div>
+            <div><span>Fecha anterior</span><strong>{{ evento.metadata_json.fecha_anterior|default:'—' }}</strong></div>
+            <div><span>Nueva fecha</span><strong>{{ evento.metadata_json.nueva_fecha|default:'—' }}</strong></div>
+          </div>
+          {% elif evento.accion == 'CREAR_ACCION' %}
+          <div class="finding-detail-grid cols-3">
+            <div><span>Código de acción</span><strong class="history-code">{{ evento.metadata_json.accion|default:'—' }}</strong></div>
+            <div><span>Tipo</span><strong>{{ evento.metadata_json.tipo|default:'—' }}</strong></div>
+            <div><span>Plan</span><strong>{{ evento.metadata_json.ciclo|default:'—' }}</strong></div>
+          </div>
+          {% elif evento.accion == 'COMUNICACION' %}
+          <div class="finding-detail-grid"><div><span>Medio</span><strong>{{ evento.metadata_json.medio|default:'—' }}</strong></div><div><span>Destinatarios</span><strong>{{ evento.metadata_json.destinatarios|default:'—' }}</strong></div></div>
+          {% elif evento.accion == 'REGISTRO_PBI' %}
+          <div class="finding-detail-grid"><div><span>Referencia PBI</span><strong class="history-code">{{ evento.metadata_json.pbi|default:'—' }}</strong></div><div><span>Integración</span><strong>{{ evento.metadata_json.integracion|default:'Manual' }}</strong></div></div>
+          {% elif evento.accion == 'FINALIZAR_ANALISIS' or evento.accion == 'GUARDAR_ANALISIS' %}
+          <div class="finding-detail-grid cols-3"><div><span>Plan</span><strong>{{ evento.metadata_json.ciclo|default:'—' }}</strong></div><div><span>Respuestas</span><strong>{{ evento.metadata_json.respuestas|default:'0' }}</strong></div><div><span>Análisis</span><strong>{{ evento.metadata_json.analisis|default:'—' }}</strong></div></div>
+          {% elif evento.accion == 'ACTUALIZACION' and evento.metadata_json.codigo_nuevo %}
+          <div class="history-transition"><span class="history-state">{{ evento.metadata_json.codigo_anterior }}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M15 8l4 4-4 4"/></svg><span class="history-state current">{{ evento.metadata_json.codigo_nuevo }}</span></div>
+          {% endif %}
+
+          {% if evento.comentario %}<p class="finding-event-comment"><b>{% if evento.accion == 'EVIDENCIA' %}Seguimiento:{% else %}Comentario:{% endif %}</b> {{ evento.comentario }}</p>{% endif %}
+        </div>
+      </article>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}<p class="finding-history-empty">Todavía no existen movimientos registrados.</p>{% endif %}
+  {% include 'includes/paginacion.html' with pagina=historial %}
+</section>

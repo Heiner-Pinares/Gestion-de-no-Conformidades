@@ -65,7 +65,7 @@ class EficaciaService:
         campos_permitidos(datos, ["fecha_evaluacion", "resultado", "comentario"])
         ciclo = tratamiento_completo(hallazgo)
         fecha = datos.get("fecha_evaluacion")
-        exigir(fecha is not None and timezone.localtime(ciclo.fecha_inicio).date() <= fecha <= timezone.localdate(), "La fecha de evaluación debe estar entre el inicio del ciclo y hoy.")
+        exigir(fecha is not None and timezone.localtime(ciclo.fecha_inicio).date() <= fecha <= timezone.localdate(), "La fecha de evaluación debe estar entre el inicio del plan y hoy.")
         exigir(bool(datos.get("comentario", "").strip()), "Fundamente el resultado de la evaluación.")
         evaluacion = EvaluacionEficacia(ciclo=ciclo, evaluador=usuario, **datos)
         evaluacion.full_clean()

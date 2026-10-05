@@ -1,7 +1,8 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.contrib.auth.models import Group
 from .models import Usuario
+
+ROLES = [("USUARIO", "Usuario"), ("VALIDADOR", "Validador"), ("ADMINISTRADOR", "Administrador")]
 
 
 class AccesoForm(AuthenticationForm):
@@ -11,21 +12,27 @@ class AccesoForm(AuthenticationForm):
 
 
 class UsuarioCreacionForm(UserCreationForm):
-    roles = forms.ModelMultipleChoiceField(queryset=Group.objects.filter(name__in=["USUARIO", "VALIDADOR", "ADMINISTRADOR"]), widget=forms.CheckboxSelectMultiple)
+    roles = forms.MultipleChoiceField(choices=ROLES, widget=forms.CheckboxSelectMultiple)
 
     class Meta(UserCreationForm.Meta):
         model = Usuario
-        fields = ("username", "first_name", "last_name", "email", "area", "cargo")
+        fields = (
+            "username", "first_name", "last_name", "email", "area", "gerencia",
+            "direccion", "cargo", "jefe",
+        )
 
 
 class UsuarioEdicionForm(forms.ModelForm):
-    roles = forms.ModelMultipleChoiceField(queryset=Group.objects.filter(name__in=["USUARIO", "VALIDADOR", "ADMINISTRADOR"]), widget=forms.CheckboxSelectMultiple)
+    roles = forms.MultipleChoiceField(choices=ROLES, widget=forms.CheckboxSelectMultiple)
 
     class Meta:
         model = Usuario
-        fields = ("first_name", "last_name", "email", "area", "cargo", "is_active")
+        fields = (
+            "first_name", "last_name", "email", "area", "gerencia", "direccion",
+            "cargo", "jefe", "is_active",
+        )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.pk:
-            self.fields["roles"].initial = self.instance.groups.all()
+            self.fields["roles"].initial = self.instance.roles
