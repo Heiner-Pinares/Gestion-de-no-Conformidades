@@ -1412,14 +1412,17 @@ class Recorridos(TestCase):
             self.assertEqual(
                 {fila[0] for fila in cursor.fetchall()},
                 {
-                    'actividad', 'archivo_evidencia', 'auditoria_administracion',
-                    'catalogo', 'ciclo_tratamiento', 'comunicacion',
-                    'configuracion_impacto', 'configuracion_urgencia',
-                    'correlativo_sac', 'django_migrations', 'django_session',
-                    'evaluacion_eficacia', 'evidencia', 'historial_hallazgo',
-                    'matriz_prioridad', 'notificacion', 'pbi', 'pregunta_causa',
-                    'proceso', 'proceso_validador', 'registro_general',
-                    'subproceso', 'usuario', 'usuario_rol',
+                    'tbl_actividad_nc', 'tbl_archivo_evidencia_nc',
+                    'tbl_auditoria_administracion_nc', 'tbl_catalogo_nc',
+                    'tbl_ciclo_tratamiento_nc', 'tbl_comunicacion_nc',
+                    'tbl_configuracion_impacto_nc', 'tbl_configuracion_urgencia_nc',
+                    'tbl_correlativo_sac_nc', 'tbl_django_migrations_nc',
+                    'tbl_django_session_nc', 'tbl_evaluacion_eficacia_nc',
+                    'tbl_evidencia_nc', 'tbl_historial_hallazgo_nc',
+                    'tbl_matriz_prioridad_nc', 'tbl_notificacion_nc',
+                    'tbl_pbi_nc', 'tbl_pregunta_causa_nc', 'tbl_proceso_nc',
+                    'tbl_proceso_validador_nc', 'tbl_registro_general_nc',
+                    'tbl_subproceso_nc', 'tbl_usuario_nc', 'tbl_usuario_rol_nc',
                 },
             )
             cursor.execute("SELECT count(*) FROM pg_views WHERE schemaname='public'")

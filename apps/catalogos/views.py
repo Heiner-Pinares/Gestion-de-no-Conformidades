@@ -15,7 +15,7 @@ from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from apps.accounts.forms import UsuarioCreacionForm, UsuarioEdicionForm
-from apps.accounts.models import Usuario
+from apps.accounts.models import Usuario, UsuarioRol
 from apps.accounts.permissions import es_administrador, es_validador
 from .forms import CATALOGOS, ConfiguracionImpactoForm, ConfiguracionUrgenciaForm, formulario_catalogo
 from .models import AuditoriaAdministracion, ConfiguracionImpacto, ConfiguracionUrgencia
@@ -54,7 +54,8 @@ def usuarios(request):
             | Q(jefe__first_name__icontains=q) | Q(jefe__last_name__icontains=q)
         )
     if rol:
-        qs = qs.filter(asignaciones_rol__rol=rol).distinct()
+        usuarios_del_rol = UsuarioRol.objects.filter(rol=rol).values("usuario_id")
+        qs = qs.filter(pk__in=usuarios_del_rol)
     filtros = {"q": q, "rol": rol}
     return render(request, "administrador/usuarios.html", {
         "pagina": Paginator(qs, 10).get_page(request.GET.get("page")),

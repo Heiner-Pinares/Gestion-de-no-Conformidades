@@ -26,7 +26,7 @@ class Usuario(AbstractUser):
     corporate_identifier = models.CharField(max_length=255, unique=True, null=True, blank=True)
 
     class Meta:
-        db_table = "usuario"
+        db_table = "tbl_usuario_nc"
         verbose_name = "usuario"
         verbose_name_plural = "usuarios"
         permissions = [
@@ -83,7 +83,7 @@ class UsuarioRol(models.Model):
     rol = models.CharField(max_length=20, choices=ROLES)
 
     class Meta:
-        db_table = "usuario_rol"
+        db_table = "tbl_usuario_rol_nc"
         ordering = ["usuario_id", "rol"]
         constraints = [
             models.UniqueConstraint(fields=["usuario", "rol"], name="usuario_rol_unico"),

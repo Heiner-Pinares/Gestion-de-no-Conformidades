@@ -1,4 +1,5 @@
 from django import forms
+from apps.accounts.models import UsuarioRol
 from .models import (
     CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad, PreguntaCausa,
     Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
@@ -80,11 +81,14 @@ def formulario_catalogo(tipo, *args, instance=None, **kwargs):
     form = form_class(*args, instance=instance, **kwargs)
     if "validadores" in campos:
         from apps.accounts.models import Usuario
+        validadores_ids = UsuarioRol.objects.filter(
+            rol="VALIDADOR",
+        ).values("usuario_id")
         form.fields["validadores"] = forms.ModelMultipleChoiceField(
             queryset=Usuario.objects.filter(
                 is_active=True,
-                asignaciones_rol__rol="VALIDADOR",
-            ).distinct(),
+                pk__in=validadores_ids,
+            ),
             required=False,
             widget=forms.SelectMultiple(attrs={"class": "input"}),
             initial=instance.validadores.all() if instance and instance.pk else None,

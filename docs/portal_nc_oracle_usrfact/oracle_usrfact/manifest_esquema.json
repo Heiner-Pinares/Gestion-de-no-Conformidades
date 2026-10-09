@@ -1,0 +1,359 @@
+{
+  "source": "Portal NC PostgreSQL vigente",
+  "schema_oracle": "USRFACT",
+  "oracle_min_version": "19c",
+  "table_count": 24,
+  "column_count": 229,
+  "foreign_key_count": 44,
+  "tables": {
+    "tbl_actividad_nc": {
+      "columns": [
+        "id",
+        "codigo",
+        "tipo",
+        "descripcion",
+        "fecha_inicio",
+        "fet_inicial",
+        "fecha_vigente",
+        "fecha_real",
+        "estado",
+        "porcentaje_avance",
+        "resultado_esperado",
+        "comentario",
+        "created_at",
+        "updated_at",
+        "responsable_id",
+        "ciclo_id"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_archivo_evidencia_nc": {
+      "columns": [
+        "id",
+        "contenido",
+        "sha256",
+        "evidencia_id"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_auditoria_administracion_nc": {
+      "columns": [
+        "id",
+        "usuario_id",
+        "fecha",
+        "entidad",
+        "objeto",
+        "accion",
+        "antes",
+        "despues"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_catalogo_nc": {
+      "columns": [
+        "id",
+        "clase",
+        "codigo",
+        "nombre",
+        "activo",
+        "valor",
+        "orden"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_ciclo_tratamiento_nc": {
+      "columns": [
+        "id",
+        "hallazgo_id",
+        "numero",
+        "motivo",
+        "creado_por_id",
+        "fecha_inicio",
+        "fecha_fin",
+        "analisis_responsable_id",
+        "analisis_inicio",
+        "analisis_fin",
+        "causa_raiz",
+        "checklist_snapshot",
+        "respuestas",
+        "control",
+        "responsable_cierre_id",
+        "fecha_cierre",
+        "comentarios_cierre",
+        "resultado_cierre"
+      ],
+      "foreign_keys": 4
+    },
+    "tbl_comunicacion_nc": {
+      "columns": [
+        "id",
+        "ciclo_id",
+        "registrado_por_id",
+        "destinatarios",
+        "medio",
+        "descripcion",
+        "fecha"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_configuracion_impacto_nc": {
+      "columns": [
+        "id",
+        "predeterminada",
+        "clientes_bajo_desde",
+        "clientes_bajo_hasta",
+        "clientes_medio_desde",
+        "clientes_medio_hasta",
+        "clientes_alto_desde",
+        "tiempo_bajo_desde",
+        "tiempo_bajo_hasta",
+        "tiempo_medio_desde",
+        "tiempo_medio_hasta",
+        "tiempo_alto_desde",
+        "financiero_bajo_desde",
+        "financiero_bajo_hasta",
+        "financiero_medio_desde",
+        "financiero_medio_hasta",
+        "financiero_alto_desde"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_configuracion_urgencia_nc": {
+      "columns": [
+        "id",
+        "codigo",
+        "nombre",
+        "activo",
+        "tiempo_bajo_desde",
+        "tiempo_bajo_hasta",
+        "tiempo_medio_desde",
+        "tiempo_medio_hasta",
+        "tiempo_alto_desde"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_correlativo_sac_nc": {
+      "columns": [
+        "id",
+        "anio",
+        "ambito",
+        "ultimo_numero"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_django_migrations_nc": {
+      "columns": [
+        "id",
+        "app",
+        "name",
+        "applied"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_django_session_nc": {
+      "columns": [
+        "session_key",
+        "session_data",
+        "expire_date"
+      ],
+      "foreign_keys": 0
+    },
+    "tbl_evaluacion_eficacia_nc": {
+      "columns": [
+        "id",
+        "ciclo_id",
+        "evaluador_id",
+        "fecha_evaluacion",
+        "resultado",
+        "comentario",
+        "fecha_registro"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_evidencia_nc": {
+      "columns": [
+        "id",
+        "hallazgo_id",
+        "accion_id",
+        "analisis_id",
+        "evaluacion_id",
+        "cierre_id",
+        "archivo",
+        "nombre_original",
+        "mime_type",
+        "tamanio",
+        "subido_por_id",
+        "fecha_carga",
+        "descripcion"
+      ],
+      "foreign_keys": 6
+    },
+    "tbl_historial_hallazgo_nc": {
+      "columns": [
+        "id",
+        "accion_relacionada_id",
+        "hallazgo_id",
+        "usuario_id",
+        "fecha_hora",
+        "accion",
+        "estado_anterior",
+        "estado_nuevo",
+        "comentario",
+        "metadata_json"
+      ],
+      "foreign_keys": 3
+    },
+    "tbl_matriz_prioridad_nc": {
+      "columns": [
+        "id",
+        "impacto_id",
+        "urgencia_id",
+        "prioridad_id",
+        "activo",
+        "es_demo"
+      ],
+      "foreign_keys": 3
+    },
+    "tbl_notificacion_nc": {
+      "columns": [
+        "id",
+        "usuario_id",
+        "hallazgo_id",
+        "tipo",
+        "titulo",
+        "mensaje",
+        "leida",
+        "fecha_creacion",
+        "fecha_lectura"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_pbi_nc": {
+      "columns": [
+        "id",
+        "ciclo_id",
+        "numero_pbi",
+        "ticket_incidente",
+        "sistema",
+        "herramienta",
+        "responsable_ti_id",
+        "estado",
+        "fecha_creacion",
+        "fecha_cierre_pbi",
+        "observacion"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_pregunta_causa_nc": {
+      "columns": [
+        "codigo",
+        "categoria_id",
+        "texto",
+        "orden",
+        "activo"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_proceso_nc": {
+      "columns": [
+        "id",
+        "nombre",
+        "activo",
+        "gerencia",
+        "responsable_id",
+        "validadores_ids"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_proceso_validador_nc": {
+      "columns": [
+        "id",
+        "proceso_id",
+        "usuario_id"
+      ],
+      "foreign_keys": 2
+    },
+    "tbl_registro_general_nc": {
+      "columns": [
+        "id",
+        "codigo",
+        "titulo",
+        "descripcion",
+        "ticket_remedy",
+        "fecha_deteccion",
+        "fecha_registro",
+        "fecha_solucion",
+        "impacto_clientes",
+        "impacto_tiempo",
+        "impacto_soles",
+        "impacto_resultante",
+        "prioridad_snapshot",
+        "aplica_impacto",
+        "justificacion_no_impacto",
+        "es_critica",
+        "origen_tecnologico",
+        "criterio_categoria",
+        "requisito_referencia",
+        "version",
+        "updated_at",
+        "estado",
+        "proceso_id",
+        "registrado_por_id",
+        "responsable_id",
+        "subproceso_id",
+        "updated_by_id",
+        "tipo_registro_id",
+        "fuente_deteccion_id",
+        "urgencia_id",
+        "prioridad_id",
+        "actividad",
+        "impacto_clientes_seleccion",
+        "impacto_financiero_seleccion",
+        "impacto_tiempo_seleccion",
+        "urgencia_area",
+        "urgencia_seleccion"
+      ],
+      "foreign_keys": 9
+    },
+    "tbl_subproceso_nc": {
+      "columns": [
+        "id",
+        "proceso_id",
+        "nombre",
+        "activo"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_usuario_nc": {
+      "columns": [
+        "id",
+        "password",
+        "last_login",
+        "is_superuser",
+        "username",
+        "first_name",
+        "last_name",
+        "email",
+        "is_staff",
+        "is_active",
+        "date_joined",
+        "area",
+        "cargo",
+        "corporate_identifier",
+        "roles",
+        "direccion",
+        "gerencia",
+        "jefe_id"
+      ],
+      "foreign_keys": 1
+    },
+    "tbl_usuario_rol_nc": {
+      "columns": [
+        "id",
+        "rol",
+        "usuario_id"
+      ],
+      "foreign_keys": 1
+    }
+  }
+}

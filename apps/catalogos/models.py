@@ -25,7 +25,7 @@ class Catalogo(models.Model):
     orden = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
-        db_table = "catalogo"
+        db_table = "tbl_catalogo_nc"
         ordering = ["orden", "nombre"]
         constraints = [
             models.UniqueConstraint(fields=["clase", "codigo"], name="catalogo_clase_codigo_unico"),
@@ -113,8 +113,10 @@ class ValidadorRelation:
     def all(self):
         from apps.accounts.models import Usuario
         return Usuario.objects.filter(
-            asignaciones_proceso__proceso_id=self.proceso.pk,
-        ).distinct()
+            pk__in=ProcesoValidador.objects.filter(
+                proceso_id=self.proceso.pk,
+            ).values("usuario_id"),
+        )
 
     def filter(self, *args, **kwargs):
         return self.all().filter(*args, **kwargs)
@@ -146,7 +148,7 @@ class Proceso(Maestro):
     activo = models.BooleanField(default=True)
 
     class Meta(Maestro.Meta):
-        db_table = "proceso"
+        db_table = "tbl_proceso_nc"
         ordering = ["nombre"]
         constraints = [models.UniqueConstraint(fields=["nombre"], name="proceso_nombre_unico")]
 
@@ -171,7 +173,7 @@ class ProcesoValidador(models.Model):
     )
 
     class Meta:
-        db_table = "proceso_validador"
+        db_table = "tbl_proceso_validador_nc"
         ordering = ["proceso_id", "usuario_id"]
         constraints = [
             models.UniqueConstraint(
@@ -192,7 +194,7 @@ class Subproceso(Maestro):
     activo = models.BooleanField(default=True)
 
     class Meta(Maestro.Meta):
-        db_table = "subproceso"
+        db_table = "tbl_subproceso_nc"
         ordering = ["nombre"]
         constraints = [models.UniqueConstraint(fields=["proceso", "nombre"], name="subproceso_proceso_nombre_unico")]
 
@@ -210,7 +212,7 @@ class MatrizPrioridad(models.Model):
     es_demo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "matriz_prioridad"
+        db_table = "tbl_matriz_prioridad_nc"
         ordering = ["impacto_id", "urgencia_id"]
         constraints = [models.UniqueConstraint(fields=["impacto", "urgencia"], name="matriz_prioridad_combinacion_unica")]
 
@@ -245,7 +247,7 @@ class ConfiguracionImpacto(models.Model):
     financiero_alto_desde = models.DecimalField(max_digits=14, decimal_places=0, default=2000000)
 
     class Meta:
-        db_table = "configuracion_impacto"
+        db_table = "tbl_configuracion_impacto_nc"
         verbose_name = "configuración de impacto"
         verbose_name_plural = "configuración de impacto"
 
@@ -281,7 +283,7 @@ class ConfiguracionUrgencia(models.Model):
     alto_desde = models.PositiveIntegerField(default=33, db_column="tiempo_alto_desde")
 
     class Meta:
-        db_table = "configuracion_urgencia"
+        db_table = "tbl_configuracion_urgencia_nc"
         ordering = ["codigo"]
 
     def __str__(self):
@@ -318,7 +320,7 @@ class PreguntaCausa(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
-        db_table = "pregunta_causa"
+        db_table = "tbl_pregunta_causa_nc"
         ordering = ["categoria__orden", "orden"]
 
     def __str__(self):
@@ -337,5 +339,5 @@ class AuditoriaAdministracion(models.Model):
     despues = models.JSONField(default=dict)
 
     class Meta:
-        db_table = "auditoria_administracion"
+        db_table = "tbl_auditoria_administracion_nc"
         ordering = ["-fecha", "-pk"]

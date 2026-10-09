@@ -21,7 +21,11 @@ def hallazgos_visibles(usuario):
             usuario=usuario,
         ).values_list("proceso_id", flat=True)
         alcance |= Q(proceso_id__in=procesos_asignados)
-    return consulta.filter(alcance).distinct()
+    # Oracle no permite SELECT DISTINCT sobre los NCLOB de los TextField y
+    # JSONField del hallazgo. La subconsulta deduplica únicamente la PK y deja
+    # que la consulta exterior recupere el registro completo.
+    ids_visibles = consulta.filter(alcance).order_by().values("pk").distinct()
+    return consulta.filter(pk__in=ids_visibles)
 
 
 def acciones_disponibles(usuario, hallazgo):

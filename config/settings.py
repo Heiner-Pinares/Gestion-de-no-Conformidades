@@ -1,6 +1,7 @@
-"""Configuración local/productiva por entorno, siempre PostgreSQL."""
+"""Configuración del portal para PostgreSQL local u Oracle en producción."""
 from pathlib import Path
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 env = environ.Env(DEBUG=(bool, False))
@@ -14,6 +15,7 @@ DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
 INSTALLED_APPS = [
+    "config.apps.PortalConfig",
     "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
     "apps.accounts", "apps.catalogos", "apps.hallazgos",
@@ -40,13 +42,47 @@ TEMPLATES = [{
 }]
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
-DATABASES = {"default": {
-    "ENGINE": "django.db.backends.postgresql", "NAME": env("DB_NAME"),
-    "USER": env("DB_USER"), "PASSWORD": env("DB_PASSWORD"),
-    "HOST": env("DB_HOST", default="127.0.0.1"), "PORT": env("DB_PORT", default="5432"),
-    "CONN_MAX_AGE": 60, "CONN_HEALTH_CHECKS": True,
-    "OPTIONS": {"connect_timeout": 5},
-}}
+DB_ENGINE = env("DB_ENGINE", default="postgresql").strip().lower()
+if DB_ENGINE in {"postgres", "postgresql"}:
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.postgresql", "NAME": env("DB_NAME"),
+        "USER": env("DB_USER"), "PASSWORD": env("DB_PASSWORD"),
+        "HOST": env("DB_HOST", default="127.0.0.1"), "PORT": env("DB_PORT", default="5432"),
+        "CONN_MAX_AGE": 60, "CONN_HEALTH_CHECKS": True,
+        "OPTIONS": {"connect_timeout": 5},
+    }}
+elif DB_ENGINE == "oracle":
+    DB_SCHEMA = env("DB_SCHEMA", default="USRFACT").strip().upper()
+    DB_USER = env("DB_USER").strip().upper()
+    DB_REQUIRE_DML_ONLY = env.bool("DB_REQUIRE_DML_ONLY", default=True)
+    DB_ALLOWED_USERS = {
+        usuario.strip().upper()
+        for usuario in env.list(
+            "DB_ALLOWED_USERS",
+            default=["C27826", "C28111", "C28134"],
+        )
+        if usuario.strip()
+    }
+    if DB_SCHEMA != "USRFACT":
+        raise ImproperlyConfigured("DB_SCHEMA debe ser USRFACT para este paquete de base de datos.")
+    if DB_REQUIRE_DML_ONLY and DB_USER == DB_SCHEMA:
+        raise ImproperlyConfigured(
+            "El portal no puede conectarse como USRFACT. Use una cuenta con permisos DML."
+        )
+    if DB_REQUIRE_DML_ONLY and DB_ALLOWED_USERS and DB_USER not in DB_ALLOWED_USERS:
+        raise ImproperlyConfigured(
+            "DB_USER debe ser una cuenta DML autorizada: " + ", ".join(sorted(DB_ALLOWED_USERS))
+        )
+    DATABASES = {"default": {
+        "ENGINE": "django.db.backends.oracle",
+        "NAME": env("DB_DSN"),
+        "USER": DB_USER,
+        "PASSWORD": env("DB_PASSWORD"),
+        "CONN_MAX_AGE": env.int("DB_CONN_MAX_AGE", default=60),
+        "CONN_HEALTH_CHECKS": True,
+    }}
+else:
+    raise ImproperlyConfigured("DB_ENGINE debe ser postgresql u oracle.")
 AUTH_USER_MODEL = "accounts.Usuario"
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -75,7 +111,7 @@ LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-# Las sesiones también quedan dentro del esquema PostgreSQL de diez tablas.
+# Las sesiones quedan dentro del mismo esquema de 24 tablas.
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 8 * 60 * 60

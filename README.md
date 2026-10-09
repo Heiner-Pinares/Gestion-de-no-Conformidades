@@ -2,13 +2,17 @@
 
 Primera versión funcional local con Django 5.2 LTS, Python 3.12 y PostgreSQL. Conserva el CSS y los SVG del prototipo v8. La autenticación, autorización, persistencia, workflow y cálculos se ejecutan en Python. No utiliza JavaScript propio ni localStorage para negocio.
 
+## Entrega Windows + Oracle 19c
+
+La entrega para Windows usa `requirements-oracle.txt`, `.env.oracle.example` y `scripts/iniciar_windows_oracle.ps1`. El esquema se instala una sola vez con `docs/oracle_usrfact/INSTALAR_USRFACT_TODO_EN_UNO.sql`; después, la aplicación se conecta con `C27826`, `C28111` o `C28134` y rechaza cuentas con privilegios DDL. Consulte [Despliegue Windows con Oracle](docs/DESPLIEGUE_WINDOWS_ORACLE.md) antes de copiar el sistema al servidor.
+
 ## Estructura actual: 24 tablas físicas y ninguna vista
 
 PostgreSQL contiene exactamente **24 tablas físicas** y ninguna vista. Los catálogos, procesos, matrices, ciclos, evaluaciones, comunicaciones, evidencias, historial y notificaciones tienen tablas explícitas. `registro_general` es la tabla principal de hallazgos; `archivo_evidencia` guarda los bytes y el SHA-256 de cada documento. `django_session` y `django_migrations` son las dos tablas técnicas.
 
 El menú **Registro general** abre `/registro-general/` con las 34 columnas solicitadas, filtros y exportación CSV. La tabla física `registro_general` conserva cada hallazgo y la fotografía de los rangos seleccionados; el backend combina sus actividades, ciclos y evaluaciones al mostrar o exportar el informe, sin duplicar datos ni crear una vista SQL.
 
-Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual y la forma de comprobarlo. Pasan 57 pruebas funcionales sobre PostgreSQL.
+Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual y la forma de comprobarlo. Pasan 64 pruebas funcionales sobre PostgreSQL.
 
 ## Abrir la instalación preparada en este equipo
 

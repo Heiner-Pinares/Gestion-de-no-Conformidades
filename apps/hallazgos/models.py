@@ -25,7 +25,7 @@ class CorrelativoSAC(models.Model):
     ultimo_numero = models.PositiveIntegerField(default=0)
 
     class Meta:
-        db_table = "correlativo_sac"
+        db_table = "tbl_correlativo_sac_nc"
         constraints = [models.UniqueConstraint(fields=["anio", "ambito"], name="correlativo_anio_ambito_unico")]
 
 
@@ -68,9 +68,13 @@ class Hallazgo(models.Model):
     updated_by = models.ForeignKey(USER, null=True, on_delete=models.PROTECT, related_name="hallazgos_actualizados")
 
     class Meta:
-        db_table = "registro_general"
+        db_table = "tbl_registro_general_nc"
         ordering = ["-fecha_registro", "-pk"]
-        indexes = [models.Index(fields=["estado", "fecha_registro"]), models.Index(fields=["responsable", "estado"]), models.Index(fields=["proceso", "fecha_solucion"])]
+        indexes = [
+            models.Index(fields=["estado", "fecha_registro"], name="registro_ge_estado_f20c3e_idx"),
+            models.Index(fields=["responsable", "estado"], name="registro_ge_respons_f3cac0_idx"),
+            models.Index(fields=["proceso", "fecha_solucion"], name="registro_ge_proceso_848d4c_idx"),
+        ]
         constraints = [
             models.CheckConstraint(condition=Q(impacto_clientes__isnull=True) | Q(impacto_clientes__range=(1, 3)), name="impacto_clientes_rango"),
             models.CheckConstraint(condition=Q(impacto_tiempo__isnull=True) | Q(impacto_tiempo__range=(1, 3)), name="impacto_tiempo_rango"),
@@ -116,7 +120,7 @@ class CicloTratamiento(models.Model):
 
 
     class Meta:
-        db_table = "ciclo_tratamiento"
+        db_table = "tbl_ciclo_tratamiento_nc"
         ordering = ["numero"]
         constraints = [models.UniqueConstraint(fields=["hallazgo", "numero"], name="ciclo_hallazgo_numero_unico")]
 
@@ -157,7 +161,7 @@ class Accion(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "actividad"
+        db_table = "tbl_actividad_nc"
         ordering = ["pk"]
         constraints = [
             models.CheckConstraint(condition=Q(porcentaje_avance__lte=100), name="accion_avance_max_100"),
@@ -205,7 +209,7 @@ class PBI(models.Model):
     observacion = models.TextField(blank=True)
 
     class Meta:
-        db_table = "pbi"
+        db_table = "tbl_pbi_nc"
         constraints = [models.UniqueConstraint(fields=["ciclo", "numero_pbi"], name="pbi_ciclo_numero_unico")]
 
 
@@ -221,7 +225,7 @@ class EvaluacionEficacia(models.Model):
     fecha_registro = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        db_table = "evaluacion_eficacia"
+        db_table = "tbl_evaluacion_eficacia_nc"
         ordering = ["-fecha_registro", "-pk"]
 
 
@@ -236,7 +240,7 @@ class ComunicacionHallazgo(models.Model):
     fecha = models.DateTimeField(default=timezone.now)
 
     class Meta:
-        db_table = "comunicacion"
+        db_table = "tbl_comunicacion_nc"
         ordering = ["-fecha"]
 
 
@@ -257,7 +261,7 @@ class Evidencia(models.Model):
     descripcion = models.TextField(blank=True)
 
     class Meta:
-        db_table = "evidencia"
+        db_table = "tbl_evidencia_nc"
         ordering = ["-fecha_carga"]
         constraints = [models.CheckConstraint(condition=(Q(accion__isnull=True, analisis__isnull=True, evaluacion__isnull=True) | Q(accion__isnull=True, analisis__isnull=True, cierre__isnull=True) | Q(accion__isnull=True, evaluacion__isnull=True, cierre__isnull=True) | Q(analisis__isnull=True, evaluacion__isnull=True, cierre__isnull=True)), name="evidencia_un_contexto_maximo")]
 
@@ -274,7 +278,7 @@ class ArchivoEvidencia(models.Model):
     sha256 = models.CharField(max_length=64)
 
     class Meta:
-        db_table = "archivo_evidencia"
+        db_table = "tbl_archivo_evidencia_nc"
 
     def __str__(self):
         return f"Archivo de evidencia {self.evidencia_id}"
@@ -294,7 +298,7 @@ class HistorialHallazgo(models.Model):
     metadata_json = models.JSONField(default=dict, blank=True)
 
     class Meta:
-        db_table = "historial_hallazgo"
+        db_table = "tbl_historial_hallazgo_nc"
         ordering = ["-fecha_hora", "-pk"]
 
 
@@ -311,7 +315,7 @@ class Notificacion(models.Model):
     fecha_lectura = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        db_table = "notificacion"
+        db_table = "tbl_notificacion_nc"
         ordering = ["-fecha_creacion"]
         indexes = [models.Index(fields=["usuario", "leida", "fecha_creacion"], name="notif_usuario_estado_idx")]
 
