@@ -3,6 +3,7 @@ from datetime import timedelta
 from io import BytesIO, StringIO
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from zipfile import ZipFile
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -1323,6 +1324,71 @@ class Recorridos(TestCase):
         self.assertEqual(RegistroGeneral.objects.filter(hallazgo_id=h.pk).count(), 3)
         self.assertEqual(RegistroGeneral.objects.get(accion_id=ac.pk).resultado_eficacia, 'Eficaz')
 
+    def test_plantillas_oficiales_solo_para_hallazgos_cerrados(self):
+        h = self.crear()
+        self.client.force_login(self.usuario)
+        for tipo in ('solicitud', 'matriz'):
+            self.assertEqual(
+                self.client.get(reverse('hallazgo_plantilla_descargar', args=[h.pk, tipo])).status_code,
+                404,
+            )
+
+        self.inmediata(h)
+        self.verificar(h)
+        self.paso(h, 'cerrar', self.admin)
+        pagina = self.client.get(reverse('hallazgo_buscar'))
+        self.assertContains(pagina, 'Plantillas')
+        self.assertContains(pagina, 'Solicitud AC')
+        self.assertContains(pagina, 'Matriz')
+
+        esperados = {
+            'solicitud': ('Solicitud_accion_correctiva.xlsx', {'Formato', 'Causa Raiz', 'Control de Cambios'}),
+            'matriz': ('Matriz_control_hallazgo.xlsx', {'Hallazgos', 'Hoja1', 'Control de Cambios'}),
+        }
+        for tipo, (sufijo, hojas) in esperados.items():
+            respuesta = self.client.get(reverse('hallazgo_plantilla_descargar', args=[h.pk, tipo]))
+            self.assertEqual(respuesta.status_code, 200)
+            self.assertEqual(
+                respuesta['Content-Type'],
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            self.assertIn(f'{h.codigo}_{sufijo}', respuesta['Content-Disposition'])
+            contenido = b''.join(respuesta.streaming_content)
+            with ZipFile(BytesIO(contenido)) as libro:
+                nombres = set(libro.namelist())
+                self.assertIn('[Content_Types].xml', nombres)
+                self.assertTrue(any(nombre.startswith('xl/media/') for nombre in nombres))
+                self.assertNotIn('xl/calcChain.xml', nombres)
+                if tipo == 'solicitud':
+                    self.assertFalse(any(nombre.startswith('xl/externalLinks/') for nombre in nombres))
+                workbook = libro.read('xl/workbook.xml').decode('utf-8')
+                self.assertNotIn('<externalReferences>', workbook)
+                for hoja in hojas:
+                    self.assertIn(f'name="{hoja}"', workbook)
+                xml_hojas = b'\n'.join(
+                    libro.read(nombre) for nombre in nombres if nombre.startswith('xl/worksheets/sheet')
+                ).decode('utf-8')
+                self.assertIn(h.codigo, xml_hojas)
+                self.assertIn('Desviación del procedimiento', xml_hojas)
+                self.assertIn('Restablecer condición', xml_hojas)
+
+        self.client.force_login(self.ajeno)
+        self.assertEqual(
+            self.client.get(reverse('hallazgo_plantilla_descargar', args=[h.pk, 'matriz'])).status_code,
+            404,
+        )
+
+    def test_tipo_de_plantilla_invalido_no_se_descarga(self):
+        h = self.crear()
+        self.inmediata(h)
+        self.verificar(h)
+        self.paso(h, 'cerrar', self.admin)
+        self.client.force_login(self.usuario)
+        self.assertEqual(
+            self.client.get(reverse('hallazgo_plantilla_descargar', args=[h.pk, 'desconocida'])).status_code,
+            404,
+        )
+
     def test_analisis_compacto_snapshot_control_y_evidencia(self):
         h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
         control=dict(tipos=['PREVENTIVO'],nombre='Control',descripcion='Validación',mitiga_riesgo='SI',frecuencia='Diaria',responsable='Equipo',evidencia='Documento')
@@ -1340,10 +1406,22 @@ class Recorridos(TestCase):
         self.client.force_login(self.usuario)
         self.assertContains(self.client.get(reverse('hallazgo_detalle',args=[h.pk])), 'Dato original')
 
-    def test_reduccion_fisica_de_tablas(self):
+    def test_esquema_productivo_de_24_tablas(self):
         with connection.cursor() as cursor:
-            cursor.execute("SELECT count(*) FROM pg_tables WHERE schemaname='public'")
-            self.assertEqual(cursor.fetchone()[0], 6)
+            cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+            self.assertEqual(
+                {fila[0] for fila in cursor.fetchall()},
+                {
+                    'actividad', 'archivo_evidencia', 'auditoria_administracion',
+                    'catalogo', 'ciclo_tratamiento', 'comunicacion',
+                    'configuracion_impacto', 'configuracion_urgencia',
+                    'correlativo_sac', 'django_migrations', 'django_session',
+                    'evaluacion_eficacia', 'evidencia', 'historial_hallazgo',
+                    'matriz_prioridad', 'notificacion', 'pbi', 'pregunta_causa',
+                    'proceso', 'proceso_validador', 'registro_general',
+                    'subproceso', 'usuario', 'usuario_rol',
+                },
+            )
             cursor.execute("SELECT count(*) FROM pg_views WHERE schemaname='public'")
             self.assertEqual(cursor.fetchone()[0], 0)
 

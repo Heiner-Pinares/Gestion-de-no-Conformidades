@@ -36,7 +36,7 @@ MAX de tres impactos es una política provisional centralizada. MatrizPrioridad 
 
 ## ADR-009 Evidencias privadas
 
-Guardar archivo con nombre físico aleatorio, tipo/tamaño validados y nombre original como metadato. Evidencia pertenece al hallazgo y como máximo a un contexto compatible. Descargar mediante vista autenticada con alcance del caso, sin exponer MEDIA_ROOT como sitio público. La evidencia en una acción/ciclo diferente no acredita automáticamente el tratamiento actual.
+Guardar el binario y su SHA-256 en `archivo_evidencia`, con tipo/tamaño validados y nombre original como metadato. Evidencia pertenece al hallazgo y como máximo a un contexto compatible. Descargar mediante vista autenticada con alcance del caso. La evidencia en una acción/ciclo diferente no acredita automáticamente el tratamiento actual.
 
 ## ADR-010 Historial funcional separado de logs
 

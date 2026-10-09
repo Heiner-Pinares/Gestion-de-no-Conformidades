@@ -2,9 +2,16 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+ROLES = [
+    ("USUARIO", "Usuario"),
+    ("VALIDADOR", "Validador"),
+    ("ADMINISTRADOR", "Administrador"),
+]
+
+
 class Usuario(AbstractUser):
-    # Los roles pertenecen al perfil. Así no se requieren las tablas de grupos
-    # y permisos de Django para los tres roles cerrados de este portal.
+    # Se conserva el arreglo por compatibilidad con la API actual. La tabla
+    # usuario_rol se sincroniza en PostgreSQL y permite consultas relacionales.
     groups = None
     user_permissions = None
     roles = models.JSONField(default=list, blank=True)
@@ -65,3 +72,22 @@ class Usuario(AbstractUser):
 
     def has_module_perms(self, app_label):
         return self.is_active and (self.is_superuser or bool(self.roles))
+
+
+class UsuarioRol(models.Model):
+    usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name="asignaciones_rol",
+    )
+    rol = models.CharField(max_length=20, choices=ROLES)
+
+    class Meta:
+        db_table = "usuario_rol"
+        ordering = ["usuario_id", "rol"]
+        constraints = [
+            models.UniqueConstraint(fields=["usuario", "rol"], name="usuario_rol_unico"),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario}: {self.get_rol_display()}"

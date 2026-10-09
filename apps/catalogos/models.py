@@ -1,19 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-from apps.shared_models import TypedManager, TypedSharedModel
-
-
-class ConfiguracionRegistro(models.Model):
-    """Representante físico para que Django incluya la tabla en flush/backup."""
-    id = models.BigAutoField(primary_key=True)
-
-    class Meta:
-        managed = True
-        db_table = "configuracion"
-        default_permissions = ()
-
-
 class Maestro(models.Model):
     nombre = models.CharField(max_length=180)
     activo = models.BooleanField(default=True)
@@ -26,7 +13,7 @@ class Maestro(models.Model):
         return self.nombre
 
 
-class Catalogo(TypedSharedModel):
+class Catalogo(models.Model):
     REGISTRO_TIPO = "CATALOGO"
     CLASES = [(c, n) for c, n in [("TIPO", "Tipo de hallazgo"), ("FUENTE", "Fuente"), ("IMPACTO", "Impacto"), ("URGENCIA", "Urgencia"), ("PRIORIDAD", "Prioridad"), ("CATEGORIA", "Categoría 6M")]]
     id = models.BigAutoField(primary_key=True)
@@ -37,9 +24,13 @@ class Catalogo(TypedSharedModel):
     valor = models.PositiveSmallIntegerField(null=True, blank=True)
     orden = models.PositiveSmallIntegerField(default=0)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta:
+        db_table = "catalogo"
         ordering = ["orden", "nombre"]
+        constraints = [
+            models.UniqueConstraint(fields=["clase", "codigo"], name="catalogo_clase_codigo_unico"),
+            models.UniqueConstraint(fields=["clase", "valor"], condition=models.Q(valor__isnull=False), name="catalogo_clase_valor_unico"),
+        ]
 
     def __str__(self):
         return self.nombre
@@ -58,7 +49,7 @@ class Catalogo(TypedSharedModel):
             raise ValidationError("El valor pertenece a otro catálogo.")
 
 
-class CatalogoManager(TypedManager):
+class CatalogoManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(clase=self.model.CLASE)
 
@@ -121,7 +112,9 @@ class ValidadorRelation:
 
     def all(self):
         from apps.accounts.models import Usuario
-        return Usuario.objects.filter(pk__in=self.proceso.validadores_ids or [])
+        return Usuario.objects.filter(
+            asignaciones_proceso__proceso_id=self.proceso.pk,
+        ).distinct()
 
     def filter(self, *args, **kwargs):
         return self.all().filter(*args, **kwargs)
@@ -143,7 +136,7 @@ class ValidadorRelation:
         self.proceso.save(update_fields=["validadores_ids"])
 
 
-class Proceso(TypedSharedModel, Maestro):
+class Proceso(Maestro):
     REGISTRO_TIPO = "PROCESO"
     id = models.BigAutoField(primary_key=True)
     gerencia = models.CharField(max_length=180, blank=True)
@@ -152,9 +145,10 @@ class Proceso(TypedSharedModel, Maestro):
     validadores_ids = models.JSONField(default=list, blank=True)
     activo = models.BooleanField(default=True)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta(Maestro.Meta):
+        db_table = "proceso"
         ordering = ["nombre"]
+        constraints = [models.UniqueConstraint(fields=["nombre"], name="proceso_nombre_unico")]
 
     @property
     def validadores(self):
@@ -164,22 +158,49 @@ class Proceso(TypedSharedModel, Maestro):
         return self.nombre
 
 
-class Subproceso(TypedSharedModel, Maestro):
+class ProcesoValidador(models.Model):
+    proceso = models.ForeignKey(
+        Proceso,
+        on_delete=models.CASCADE,
+        related_name="asignaciones_validacion",
+    )
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="asignaciones_proceso",
+    )
+
+    class Meta:
+        db_table = "proceso_validador"
+        ordering = ["proceso_id", "usuario_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proceso", "usuario"],
+                name="proceso_validador_unico",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.proceso}: {self.usuario}"
+
+
+class Subproceso(Maestro):
     REGISTRO_TIPO = "SUBPROCESO"
     id = models.BigAutoField(primary_key=True)
     proceso = models.ForeignKey(Proceso, on_delete=models.PROTECT, related_name="subprocesos")
     nombre = models.CharField(max_length=180)
     activo = models.BooleanField(default=True)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta(Maestro.Meta):
+        db_table = "subproceso"
         ordering = ["nombre"]
+        constraints = [models.UniqueConstraint(fields=["proceso", "nombre"], name="subproceso_proceso_nombre_unico")]
 
     def __str__(self):
         return self.nombre
 
 
-class MatrizPrioridad(TypedSharedModel):
+class MatrizPrioridad(models.Model):
     REGISTRO_TIPO = "MATRIZ_PRIORIDAD"
     id = models.BigAutoField(primary_key=True)
     impacto = models.ForeignKey(Impacto, related_name="+", on_delete=models.PROTECT)
@@ -188,9 +209,10 @@ class MatrizPrioridad(TypedSharedModel):
     activo = models.BooleanField(default=True)
     es_demo = models.BooleanField(default=True)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta:
+        db_table = "matriz_prioridad"
         ordering = ["impacto_id", "urgencia_id"]
+        constraints = [models.UniqueConstraint(fields=["impacto", "urgencia"], name="matriz_prioridad_combinacion_unica")]
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -202,7 +224,7 @@ class MatrizPrioridad(TypedSharedModel):
         return f"{self.impacto} / {self.urgencia}: {self.prioridad}"
 
 
-class ConfiguracionImpacto(TypedSharedModel):
+class ConfiguracionImpacto(models.Model):
     REGISTRO_TIPO = "CONFIGURACION_IMPACTO"
     id = models.BigAutoField(primary_key=True)
     predeterminada = models.BooleanField(default=True)
@@ -222,8 +244,8 @@ class ConfiguracionImpacto(TypedSharedModel):
     financiero_medio_hasta = models.DecimalField(max_digits=14, decimal_places=0, default=1999999)
     financiero_alto_desde = models.DecimalField(max_digits=14, decimal_places=0, default=2000000)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta:
+        db_table = "configuracion_impacto"
         verbose_name = "configuración de impacto"
         verbose_name_plural = "configuración de impacto"
 
@@ -244,7 +266,7 @@ class ConfiguracionImpacto(TypedSharedModel):
         }
 
 
-class ConfiguracionUrgencia(TypedSharedModel):
+class ConfiguracionUrgencia(models.Model):
     """Rangos de urgencia por jefatura en la tabla física configuración."""
     REGISTRO_TIPO = "CONFIGURACION_URGENCIA"
     AREAS = (("FACTURACION", "Facturación"), ("POST_FACTURACION", "Post facturación"))
@@ -258,8 +280,8 @@ class ConfiguracionUrgencia(TypedSharedModel):
     medio_hasta = models.PositiveIntegerField(default=32, db_column="tiempo_medio_hasta")
     alto_desde = models.PositiveIntegerField(default=33, db_column="tiempo_alto_desde")
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta:
+        db_table = "configuracion_urgencia"
         ordering = ["codigo"]
 
     def __str__(self):
@@ -287,7 +309,7 @@ class ConfiguracionUrgencia(TypedSharedModel):
         return self.rangos_usuario.get({1: "bajo", 2: "medio", 3: "alto"}.get(nivel), "")
 
 
-class PreguntaCausa(TypedSharedModel):
+class PreguntaCausa(models.Model):
     REGISTRO_TIPO = "PREGUNTA_CAUSA"
     codigo = models.CharField(primary_key=True, max_length=30)
     categoria = models.ForeignKey(CategoriaCausa, on_delete=models.PROTECT, related_name="preguntas")
@@ -295,15 +317,15 @@ class PreguntaCausa(TypedSharedModel):
     orden = models.PositiveSmallIntegerField()
     activo = models.BooleanField(default=True)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "configuracion"
+    class Meta:
+        db_table = "pregunta_causa"
         ordering = ["categoria__orden", "orden"]
 
     def __str__(self):
         return f"{self.codigo} · {self.texto}"
 
 
-class AuditoriaAdministracion(TypedSharedModel):
+class AuditoriaAdministracion(models.Model):
     REGISTRO_TIPO = "AUDITORIA_ADMINISTRACION"
     id = models.BigAutoField(primary_key=True)
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -314,6 +336,6 @@ class AuditoriaAdministracion(TypedSharedModel):
     antes = models.JSONField(default=dict)
     despues = models.JSONField(default=dict)
 
-    class Meta(TypedSharedModel.Meta):
-        db_table = "evento"
+    class Meta:
+        db_table = "auditoria_administracion"
         ordering = ["-fecha", "-pk"]

@@ -1,14 +1,16 @@
+import hashlib
 import io
 import warnings
 import zipfile
 from pathlib import Path
+from uuid import uuid4
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
 from PIL import Image, UnidentifiedImageError
 
 from apps.accounts.permissions import puede_gestionar, puede_validar
-from apps.hallazgos.models import Evidencia
+from apps.hallazgos.models import ArchivoEvidencia, Evidencia
 from .common import bloquear, ciclo_vigente, exigir, registrar
 
 MAX_ARCHIVO = 10 * 1024 * 1024
@@ -74,15 +76,19 @@ class EvidenciaService:
             if analisis is not None:
                 exigir(analisis.analisis_inicio is not None, "Inicie el análisis antes de adjuntar evidencia a él.")
         mime = validar_archivo(archivo)
+        archivo.seek(0)
+        contenido = archivo.read()
+        archivo.seek(0)
+        extension = Path(archivo.name).suffix.lower()
         evidencia = Evidencia(hallazgo=hallazgo, accion=accion, analisis=analisis, evaluacion=evaluacion,
-            cierre=cierre, archivo=archivo, nombre_original=Path(archivo.name).name[:255], mime_type=mime,
+            cierre=cierre, archivo=f"db/{uuid4().hex}{extension}", nombre_original=Path(archivo.name).name[:255], mime_type=mime,
             tamanio=archivo.size, subido_por=usuario, descripcion=descripcion)
         evidencia.full_clean()
-        try:
-            evidencia.save()
-            registrar(hallazgo, usuario, "EVIDENCIA", descripcion, metadata={"evidencia": evidencia.pk, "nombre": evidencia.nombre_original, "mime": mime, "tamanio": evidencia.tamanio})
-        except Exception:
-            if evidencia.archivo and evidencia.archivo._committed:
-                evidencia.archivo.delete(save=False)
-            raise
+        evidencia.save()
+        ArchivoEvidencia.objects.create(
+            evidencia=evidencia,
+            contenido=contenido,
+            sha256=hashlib.sha256(contenido).hexdigest(),
+        )
+        registrar(hallazgo, usuario, "EVIDENCIA", descripcion, metadata={"evidencia": evidencia.pk, "nombre": evidencia.nombre_original, "mime": mime, "tamanio": evidencia.tamanio})
         return evidencia

@@ -81,7 +81,10 @@ def formulario_catalogo(tipo, *args, instance=None, **kwargs):
     if "validadores" in campos:
         from apps.accounts.models import Usuario
         form.fields["validadores"] = forms.ModelMultipleChoiceField(
-            queryset=Usuario.objects.filter(is_active=True, roles__contains=["VALIDADOR"]),
+            queryset=Usuario.objects.filter(
+                is_active=True,
+                asignaciones_rol__rol="VALIDADOR",
+            ).distinct(),
             required=False,
             widget=forms.SelectMultiple(attrs={"class": "input"}),
             initial=instance.validadores.all() if instance and instance.pk else None,

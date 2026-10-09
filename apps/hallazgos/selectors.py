@@ -2,6 +2,7 @@
 from django.db.models import Count, Q
 from django.utils import timezone
 from apps.accounts.permissions import es_administrador, puede_gestionar, puede_validar
+from apps.catalogos.models import ProcesoValidador
 from .models import EvaluacionEficacia, Hallazgo
 from .services.workflow import TRANSICIONES
 
@@ -16,7 +17,10 @@ def hallazgos_visibles(usuario):
                | Q(historial__accion="SOLICITUD_REPROGRAMACION",
                    historial__metadata_json__aprobador_id=usuario.pk))
     if usuario.has_perm("accounts.validar_hallazgo"):
-        alcance |= Q(proceso__validadores_ids__contains=[usuario.pk])
+        procesos_asignados = ProcesoValidador.objects.filter(
+            usuario=usuario,
+        ).values_list("proceso_id", flat=True)
+        alcance |= Q(proceso_id__in=procesos_asignados)
     return consulta.filter(alcance).distinct()
 
 

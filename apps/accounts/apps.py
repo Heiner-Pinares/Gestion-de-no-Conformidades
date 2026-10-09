@@ -7,7 +7,7 @@ class AccountsConfig(AppConfig):
     name = "apps.accounts"
 
     def ready(self):
-        # El portal usa roles JSON y no mantiene las tablas de permisos/content-types.
+        # Los roles propios no requieren las tablas genéricas de permisos/content-types.
         from django.contrib.auth.management import create_permissions
         from django.contrib.contenttypes.management import create_contenttypes
         post_migrate.disconnect(

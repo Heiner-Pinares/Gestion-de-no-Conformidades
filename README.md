@@ -2,13 +2,13 @@
 
 Primera versión funcional local con Django 5.2 LTS, Python 3.12 y PostgreSQL. Conserva el CSS y los SVG del prototipo v8. La autenticación, autorización, persistencia, workflow y cálculos se ejecutan en Python. No utiliza JavaScript propio ni localStorage para negocio.
 
-## Estructura actual: 6 tablas físicas y ninguna vista
+## Estructura actual: 24 tablas físicas y ninguna vista
 
-PostgreSQL contiene exactamente **6 tablas físicas**: `usuario`, `configuracion`, `registro_general`, `actividad`, `evento` y `django_migrations`. No hay vistas, vistas materializadas, triggers, funciones ni tipos personalizados. `configuracion` y `evento` usan un discriminador para alojar entidades pequeñas relacionadas; el backend las expone como modelos lógicos normales. La sesión se firma en una cookie HttpOnly y no requiere `django_session`.
+PostgreSQL contiene exactamente **24 tablas físicas** y ninguna vista. Los catálogos, procesos, matrices, ciclos, evaluaciones, comunicaciones, evidencias, historial y notificaciones tienen tablas explícitas. `registro_general` es la tabla principal de hallazgos; `archivo_evidencia` guarda los bytes y el SHA-256 de cada documento. `django_session` y `django_migrations` son las dos tablas técnicas.
 
-El menú **Registro general** abre `/registro-general/` con las 34 columnas solicitadas, filtros y exportación CSV. La tabla física `registro_general` conserva cada hallazgo y la fotografía de los tres rangos de impacto seleccionados; el backend combina sus actividades y eventos al mostrar o exportar el informe, sin duplicar datos ni crear una vista SQL.
+El menú **Registro general** abre `/registro-general/` con las 34 columnas solicitadas, filtros y exportación CSV. La tabla física `registro_general` conserva cada hallazgo y la fotografía de los rangos seleccionados; el backend combina sus actividades, ciclos y evaluaciones al mostrar o exportar el informe, sin duplicar datos ni crear una vista SQL.
 
-Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual y la forma de comprobarlo. Pasan 53 pruebas funcionales sobre PostgreSQL.
+Consulta [Estructura simplificada](docs/ESTRUCTURA_SIMPLIFICADA.md) para el mapa actual y la forma de comprobarlo. Pasan 57 pruebas funcionales sobre PostgreSQL.
 
 ## Abrir la instalación preparada en este equipo
 
@@ -27,7 +27,7 @@ Usuarios existentes: `usuario.demo`, `validador.demo` y `admin.demo`, con las co
 
 En pgAdmin, actualiza Databases del servidor PostgreSQL 18 y abre `gestion_no_conformidades → Schemas → public → Tables`. Para consultar una tabla, usa View/Edit Data → All Rows.
 
-La compactación conserva los datos y deja el esquema en seis tablas. El respaldo inmediatamente anterior está en `.runtime/backups/antes-seis-tablas-20260928-213335/antes.dump`.
+La migración productiva separa el esquema compacto y conserva los identificadores históricos hasta completar 24 tablas. Roles, validadores, sesiones y archivos permanecen dentro de PostgreSQL.
 
 ## Instalación en otro equipo
 
@@ -101,7 +101,7 @@ Se conservan los trece estados aprobados. Las transiciones se controlan en `apps
 - Impacto = máximo de Clientes/Tiempo/Soles. Prioridad consultada en matriz configurable; una combinación ausente detiene el cálculo con mensaje y log.
 - Prioridad operativa y NC crítica son conceptos separados. La matriz inicial es DEMO; no están definidos los umbrales oficiales de clientes, tiempo o soles.
 - Custom User desde la primera migración. Contraseñas con hash Django; CSRF, escape de templates, sesiones HTTPOnly y cierre por POST.
-- Evidencias PDF/PNG/JPEG hasta 10 MB. Extensión y contenido comprobados, nombre físico UUID, descargas autorizadas y forzadas como adjunto. MEDIA_ROOT no se publica como carpeta web. El reconocimiento de PDF por estructura básica no sustituye un antivirus empresarial.
+- Evidencias PDF, Office, PNG y JPEG hasta 10 MB. Extensión y contenido comprobados, binario y SHA-256 guardados en `archivo_evidencia`, y descargas autorizadas y forzadas como adjunto. Los archivos nuevos no dependen de `MEDIA_ROOT`. El reconocimiento de PDF por estructura básica no sustituye un antivirus empresarial.
 - Los catálogos se desactivan y las relaciones históricas usan PROTECT. No hay borrado de hallazgos, acciones, evaluaciones ni historial desde la interfaz.
 - La auditoría funcional se diferencia de los logs técnicos. Los cambios administrativos conservan valores anteriores/nuevos. CSV protege celdas susceptibles de interpretarse como fórmulas.
 

@@ -7,6 +7,7 @@ urlpatterns = [
     path("ayuda/", views.ayuda, name="ayuda"),
     path("hallazgos/nuevo/", views.hallazgo_crear, name="hallazgo_crear"),
     path("hallazgos/", views.hallazgo_buscar, name="hallazgo_buscar"),
+    path("hallazgos/<int:pk>/plantillas/<str:tipo>/", views.hallazgo_plantilla_descargar, name="hallazgo_plantilla_descargar"),
     path("administracion/validaciones/", views.validaciones_admin, name="validaciones_admin"),
     path("hallazgos/<int:pk>/", views.hallazgo_detalle, name="hallazgo_detalle"),
     path("hallazgos/<int:pk>/editar/", views.hallazgo_editar, name="hallazgo_editar"),

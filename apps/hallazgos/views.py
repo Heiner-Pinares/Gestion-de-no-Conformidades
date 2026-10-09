@@ -1,4 +1,5 @@
 """Adaptadores HTTP. Las reglas y transacciones pertenecen a services."""
+import io
 from datetime import timedelta
 from django import forms
 from django.contrib import messages
@@ -18,12 +19,13 @@ from .forms import (
     EvaluacionEficaciaForm, EvidenciaForm, HallazgoForm, PBIForm,
     ReprogramacionForm, SeguimientoForm, SeguimientoLineaForm, TransicionForm,
 )
-from .models import Accion, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
+from .models import Accion, ArchivoEvidencia, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
 from .selectors import acciones_disponibles, hallazgos_visibles, indicadores, timeline_hallazgo
 from .services import (
     AccionService, CausaService, CodigoSACService, ComunicacionService, EficaciaService,
     EvidenciaService, HallazgoService, PBIService, WorkflowService,
 )
+from .services.plantillas import generar_plantilla
 
 
 def obtener_hallazgo(usuario, pk):
@@ -275,6 +277,24 @@ def hallazgo_buscar(request):
         "page_obj": Paginator(qs, 10 if es_admin else 25).get_page(request.GET.get("page")),
         "filtros": filtros.urlencode(),
     })
+
+
+@login_required
+def hallazgo_plantilla_descargar(request, pk, tipo):
+    """Entrega una copia completada de las plantillas oficiales del hallazgo."""
+    hallazgo = obtener_hallazgo(request.user, pk)
+    if hallazgo.estado != "CERRADO":
+        raise Http404("Las plantillas solo están disponibles para hallazgos cerrados.")
+    try:
+        contenido, nombre = generar_plantilla(hallazgo, tipo)
+    except ValueError as error:
+        raise Http404(str(error)) from error
+    return FileResponse(
+        io.BytesIO(contenido),
+        as_attachment=True,
+        filename=nombre,
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @login_required
@@ -791,17 +811,20 @@ def hallazgo_evidencia(request, pk):
 
 @login_required
 def evidencia_descargar(request, pk):
-    evidencia = get_object_or_404(Evidencia.objects.select_related("hallazgo__proceso"), pk=pk)
+    evidencia = get_object_or_404(
+        Evidencia.objects.select_related("hallazgo__proceso", "contenido_db"),
+        pk=pk,
+    )
     if not puede_ver(request.user, evidencia.hallazgo):
         raise Http404
     try:
         respuesta = FileResponse(
-            evidencia.archivo.open("rb"),
+            io.BytesIO(bytes(evidencia.contenido_db.contenido)),
             as_attachment=request.GET.get("ver") != "1",
             filename=evidencia.nombre_original,
             content_type=evidencia.mime_type,
         )
-    except FileNotFoundError as error:
+    except ArchivoEvidencia.DoesNotExist as error:
         raise Http404("La evidencia no está disponible.") from error
     respuesta["X-Content-Type-Options"] = "nosniff"
     respuesta["Cache-Control"] = "private, no-store"

@@ -75,7 +75,7 @@ LOGOUT_REDIRECT_URL = "login"
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-# Las sesiones también quedan dentro del esquema PostgreSQL de diez tablas.
+# Las sesiones también quedan dentro del esquema PostgreSQL de 24 tablas.
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 8 * 60 * 60

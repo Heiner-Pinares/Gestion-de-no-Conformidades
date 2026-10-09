@@ -1,8 +1,6 @@
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from .models import Usuario
-
-ROLES = [("USUARIO", "Usuario"), ("VALIDADOR", "Validador"), ("ADMINISTRADOR", "Administrador")]
+from .models import ROLES, Usuario
 
 
 class AccesoForm(AuthenticationForm):

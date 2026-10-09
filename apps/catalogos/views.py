@@ -54,7 +54,7 @@ def usuarios(request):
             | Q(jefe__first_name__icontains=q) | Q(jefe__last_name__icontains=q)
         )
     if rol:
-        qs = qs.filter(roles__contains=[rol])
+        qs = qs.filter(asignaciones_rol__rol=rol).distinct()
     filtros = {"q": q, "rol": rol}
     return render(request, "administrador/usuarios.html", {
         "pagina": Paginator(qs, 10).get_page(request.GET.get("page")),
@@ -89,7 +89,10 @@ def usuario_editar(request, pk):
             actual = Usuario.objects.select_for_update().get(pk=pk)
             roles = list(form.cleaned_data["roles"])
             conserva_admin = form.cleaned_data["is_active"] and "ADMINISTRADOR" in roles
-            otros_admin = Usuario.objects.filter(is_active=True, roles__contains=["ADMINISTRADOR"]).exclude(pk=pk).exists()
+            otros_admin = Usuario.objects.filter(
+                is_active=True,
+                asignaciones_rol__rol="ADMINISTRADOR",
+            ).exclude(pk=pk).exists()
             if actual.has_role("ADMINISTRADOR") and not conserva_admin and not otros_admin:
                 form.add_error(None, "Debe permanecer al menos un administrador activo.")
             else:
