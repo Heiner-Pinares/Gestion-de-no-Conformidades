@@ -2,7 +2,8 @@ PROMPT [5/9] Linea base de migraciones Django
 
 -- La estructura final ya fue creada por los scripts 01 a 04.
 -- Estas filas evitan que Django intente recrear el esquema al iniciar.
--- Se copiaron de la base PostgreSQL vigente y validada.
+-- La lista fue comparada con el grafo de migraciones del codigo entregado:
+-- 56 migraciones, sin faltantes ni sobrantes. No es una lista generica.
 
 INSERT INTO tbl_django_migrations_nc (app, name, applied) VALUES ('accounts', '0001_initial', LOCALTIMESTAMP);
 INSERT INTO tbl_django_migrations_nc (app, name, applied) VALUES ('accounts', '0002_alter_usuario_options', LOCALTIMESTAMP);

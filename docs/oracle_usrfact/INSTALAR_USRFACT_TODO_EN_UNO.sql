@@ -6,6 +6,13 @@
 --
 -- Ejecutar el archivo completo conectado como USRFACT en una ventana de
 -- comandos de PL/SQL Developer. No requiere archivos SQL adicionales.
+-- Uso exclusivo sobre un esquema nuevo donde no existan tablas del Portal NC.
+-- Oracle confirma cada DDL de forma implicita; un ROLLBACK no elimina objetos
+-- que hayan sido creados antes de un error. Ejecutar primero en homologacion.
+--
+-- Los campos JSON usan NCLOB intencionalmente porque es el tipo de JSONField
+-- del backend Oracle de Django 5.2. La prevalidacion lo prueba antes del DDL
+-- definitivo. Las 56 filas de migraciones coinciden con el codigo entregado.
 -- ============================================================================
 
 SET DEFINE OFF
@@ -31,6 +38,7 @@ DECLARE
     v_objetos           PLS_INTEGER;
     v_restricciones     PLS_INTEGER;
     v_usuarios          PLS_INTEGER;
+    v_json              PLS_INTEGER;
     v_random            NUMBER;
     v_blob              BLOB;
 BEGIN
@@ -101,12 +109,27 @@ BEGIN
     SYS.DBMS_LOB.WRITEAPPEND(v_blob, 1, HEXTORAW('00'));
     SYS.DBMS_LOB.FREETEMPORARY(v_blob);
 
-    -- Prueba efectiva de las capacidades requeridas. Verifica en una sola
-    -- operación CREATE TABLE, cuota, nombres de más de 30 bytes (COMPATIBLE
-    -- >= 12.2) y CREATE TRIGGER. Los objetos se eliminan inmediatamente.
+    -- Prueba efectiva de las capacidades requeridas. Verifica antes de crear
+    -- las tablas definitivas: CREATE TABLE, cuota, nombres de más de 30 bytes
+    -- (COMPATIBLE >= 12.2), CREATE TRIGGER y el tipo exacto que Django 5.2
+    -- usa para JSONField en Oracle: NCLOB con restricción IS JSON.
+    -- Los objetos temporales se eliminan inmediatamente.
     BEGIN
-        EXECUTE IMMEDIATE
-            'CREATE TABLE tbl_nc_prevalidacion_nombre_largo_123 (id NUMBER)';
+        EXECUTE IMMEDIATE q'[CREATE TABLE tbl_nc_prevalidacion_nombre_largo_123 (
+            id NUMBER,
+            datos NCLOB,
+            CONSTRAINT ck_nc_prevalidacion_json_123
+                CHECK (datos IS JSON (STRICT))
+        )]';
+        EXECUTE IMMEDIATE q'[INSERT INTO tbl_nc_prevalidacion_nombre_largo_123
+            (id, datos) VALUES (1, TO_NCLOB('{"portal":"nc"}'))]';
+        EXECUTE IMMEDIATE q'[SELECT COUNT(*)
+            FROM tbl_nc_prevalidacion_nombre_largo_123
+            WHERE datos IS JSON (STRICT)]' INTO v_json;
+        IF v_json <> 1 THEN
+            RAISE_APPLICATION_ERROR(-20007,
+                'La prueba NCLOB con IS JSON no devolvio el registro esperado.');
+        END IF;
         EXECUTE IMMEDIATE q'[CREATE OR REPLACE TRIGGER trg_nc_prevalidacion_nombre_largo_123
             BEFORE INSERT ON tbl_nc_prevalidacion_nombre_largo_123
             BEGIN
@@ -121,12 +144,12 @@ BEGIN
                 WHEN OTHERS THEN NULL;
             END;
             RAISE_APPLICATION_ERROR(-20005,
-                'USRFACT no puede crear las tablas/triggers requeridos. Revise CREATE TABLE, CREATE TRIGGER, cuota y COMPATIBLE >= 12.2. Detalle: ' || SQLERRM);
+                'USRFACT no supera la prevalidacion DDL/JSON. Revise CREATE TABLE, CREATE TRIGGER, cuota, COMPATIBLE >= 12.2 y NCLOB IS JSON. Detalle: ' || SQLERRM);
     END;
 
     DBMS_OUTPUT.PUT_LINE('OK: usuario=' || USER ||
                          ', Oracle=' || DBMS_DB_VERSION.VERSION || '.' || DBMS_DB_VERSION.RELEASE ||
-                         ', usuarios destino=3, tablas previas=0 y capacidades DDL verificadas.');
+                         ', usuarios destino=3, tablas previas=0, DDL y NCLOB IS JSON verificados.');
 END;
 /
 -- FIN DEL MODULO INTEGRADO: 00_prevalidacion.sql
@@ -1305,7 +1328,8 @@ PROMPT [5/9] Linea base de migraciones Django
 
 -- La estructura final ya fue creada por los scripts 01 a 04.
 -- Estas filas evitan que Django intente recrear el esquema al iniciar.
--- Se copiaron de la base PostgreSQL vigente y validada.
+-- La lista fue comparada con el grafo de migraciones del codigo entregado:
+-- 56 migraciones, sin faltantes ni sobrantes. No es una lista generica.
 
 INSERT INTO tbl_django_migrations_nc (app, name, applied) VALUES ('accounts', '0001_initial', LOCALTIMESTAMP);
 INSERT INTO tbl_django_migrations_nc (app, name, applied) VALUES ('accounts', '0002_alter_usuario_options', LOCALTIMESTAMP);

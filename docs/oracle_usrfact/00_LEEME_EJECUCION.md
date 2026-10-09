@@ -20,7 +20,7 @@ Los scripts numerados se conservan solo como fuente modular para mantenimiento y
 
 El archivo único fija la sesión en UTC y ejecuta, en este orden:
 
-1. `00_prevalidacion.sql`: comprueba versión, esquema, usuarios, ausencia de tablas anteriores y prueba realmente los privilegios DDL, la cuota y los nombres largos.
+1. `00_prevalidacion.sql`: comprueba versión, esquema, usuarios, ausencia de tablas anteriores y prueba realmente los privilegios DDL, la cuota, los nombres largos y `NCLOB IS JSON (STRICT)` antes de crear tablas definitivas.
 2. `01_crear_tablas.sql`: crea las 24 tablas, identidades, claves primarias, restricciones y validaciones JSON.
 3. `02_relaciones_indices.sql`: crea las 44 relaciones foráneas y los índices de consulta/FK.
 4. `03_triggers_integridad.sql`: crea valores JSON predeterminados y sincroniza roles y validadores.
@@ -38,7 +38,7 @@ El archivo único fija la sesión en UTC y ejecuta, en este orden:
 ## Decisiones de compatibilidad
 
 - Los identificadores se crean sin comillas; Oracle los mostrará en mayúsculas y Django puede referenciarlos en minúsculas.
-- Los campos PostgreSQL `JSONB` se almacenan como `NCLOB` con `CHECK (... IS JSON STRICT)`.
+- Los campos PostgreSQL `JSONB` se almacenan como `NCLOB` con `CHECK (... IS JSON STRICT)`, que es el tipo generado para `JSONField` por el backend Oracle de Django 5.2. El instalador prueba primero esta combinación en una tabla temporal y aborta si la instancia no la admite.
 - Los campos de texto usan `NVARCHAR2`/`NCLOB` y los `DateTimeField` usan `TIMESTAMP(6)`, igual que el backend Oracle de Django 5.2.
 - El archivo de evidencia se almacena íntegramente en `BLOB`; no depende de una carpeta del servidor.
 - Los booleanos se almacenan como `NUMBER(1)` con valores `0` o `1`.
@@ -71,5 +71,7 @@ La creación de estas tablas no cambia por sí sola la conexión activa. En Wind
 3. Ejecute el archivo completo desde esa ventana.
 4. Conserve el `Spool` completo. Si algún paso falla, `WHENEVER SQLERROR` detendrá la cadena y devolverá el código Oracle.
 5. Considere aprobada la instalación únicamente si aparece `INSTALACION COMPLETADA Y VALIDADA`.
+
+Oracle confirma los DDL de forma implícita. Por ello, un `ROLLBACK` no elimina automáticamente objetos creados antes de un error; la primera ejecución debe hacerse siempre en un esquema vacío de homologación.
 
 No ejecute `99_desinstalar.sql` en un esquema con información real.

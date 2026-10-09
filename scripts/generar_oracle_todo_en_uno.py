@@ -32,6 +32,13 @@ CABECERA = """-- ===============================================================
 --
 -- Ejecutar el archivo completo conectado como USRFACT en una ventana de
 -- comandos de PL/SQL Developer. No requiere archivos SQL adicionales.
+-- Uso exclusivo sobre un esquema nuevo donde no existan tablas del Portal NC.
+-- Oracle confirma cada DDL de forma implicita; un ROLLBACK no elimina objetos
+-- que hayan sido creados antes de un error. Ejecutar primero en homologacion.
+--
+-- Los campos JSON usan NCLOB intencionalmente porque es el tipo de JSONField
+-- del backend Oracle de Django 5.2. La prevalidacion lo prueba antes del DDL
+-- definitivo. Las 56 filas de migraciones coinciden con el codigo entregado.
 -- ============================================================================
 
 SET DEFINE OFF

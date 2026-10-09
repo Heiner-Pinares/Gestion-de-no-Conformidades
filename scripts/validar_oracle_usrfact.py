@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ import sqlparse
 
 
 BASE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BASE))
 CARPETA = BASE / "docs" / "oracle_usrfact"
 MANIFEST = json.loads((CARPETA / "manifest_esquema.json").read_text(encoding="utf-8"))
 ESPERADAS = {nombre.upper() for nombre in MANIFEST["tables"]}
@@ -69,6 +71,7 @@ def main() -> int:
     exigir(archivos_sql, "No se encontraron scripts SQL.")
     textos = {p.name: p.read_text(encoding="utf-8") for p in archivos_sql}
 
+    prevalidacion = textos["00_prevalidacion.sql"]
     ddl = textos["01_crear_tablas.sql"]
     relaciones = textos["02_relaciones_indices.sql"]
     triggers = textos["03_triggers_integridad.sql"]
@@ -125,6 +128,10 @@ def main() -> int:
            "CharField debe usar NVARCHAR2 sin semántica CHAR explícita.")
     exigir(not re.search(r"(?<!N)CLOB", ddl, re.I),
            "TextField/JSONField debe usar NCLOB para coincidir con Django Oracle.")
+    exigir(re.search(r"datos\s+NCLOB", prevalidacion, re.I),
+           "La prevalidación no prueba el tipo NCLOB usado por JSONField.")
+    exigir(re.search(r"CHECK\s*\(datos\s+IS\s+JSON\s*\(STRICT\)\)", prevalidacion, re.I),
+           "La prevalidación no prueba NCLOB con IS JSON (STRICT).")
 
     indices = re.findall(r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)", relaciones, re.I)
     exigir(len(indices) == 40, f"Se esperaban 40 índices explícitos y se encontraron {len(indices)}.")
@@ -165,6 +172,22 @@ def main() -> int:
     )
     exigir(len(migraciones) == 56, f"La línea base debe contener 56 migraciones y contiene {len(migraciones)}.")
     exigir(len(migraciones) == len(set(migraciones)), "Hay migraciones duplicadas en la línea base Django.")
+
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    import django
+    from django.db.migrations.loader import MigrationLoader
+
+    django.setup()
+    aplicaciones = {"accounts", "auth", "catalogos", "contenttypes", "hallazgos", "sessions"}
+    migraciones_codigo = {
+        (app, nombre)
+        for app, nombre in MigrationLoader(None, ignore_no_migrations=True).disk_migrations
+        if app in aplicaciones
+    }
+    exigir(set(migraciones) == migraciones_codigo,
+           "La línea base Django no coincide exactamente con las migraciones del código: "
+           f"faltan={sorted(migraciones_codigo-set(migraciones))}, "
+           f"sobran={sorted(set(migraciones)-migraciones_codigo)}")
 
     llamados = re.findall(r"@@([^\s]+\.sql)", maestro, re.I)
     exigir(llamados == [

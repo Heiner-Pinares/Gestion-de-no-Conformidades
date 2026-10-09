@@ -9,6 +9,7 @@ Fecha de revisión: 09/10/2026.
 - Integridad: 44 claves foráneas, 22 identidades, 22 reajustes de identidad, 40 índices explícitos y 11 triggers.
 - Datos base: 29 catálogos, 1 configuración de impacto, 2 configuraciones de urgencia, 9 combinaciones de prioridad y 32 preguntas 6M.
 - Línea base Django: las 56 filas coinciden exactamente con las 56 migraciones disponibles de las aplicaciones instaladas.
+- Prevalidación Oracle: antes de crear objetos definitivos se crea una tabla temporal, se valida `NCLOB IS JSON (STRICT)` con una inserción y lectura real y se elimina la tabla. Esto comprueba el tipo exigido por `JSONField` en el backend Oracle de Django 5.2.
 - Permisos: cobertura estática exacta de 24 tablas × 4 privilegios × 3 usuarios = 288 privilegios.
 - Instalador autocontenido `INSTALAR_USRFACT_TODO_EN_UNO.sql`: contiene íntegramente y en orden los diez módulos de instalación, no usa `@`/`@@` y termina con un único `EXIT SUCCESS`.
 - Parser SQL Oracle independiente: 263 sentencias de tablas, relaciones, índices, datos base, línea base y permisos analizadas sin errores. La cláusula Oracle específica `START WITH LIMIT VALUE` se valida por patrón y contra la documentación oficial de Oracle 19c porque el parser externo no la implementa.
