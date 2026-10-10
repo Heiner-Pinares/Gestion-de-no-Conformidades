@@ -35,11 +35,42 @@ class Catalogo(models.Model):
     def __str__(self):
         return self.nombre
 
+    def _siguiente_valor_tecnico(self, using):
+        """Asigna un discriminador para esquemas Oracle con UNIQUE(clase, valor).
+
+        En el negocio ``valor`` solo representa un nivel para IMPACTO y
+        URGENCIA. Algunas instalaciones Oracle existentes tienen una
+        restriccion unica no condicional que admite como maximo un NULL por
+        clase. Para que esas instalaciones funcionen con permisos solamente
+        DML, las demas clases usan este numero interno sin exponerlo en la UI.
+        """
+        usados = set(
+            Catalogo._base_manager.using(using)
+            .select_for_update()
+            .filter(clase=self.clase)
+            .exclude(pk=self.pk)
+            .exclude(valor__isnull=True)
+            .values_list("valor", flat=True)
+        )
+        for candidato in range(1, 32768):
+            if candidato not in usados:
+                return candidato
+        raise ValueError(f"No quedan identificadores tecnicos para {self.clase}.")
+
     def save(self, *args, **kwargs):
         if getattr(self, "CLASE", None):
             self.clase = self.CLASE
         if self.clase in {"IMPACTO", "URGENCIA"} and self.valor is not None:
             self.codigo = str(self.valor)
+        elif self.clase not in {"IMPACTO", "URGENCIA"} and self.valor is None:
+            alias = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+            with transaction.atomic(using=alias):
+                self.valor = self._siguiente_valor_tecnico(alias)
+                update_fields = kwargs.get("update_fields")
+                if update_fields is not None and "valor" not in update_fields:
+                    kwargs["update_fields"] = set(update_fields) | {"valor"}
+                super().save(*args, **kwargs)
+            return
         super().save(*args, **kwargs)
 
     def clean(self):

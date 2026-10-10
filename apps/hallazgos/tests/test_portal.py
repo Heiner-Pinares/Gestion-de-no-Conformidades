@@ -1175,9 +1175,25 @@ class Recorridos(TestCase):
         self.assertEqual(response.url, reverse('hallazgo_causa', args=[hallazgo.pk]))
 
     def test_semillas_idempotentes(self):
-        call_command('seed_initial_data',stdout=StringIO());call_command('seed_initial_data',stdout=StringIO())
+        call_command('seed_initial_data',stdout=StringIO())
+        TipoRegistro.objects.filter(codigo='INC').update(valor=None)
+        call_command('seed_initial_data',stdout=StringIO())
         self.assertEqual(PreguntaCausa.objects.count(),32);self.assertEqual(MatrizPrioridad.objects.count(),9)
         self.assertEqual({"USUARIO", "VALIDADOR", "ADMINISTRADOR"}, {"USUARIO", "VALIDADOR", "ADMINISTRADOR"})
+        from apps.catalogos.models import Catalogo
+        tecnicos = Catalogo.objects.filter(clase__in=('TIPO','FUENTE','PRIORIDAD','CATEGORIA'))
+        self.assertFalse(tecnicos.filter(valor__isnull=True).exists())
+        for clase in ('TIPO','FUENTE','PRIORIDAD','CATEGORIA'):
+            valores = list(tecnicos.filter(clase=clase).values_list('valor', flat=True))
+            self.assertEqual(len(valores), len(set(valores)))
+
+    def test_catalogo_nuevo_recibe_valor_tecnico_interno(self):
+        fuente = FuenteDeteccion.objects.create(codigo='NUEVA', nombre='Fuente nueva')
+        self.assertIsNotNone(fuente.valor)
+        self.assertNotEqual(
+            fuente.valor,
+            FuenteDeteccion.objects.get(codigo='OPERACION').valor,
+        )
 
     def test_pantallas_de_tratamiento_y_post_transicion(self):
         h=self.crear(es_critica='SI',origen_tecnologico=True)

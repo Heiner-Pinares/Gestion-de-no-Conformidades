@@ -4,7 +4,7 @@ from pathlib import Path
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.catalogos.models import (
-    CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
+    Catalogo, CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
     PreguntaCausa, Prioridad, TipoRegistro, Urgencia,
 )
 
@@ -26,6 +26,15 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        # Compatibilidad DML con instalaciones Oracle que conservan
+        # UNIQUE(clase, valor): libera el unico NULL permitido antes de crear
+        # los demas elementos de cada catalogo. El numero es interno y no
+        # cambia el significado funcional de Tipo, Fuente, Prioridad o 6M.
+        for catalogo in Catalogo.objects.filter(
+            clase__in=("TIPO", "FUENTE", "PRIORIDAD", "CATEGORIA"),
+            valor__isnull=True,
+        ).order_by("clase", "pk"):
+            catalogo.save(update_fields=["valor"])
         for codigo, nombre in [("INC", "Incidente"), ("PBI", "Problema (PBI)"), ("SNC", "Salida No Conforme"), ("NOC", "No Conforme")]:
             TipoRegistro.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre})
         for codigo, nombre in FUENTES:

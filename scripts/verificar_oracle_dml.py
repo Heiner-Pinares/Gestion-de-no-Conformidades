@@ -191,14 +191,11 @@ def main() -> int:
         cursor.execute(
             "SELECT COUNT(*) FROM all_constraints "
             "WHERE owner=%s AND table_name='TBL_CATALOGO_NC' "
-            "AND constraint_name='UK_CAT_CLASE_VALOR_NC'",
+            "AND constraint_name='UK_CAT_CLASE_VALOR_NC' "
+            "AND constraint_type='U' AND status='ENABLED' AND validated='VALIDATED'",
             [esquema],
         )
-        exigir(
-            cursor.fetchone()[0] == 0,
-            "La restricción UK_CAT_CLASE_VALOR_NC es incompatible con Oracle. "
-            "Ejecute como USRFACT docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql.",
-        )
+        catalogo_unico_compatible = cursor.fetchone()[0] == 1
         cursor.execute(
             "SELECT COUNT(*) FROM all_indexes "
             "WHERE owner=%s AND table_name='TBL_CATALOGO_NC' "
@@ -206,11 +203,23 @@ def main() -> int:
             "AND uniqueness='UNIQUE' AND status='VALID'",
             [esquema],
         )
+        catalogo_indice_condicional = cursor.fetchone()[0] == 1
         exigir(
-            cursor.fetchone()[0] == 1,
-            "Falta el índice condicional UX_CAT_CLASE_VALOR_NC. "
-            "Ejecute como USRFACT docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql.",
+            catalogo_unico_compatible or catalogo_indice_condicional,
+            "Falta una regla de unicidad válida para tbl_catalogo_nc.",
         )
+
+        if catalogo_unico_compatible:
+            cursor.execute(
+                "SELECT COUNT(*) FROM tbl_catalogo_nc "
+                "WHERE clase IN ('TIPO','FUENTE','PRIORIDAD','CATEGORIA') "
+                "AND valor IS NULL"
+            )
+            exigir(
+                cursor.fetchone()[0] == 0,
+                "Hay catálogos técnicos sin valor. Ejecute con USRFACSOP: "
+                "python manage.py seed_initial_data.",
+            )
 
         comprobaciones_catalogo = (
             ("tbl_catalogo_nc", 29, "Faltan valores indispensables en tbl_catalogo_nc."),
@@ -244,6 +253,11 @@ def main() -> int:
             "AVISO ORACLE: no están instalados los triggers opcionales: "
             + ", ".join(sorted(faltantes_trigger))
             + ". El portal aplicará estas reglas desde Django."
+        )
+    if catalogo_unico_compatible and not catalogo_indice_condicional:
+        print(
+            "AVISO ORACLE: tbl_catalogo_nc usa la restricción única existente; "
+            "el portal mantiene sus valores técnicos mediante DML."
         )
     print(
         "OK ORACLE DML: 24 tablas, 229 columnas, 96 permisos DML, "

@@ -199,6 +199,15 @@ La preparación local no sustituye una prueba contra Oracle real. Antes del pase
 4. Creación, tratamiento, evidencia BLOB, evaluación, cierre y descarga de plantillas de un caso de prueba.
 5. Confirmación de HTTPS, respaldo/restauración, monitoreo y rotación de secretos.
 
-### Reparación de instalaciones con `UK_CAT_CLASE_VALOR_NC`
+### Instalaciones con `UK_CAT_CLASE_VALOR_NC`
 
-Si una instalación anterior creó la restricción `UK_CAT_CLASE_VALOR_NC UNIQUE (clase, valor)`, Oracle rechazará el segundo catálogo de una misma clase cuyo `valor` sea `NULL`. El propietario `USRFACT` debe ejecutar una sola vez `docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql`. El script elimina únicamente esa restricción incompatible, crea el índice condicional correcto, realiza una prueba reversible y no elimina datos ni cambia columnas. Después, la cuenta de aplicación puede ejecutar `python manage.py seed_initial_data` para completar los maestros de manera idempotente.
+El portal admite tanto el índice condicional del instalador oficial como una instalación existente con `UK_CAT_CLASE_VALOR_NC UNIQUE (clase, valor)`. En el segundo caso, `seed_initial_data` completa mediante DML los identificadores técnicos de Tipo, Fuente, Prioridad y Categoría antes de crear los registros faltantes. Esos números no se muestran ni se interpretan como niveles de negocio; los niveles continúan siendo exclusivamente Impacto y Urgencia.
+
+No se requiere que `USRFACT` altere la tabla. Con la cuenta de aplicación `USRFACSOP`, ejecute:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py seed_initial_data
+.\.venv\Scripts\python.exe run.py check
+```
+
+El archivo `docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql` queda como normalización opcional para el propietario del esquema, pero no es necesario para instalar ni arrancar el portal.
