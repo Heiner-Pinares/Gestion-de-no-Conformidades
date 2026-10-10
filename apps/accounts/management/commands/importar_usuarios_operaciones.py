@@ -1,10 +1,13 @@
 import re
+import os
 import unicodedata
 import zipfile
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from xml.etree import ElementTree
 
+from django.contrib.auth.hashers import make_password
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.db.models.functions import Lower
@@ -195,11 +198,46 @@ class Command(BaseCommand):
         self.stdout.write(f"Iniciando importación de {total} usuarios...")
         self.stdout.flush()
 
+        # El PBKDF2 de Django es deliberadamente costoso. En servidores con
+        # CPU limitada, cifrar cientos de claves en serie puede tomar decenas
+        # de minutos. Se calculan antes de abrir la transacción de Oracle y en
+        # varios hilos; hashlib.pbkdf2_hmac libera el GIL durante el cálculo.
+        correos = [perfil["email"].casefold() for perfil in perfiles]
+        existentes_estimados = set(
+            Usuario.objects.annotate(email_normalizado=Lower("email"))
+            .filter(email_normalizado__in=correos)
+            .values_list("email_normalizado", flat=True)
+        )
+        perfiles_con_clave = [
+            perfil for perfil in perfiles
+            if options["restablecer_claves"]
+            or perfil["email"].casefold() not in existentes_estimados
+        ]
+        claves_preparadas = {}
+        if perfiles_con_clave:
+            cantidad_claves = len(perfiles_con_clave)
+            trabajadores = min(8, max(1, os.cpu_count() or 1), cantidad_claves)
+            self.stdout.write(
+                f"Cifrando {cantidad_claves} claves con {trabajadores} hilos de cálculo..."
+            )
+            self.stdout.flush()
+            with ThreadPoolExecutor(max_workers=trabajadores) as ejecutor:
+                pendientes = {
+                    ejecutor.submit(make_password, perfil["codigo"]): perfil["fila"]
+                    for perfil in perfiles_con_clave
+                }
+                for indice, tarea in enumerate(as_completed(pendientes), start=1):
+                    claves_preparadas[pendientes[tarea]] = tarea.result()
+                    if indice % 25 == 0 or indice == cantidad_claves:
+                        self.stdout.write(
+                            f"Claves cifradas: {indice}/{cantidad_claves}."
+                        )
+                        self.stdout.flush()
+
         with transaction.atomic():
             # Resolvemos primero todas las cuentas existentes. Así los nombres
             # anteriores de esas mismas cuentas pueden reutilizarse sin agregar
             # sufijos innecesarios.
-            correos = [perfil["email"].casefold() for perfil in perfiles]
             coincidencias = list(
                 Usuario.objects.select_for_update()
                 .annotate(email_normalizado=Lower("email"))
@@ -246,7 +284,7 @@ class Command(BaseCommand):
             # Evita colisiones cuando dos cuentas existentes deben intercambiar
             # o normalizar sus nombres de acceso dentro de la misma importación.
             temporales = set(reservados)
-            for indice, perfil in enumerate(perfiles, start=1):
+            for perfil in perfiles:
                 usuario = existentes[perfil["fila"]]
                 if usuario is None or usuario.username == perfil["username"]:
                     continue
@@ -262,15 +300,16 @@ class Command(BaseCommand):
             usuarios_por_nombre = {}
             usuarios_por_email = {}
             creados = actualizados = claves = 0
-            for perfil in perfiles:
+            for indice, perfil in enumerate(perfiles, start=1):
                 usuario = existentes[perfil["fila"]]
                 creado = usuario is None
                 if creado:
                     usuario = Usuario(username=perfil["username"], is_active=True)
-                    usuario.set_password(perfil["codigo"])
+                    clave_preparada = claves_preparadas.get(perfil["fila"])
+                    usuario.password = clave_preparada or make_password(perfil["codigo"])
                     claves += 1
                 elif options["restablecer_claves"]:
-                    usuario.set_password(perfil["codigo"])
+                    usuario.password = claves_preparadas[perfil["fila"]]
                     claves += 1
                 usuario.username = perfil["username"]
                 # Esta importación define cuentas operativas. El rol queda
