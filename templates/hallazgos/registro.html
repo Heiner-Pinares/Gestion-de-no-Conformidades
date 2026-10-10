@@ -150,6 +150,9 @@
   const error = document.getElementById('impactoError');
   const matriz = JSON.parse(document.getElementById('matrizPrioridad').textContent);
   const tipoRegistro = document.getElementById('id_tipo_registro');
+  const proceso = document.getElementById('id_proceso');
+  const subproceso = document.getElementById('id_subproceso');
+  const opcionesSubproceso = [...subproceso.options].filter(opcion => opcion.value);
   const codigoHallazgo = document.getElementById('hallazgoCode');
   const codigoStatus = document.getElementById('hallazgoCodeStatus');
   const codigosSac = JSON.parse(document.getElementById('codigosSac').textContent);
@@ -161,6 +164,18 @@
   const etiquetas = {1: 'Bajo', 2: 'Medio', 3: 'Alto'};
   const clasesNivel = {1: 'level-low', 2: 'level-medium', 3: 'level-high'};
   const clasesPunto = {1: 'low', 2: 'medium', 3: 'high'};
+
+  function filtrarSubprocesos() {
+    const procesoId = proceso.value;
+    opcionesSubproceso.forEach(opcion => {
+      const corresponde = Boolean(procesoId) && opcion.dataset.proceso === procesoId;
+      opcion.hidden = !corresponde;
+      opcion.disabled = !corresponde;
+    });
+    const seleccionada = subproceso.options[subproceso.selectedIndex];
+    if (seleccionada && seleccionada.value && seleccionada.disabled) subproceso.value = '';
+    subproceso.disabled = !procesoId;
+  }
 
   function aplicarColorNivel(elemento, nivel) {
     if (!elemento) return;
@@ -269,8 +284,10 @@
     aplicarColorNivel(resultadoContenedor, resultado);
   }));
   tipoRegistro.addEventListener('change', actualizarCodigoHallazgo);
+  proceso.addEventListener('change', filtrarSubprocesos);
   opcionesTecnologia.forEach(opcion => opcion.addEventListener('change', actualizarTicketTecnologico));
   actualizarCodigoHallazgo();
+  filtrarSubprocesos();
   actualizarTicketTecnologico();
   if (niveles().every(Boolean)) guardarEvaluacion(false);
 })();

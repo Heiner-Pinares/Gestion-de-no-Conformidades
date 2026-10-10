@@ -15,7 +15,7 @@ from django.utils import timezone
 from PIL import Image
 
 from apps.accounts.models import Usuario
-from apps.catalogos.models import ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro, Urgencia
+from apps.catalogos.models import ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
 from apps.hallazgos.forms import HallazgoForm
 from apps.hallazgos.models import Accion, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
 from apps.hallazgos.selectors import acciones_disponibles, hallazgos_visibles, timeline_hallazgo
@@ -817,6 +817,8 @@ class Recorridos(TestCase):
         self.assertLess(html.index('Fecha de registro'), html.index('Fecha de detección'))
         self.assertLess(html.index('Fecha de detección'), html.index('Fecha de solución'))
         self.assertLess(html.index('id_proceso'), html.rindex('1. Identificación'))
+        self.assertIn('data-proceso=', html)
+        self.assertIn('filtrarSubprocesos', html)
         self.assertIn('id_actividad', html)
         self.assertNotIn('id_criterio_categoria', html)
         self.assertNotIn('id_requisito_referencia', html)
@@ -1206,6 +1208,13 @@ class Recorridos(TestCase):
         TipoRegistro.objects.filter(codigo='INC').update(valor=None)
         call_command('seed_initial_data',stdout=StringIO())
         self.assertEqual(PreguntaCausa.objects.count(),32);self.assertEqual(MatrizPrioridad.objects.count(),9)
+        procesos_oficiales = Proceso.objects.exclude(nombre='Proceso de prueba')
+        self.assertEqual(procesos_oficiales.count(), 11)
+        self.assertEqual(
+            Subproceso.objects.filter(proceso__in=procesos_oficiales).count(),
+            11 * 24,
+        )
+        self.assertFalse(procesos_oficiales.exclude(subprocesos__activo=True).exists())
         self.assertEqual({"USUARIO", "VALIDADOR", "ADMINISTRADOR"}, {"USUARIO", "VALIDADOR", "ADMINISTRADOR"})
         from apps.catalogos.models import Catalogo
         tecnicos = Catalogo.objects.filter(clase__in=('TIPO','FUENTE','PRIORIDAD','CATEGORIA'))

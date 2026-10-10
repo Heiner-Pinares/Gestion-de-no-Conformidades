@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.catalogos.models import (
     Catalogo, CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
-    PreguntaCausa, Prioridad, TipoRegistro, Urgencia,
+    PreguntaCausa, Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
 )
 
 ROLES = {
@@ -49,6 +49,36 @@ class Command(BaseCommand):
             ConfiguracionImpacto.objects.create()
         for codigo, nombre in (("FACTURACION", "Emisión de facturación"), ("POST_FACTURACION", "Vencimiento de ciclo")):
             ConfiguracionUrgencia.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre, "activo": True})
+        ruta_catalogos = Path(__file__).resolve().parents[2] / "data" / "procesos_subprocesos.json"
+        catalogos = json.loads(ruta_catalogos.read_text(encoding="utf-8"))
+        procesos = []
+        for nombre in catalogos["procesos"]:
+            proceso, _ = Proceso.objects.get_or_create(
+                nombre=nombre,
+                defaults={"activo": True},
+            )
+            if not proceso.activo:
+                Proceso.objects.filter(pk=proceso.pk).update(activo=True)
+                proceso.activo = True
+            procesos.append(proceso)
+        nombres_subprocesos = catalogos["subprocesos"]
+        existentes = set(
+            Subproceso.objects.filter(
+                proceso__in=procesos,
+                nombre__in=nombres_subprocesos,
+            ).values_list("proceso_id", "nombre")
+        )
+        Subproceso.objects.bulk_create([
+            Subproceso(proceso=proceso, nombre=nombre, activo=True)
+            for proceso in procesos
+            for nombre in nombres_subprocesos
+            if (proceso.pk, nombre) not in existentes
+        ])
+        Subproceso.objects.filter(
+            proceso__in=procesos,
+            nombre__in=nombres_subprocesos,
+            activo=False,
+        ).update(activo=True)
         # TODO negocio: reemplazar esta matriz DEMO por la oficial aprobada.
         demo = [["BAJA", "MEDIA", "ALTA"], ["MEDIA", "ALTA", "ALTA"], ["ALTA", "ALTA", "CRITICA"]]
         for impacto, fila in enumerate(demo, 1):
@@ -59,4 +89,7 @@ class Command(BaseCommand):
             obj, _ = CategoriaCausa.objects.get_or_create(codigo=categoria["codigo"], defaults={"nombre": categoria["nombre"], "orden": int(categoria["codigo"])})
             for orden, pregunta in enumerate(categoria["preguntas"], 1):
                 PreguntaCausa.objects.get_or_create(codigo=pregunta["codigo"], defaults={"categoria": obj, "texto": pregunta["texto"], "orden": orden})
-        self.stdout.write(self.style.SUCCESS("Maestros, roles integrados y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."))
+        self.stdout.write(self.style.SUCCESS(
+            "Maestros, roles integrados, 11 procesos, 24 subprocesos por proceso "
+            "y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."
+        ))

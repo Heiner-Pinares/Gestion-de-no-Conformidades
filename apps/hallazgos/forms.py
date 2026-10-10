@@ -14,6 +14,17 @@ FECHA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 FECHA_HORA = forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")
 
 
+class SubprocesoSelect(forms.Select):
+    """Expone el proceso de cada opción para filtrar el desplegable en el navegador."""
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        opcion = super().create_option(name, value, label, selected, index, subindex, attrs)
+        instancia = getattr(value, "instance", None)
+        if instancia is not None:
+            opcion["attrs"]["data-proceso"] = str(instancia.proceso_id)
+        return opcion
+
+
 class EstiloForm:
     def estilizar(self):
         for nombre, campo in self.fields.items():
@@ -46,6 +57,11 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
                 del self.fields[nombre]
         for nombre in ("tipo_registro", "fuente_deteccion", "proceso", "subproceso", "urgencia"):
             self.fields[nombre].queryset = self.fields[nombre].queryset.filter(activo=True)
+        campo_subproceso = self.fields["subproceso"]
+        campo_subproceso.widget = SubprocesoSelect(
+            attrs=campo_subproceso.widget.attrs,
+            choices=campo_subproceso.choices,
+        )
         self.fields["ticket_remedy"].widget.attrs["placeholder"] = "Ej. INC000001305088"
         self.fields["actividad"].required = False
         self.fields["actividad"].label = "Actividad (opcional)"
