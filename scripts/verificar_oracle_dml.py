@@ -13,6 +13,7 @@ sys.path.insert(0, str(BASE))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 import django  # noqa: E402
+import oracledb  # noqa: E402
 
 django.setup()
 
@@ -212,6 +213,7 @@ def main() -> int:
 
     print(f"Servicio Oracle: {servicio}")
     print(f"Versión Oracle: {version_oracle}")
+    print(f"Modo python-oracledb: {'Thin' if oracledb.is_thin_mode() else 'Thick'}")
     print(f"Usuario de sesión: {usuario_sesion}")
     print(f"Esquema activo: {esquema_actual}")
     print(

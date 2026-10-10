@@ -4,7 +4,8 @@
 
 - Django 5.2.17 y Python 3.12.
 - PostgreSQL para desarrollo y Oracle 19c o superior para el servidor.
-- `python-oracledb` 4.0.2 en modo Thin; no requiere Oracle Client.
+- `python-oracledb` 4.0.2 en modo Thick para admitir el verificador 10G actual de `USRFACSOP`.
+- Oracle Instant Client 19c Basic o Basic Light x64 en `C:\oracle\instantclient_19`.
 - Waitress 3.0.2 como servidor WSGI en Windows.
 - WhiteNoise 6.12.0 para servir los archivos estáticos recolectados desde el mismo proceso.
 - Esquema propietario fijo: `USRFACT`.
@@ -80,6 +81,8 @@ DB_USER=USRFACSOP
 DB_PASSWORD_FILE=secrets/oracle_password.txt
 DB_REQUIRE_DML_ONLY=True
 DB_ALLOWED_USERS=USRFACSOP
+ORACLE_THICK_MODE=True
+ORACLE_CLIENT_LIB_DIR=C:/oracle/instantclient_19
 
 SECRET_KEY_FILE=secrets/django_secret_key.txt
 PORTAL_BIND_HOST=0.0.0.0
@@ -99,21 +102,42 @@ powershell -ExecutionPolicy Bypass -File scripts\configurar_secretos_windows.ps1
 
 El script solicita la contraseña Oracle de forma oculta, genera una `SECRET_KEY` independiente y restringe los archivos a la cuenta de servicio indicada. `.env`, `secrets`, logs, medios y estáticos recolectados están excluidos de Git.
 
+## 4. Habilitar Oracle Thick para la cuenta existente
+
+La cuenta `USRFACSOP` usa un verificador de contraseña 10G que no funciona en
+modo Thin. Sin intervención del DBA, instale Oracle Instant Client 19c Basic o
+Basic Light **x64**, extraiga su contenido y deje `oci.dll` directamente en:
+
+```text
+C:\oracle\instantclient_19\oci.dll
+```
+
+Instale también Microsoft Visual C++ Redistributable x64 requerido por Oracle
+Instant Client. Después ejecute:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\habilitar_oracle_thick_windows.ps1"
+```
+
+El script comprueba Python x64, carga realmente `oci.dll` y actualiza solamente
+`ORACLE_THICK_MODE` y `ORACLE_CLIENT_LIB_DIR` en `.env`. No muestra ni modifica
+la contraseña.
+
 Antes de cada entrega puede comprobar los archivos versionados con:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\verificar_secretos_git.py
 ```
 
-## 4. Comprobar sin iniciar
+## 5. Comprobar sin iniciar
 
 ```powershell
 .\.venv\Scripts\python.exe run.py check
 ```
 
-El comando muestra solamente el servicio, la versión Oracle, el usuario y el esquema conectados. Comprueba 24 tablas, 229 columnas, 96 permisos DML, 11 triggers válidos y habilitados, el BLOB de evidencias, catálogos mínimos y que las 56 migraciones registradas coincidan exactamente con el checkout. También ejecuta `django check --deploy`. Nunca imprime la contraseña ni el DSN.
+El comando muestra solamente el servicio, la versión Oracle, el modo Thick, el usuario y el esquema conectados. Comprueba 24 tablas, 229 columnas, 96 permisos DML, 11 triggers válidos y habilitados, el BLOB de evidencias, catálogos mínimos y que las 56 migraciones registradas coincidan exactamente con el checkout. También ejecuta `django check --deploy`. Nunca imprime la contraseña ni el DSN.
 
-## 5. Crear el primer superusuario
+## 6. Crear el primer superusuario
 
 ```powershell
 .\.venv\Scripts\python.exe run.py createsuperuser
@@ -121,7 +145,7 @@ El comando muestra solamente el servicio, la versión Oracle, el usuario y el es
 
 Este comando solo inserta datos por el ORM luego de validar el esquema. La contraseña se solicita interactivamente.
 
-## 6. Iniciar el portal
+## 7. Iniciar el portal
 
 Comando único:
 

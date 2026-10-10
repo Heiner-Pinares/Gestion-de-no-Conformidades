@@ -6,7 +6,8 @@ La instalación SQL deja listo el esquema `USRFACT`. El portal ya admite elegir 
 
 - Oracle Database 19c o superior.
 - Django 5.2.17.
-- `python-oracledb` 4.0.2 en modo Thin, definido en `requirements-oracle.txt`.
+- `python-oracledb` 4.0.2 en modo Thick, definido en `requirements-oracle.txt`, porque `USRFACSOP` usa actualmente un verificador de contraseña 10G.
+- Oracle Instant Client 19c Basic o Basic Light x64 en `C:\oracle\instantclient_19`.
 - `waitress` para servir Django en Windows, incluido en `requirements-oracle.txt`.
 
 ## Variables de conexión
@@ -19,6 +20,7 @@ La plantilla `.env.oracle.example` ya contiene la configuración no secreta reci
 - servidor web `172.19.194.219`, inicialmente en el puerto `8000`;
 - contraseña en `secrets/oracle_password.txt` mediante `DB_PASSWORD_FILE`, nunca dentro del repositorio ni del `.env`;
 - `SECRET_KEY` en `secrets/django_secret_key.txt`.
+- `ORACLE_THICK_MODE=True` y `ORACLE_CLIENT_LIB_DIR=C:/oracle/instantclient_19`.
 
 Antes de exponer el portal fuera de la red interna falta definir el dominio,
 certificado y proxy HTTPS. Esos valores no se pueden deducir de la conexión

@@ -103,6 +103,30 @@ elif DB_ENGINE == "oracle":
         raise ImproperlyConfigured(
             "DB_USER debe ser una cuenta DML autorizada: " + ", ".join(sorted(DB_ALLOWED_USERS))
         )
+    ORACLE_THICK_MODE = env.bool("ORACLE_THICK_MODE", default=False)
+    ORACLE_CLIENT_LIB_DIR = env("ORACLE_CLIENT_LIB_DIR", default="").strip()
+    if ORACLE_THICK_MODE:
+        if not ORACLE_CLIENT_LIB_DIR:
+            raise ImproperlyConfigured(
+                "ORACLE_CLIENT_LIB_DIR es obligatorio cuando ORACLE_THICK_MODE=True."
+            )
+        directorio_cliente = Path(ORACLE_CLIENT_LIB_DIR)
+        if not directorio_cliente.is_dir():
+            raise ImproperlyConfigured(
+                "No existe el directorio configurado en ORACLE_CLIENT_LIB_DIR."
+            )
+        if not (directorio_cliente / "oci.dll").is_file():
+            raise ImproperlyConfigured(
+                "ORACLE_CLIENT_LIB_DIR no contiene oci.dll. Extraiga allí Oracle Instant Client Basic x64."
+            )
+        try:
+            import oracledb
+
+            oracledb.init_oracle_client(lib_dir=str(directorio_cliente))
+        except Exception as error:
+            raise ImproperlyConfigured(
+                "No se pudo inicializar Oracle Thick. Revise Instant Client x64 y Microsoft Visual C++ Redistributable."
+            ) from error
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.oracle",
         "NAME": env("DB_DSN"),

@@ -4,7 +4,7 @@ Primera versión funcional local con Django 5.2 LTS, Python 3.12 y PostgreSQL. C
 
 ## Entrega Windows + Oracle 19c
 
-La entrega para Windows usa `requirements-oracle.txt`, `.env.oracle.example` y `run.py`. El esquema se instala una sola vez con `docs/oracle_usrfact/INSTALAR_USRFACT_TODO_EN_UNO.sql`; después, la aplicación se conecta con `USRFACSOP` y rechaza cuentas con privilegios DDL. `python run.py check` valida la conexión y `python run.py start` ejecuta el portal. Consulte [Despliegue Windows con Oracle](docs/DESPLIEGUE_WINDOWS_ORACLE.md) antes de copiar el sistema al servidor.
+La entrega para Windows usa `requirements-oracle.txt`, `.env.oracle.example` y `run.py`. El esquema se instala una sola vez con `docs/oracle_usrfact/INSTALAR_USRFACT_TODO_EN_UNO.sql`; después, la aplicación se conecta con `USRFACSOP` y rechaza cuentas con privilegios DDL. Debido al verificador 10G actual de esa cuenta, el servidor usa Oracle Instant Client 19c y `python-oracledb` Thick. `python run.py check` valida la conexión y `python run.py start` ejecuta el portal. Consulte [Despliegue Windows con Oracle](docs/DESPLIEGUE_WINDOWS_ORACLE.md) antes de copiar el sistema al servidor.
 
 ## Estructura actual: 24 tablas físicas y ninguna vista
 
