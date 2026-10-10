@@ -45,8 +45,12 @@ El archivo único fija la sesión en UTC y ejecuta, en este orden:
 `99_desinstalar.sql` se entrega únicamente para ambientes descartables. No forma parte de la instalación.
 
 Si las 24 tablas ya existen, no vuelva a ejecutar el instalador. Ejecute solamente
-`10_otorgar_permisos_usrfacsop.sql` conectado como `USRFACT`; concede y valida
-los 96 permisos DML de la cuenta técnica sin crear ni modificar tablas.
+`11_reparar_triggers_existentes.sql` y `10_otorgar_permisos_usrfacsop.sql`
+conectado como `USRFACT`. El primero requiere que un DBA haya concedido
+temporalmente `CREATE TRIGGER`, crea o reemplaza los 11 triggers corregidos y
+los valida. El segundo concede y valida los 96 permisos DML de la cuenta
+técnica sin crear ni modificar tablas. Después, el DBA puede revocar
+`CREATE TRIGGER` a `USRFACT`.
 
 `REQUISITOS_APLICACION_ORACLE.md` enumera los datos y ajustes que faltarán para que Django se conecte al esquema desde el servidor Windows.
 

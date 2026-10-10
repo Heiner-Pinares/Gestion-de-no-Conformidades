@@ -23,14 +23,28 @@ docs\oracle_usrfact\INSTALAR_USRFACT_TODO_EN_UNO.sql
 Debe conservar el log y comprobar que termine con `INSTALACION COMPLETADA Y VALIDADA`. El script concede a la cuenta técnica `USRFACSOP` `SELECT`, `INSERT`, `UPDATE` y `DELETE`. No le concede permisos para crear tablas, columnas, secuencias, restricciones ni triggers.
 
 Como las tablas ya fueron creadas en `USRFACT`, el DBA no debe repetir el
-instalador. Debe ejecutar una sola vez, conectado como `USRFACT`:
+instalador. Primero debe reparar los triggers que fallaron durante la ejecución
+anterior. Una cuenta DBA ejecuta:
+
+```sql
+GRANT CREATE TRIGGER TO USRFACT;
+```
+
+Después, conectado como `USRFACT`, se ejecutan estos dos archivos:
 
 ```text
+docs\oracle_usrfact\11_reparar_triggers_existentes.sql
 docs\oracle_usrfact\10_otorgar_permisos_usrfacsop.sql
 ```
 
-El script se puede repetir sin duplicar datos: comprueba que existan las 24
-tablas, concede los cuatro permisos DML a `USRFACSOP` y exige un total de 96.
+Ambos se pueden repetir sin duplicar datos. El primero crea o reemplaza los 11
+triggers corregidos y comprueba que estén válidos y habilitados. El segundo
+concede los cuatro permisos DML a `USRFACSOP` y exige un total de 96. Al final,
+el DBA puede retirar el privilegio temporal con:
+
+```sql
+REVOKE CREATE TRIGGER FROM USRFACT;
+```
 
 ## 2. Clonar e instalar en Windows Server
 
@@ -155,7 +169,7 @@ El inventario exacto de columnas y relaciones está en `docs/oracle_usrfact/mani
 
 La preparación local no sustituye una prueba contra Oracle real. Antes del pase deben completarse en homologación:
 
-1. Instalador ejecutado por `USRFACT` sin errores y con su validación final.
+1. Los 11 triggers reparados y los 96 permisos de `USRFACSOP` validados en el esquema existente.
 2. `run.py check` con la cuenta DML real.
 3. Inicio de Waitress y acceso HTTP desde el proxy.
 4. Creación, tratamiento, evidencia BLOB, evaluación, cierre y descarga de plantillas de un caso de prueba.

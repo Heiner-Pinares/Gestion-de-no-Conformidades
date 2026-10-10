@@ -80,6 +80,7 @@ def main() -> int:
     ajustes = textos["06_ajustar_identidades.sql"]
     permisos = textos["07_permisos.sql"]
     permisos_existente = textos["10_otorgar_permisos_usrfacsop.sql"]
+    reparacion_triggers = textos["11_reparar_triggers_existentes.sql"]
     maestro = textos["INSTALAR_USRFACT.sql"]
     todo_en_uno = textos["INSTALAR_USRFACT_TODO_EN_UNO.sql"]
 
@@ -198,6 +199,12 @@ def main() -> int:
            "El script para el esquema existente no cubre las 24 tablas para USRFACSOP.")
     exigir("v_permisos <> 96" in permisos_existente,
            "El script para el esquema existente no valida los 96 permisos DML.")
+    exigir(triggers.rstrip() in reparacion_triggers,
+           "La reparación del esquema existente no contiene los triggers vigentes completos.")
+    exigir("v_total <> 11" in reparacion_triggers,
+           "La reparación del esquema existente no valida los 11 triggers.")
+    exigir("GRANT CREATE TRIGGER TO USRFACT" in reparacion_triggers,
+           "La reparación no informa el privilegio requerido para crear triggers.")
 
     exigir(len(re.findall(r"INSERT\s+INTO\s+tbl_catalogo_nc\b", datos, re.I)) == 29,
            "La carga base no contiene 29 catálogos.")
