@@ -36,11 +36,34 @@ def verificar() -> None:
 
 def iniciar() -> None:
     verificar()
+    from django.conf import settings
     from django.core.management import call_command
     from waitress import serve
+
+    # WhiteNoise construye su inventario al crear la aplicación WSGI. En una
+    # instalación nueva debemos recolectar primero; si se importa WSGI antes,
+    # el proceso conserva un inventario vacío y el portal aparece sin CSS.
+    call_command("collectstatic", interactive=False, verbosity=1, clear=True)
+    requeridos = (
+        "css/portal-v8.css",
+        "css/portal.css",
+        "images/login-background-claro.png",
+    )
+    faltantes = [
+        nombre for nombre in requeridos
+        if not (Path(settings.STATIC_ROOT) / Path(nombre)).is_file()
+    ]
+    if faltantes:
+        raise RuntimeError(
+            "collectstatic no generó archivos indispensables: "
+            + ", ".join(faltantes)
+        )
+
+    # Debe importarse después de collectstatic para que WhiteNoise encuentre
+    # los archivos recién creados.
     from config.wsgi import application
 
-    call_command("collectstatic", interactive=False, verbosity=1)
+    print("OK ESTÁTICOS: CSS, imagen de acceso y WhiteNoise preparados.")
     host = os.environ.get("PORTAL_BIND_HOST", "0.0.0.0").strip()
     puerto = int(os.environ.get("PORTAL_PORT", "8000"))
     hilos = int(os.environ.get("PORTAL_THREADS", "8"))
