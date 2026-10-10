@@ -198,3 +198,7 @@ La preparación local no sustituye una prueba contra Oracle real. Antes del pase
 3. Inicio de Waitress y acceso HTTP desde el proxy.
 4. Creación, tratamiento, evidencia BLOB, evaluación, cierre y descarga de plantillas de un caso de prueba.
 5. Confirmación de HTTPS, respaldo/restauración, monitoreo y rotación de secretos.
+
+### Reparación de instalaciones con `UK_CAT_CLASE_VALOR_NC`
+
+Si una instalación anterior creó la restricción `UK_CAT_CLASE_VALOR_NC UNIQUE (clase, valor)`, Oracle rechazará el segundo catálogo de una misma clase cuyo `valor` sea `NULL`. El propietario `USRFACT` debe ejecutar una sola vez `docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql`. El script elimina únicamente esa restricción incompatible, crea el índice condicional correcto, realiza una prueba reversible y no elimina datos ni cambia columnas. Después, la cuenta de aplicación puede ejecutar `python manage.py seed_initial_data` para completar los maestros de manera idempotente.

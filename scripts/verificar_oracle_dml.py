@@ -188,6 +188,30 @@ def main() -> int:
             f"sobran={sorted(migraciones_bd-migraciones_codigo)}",
         )
 
+        cursor.execute(
+            "SELECT COUNT(*) FROM all_constraints "
+            "WHERE owner=%s AND table_name='TBL_CATALOGO_NC' "
+            "AND constraint_name='UK_CAT_CLASE_VALOR_NC'",
+            [esquema],
+        )
+        exigir(
+            cursor.fetchone()[0] == 0,
+            "La restricción UK_CAT_CLASE_VALOR_NC es incompatible con Oracle. "
+            "Ejecute como USRFACT docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql.",
+        )
+        cursor.execute(
+            "SELECT COUNT(*) FROM all_indexes "
+            "WHERE owner=%s AND table_name='TBL_CATALOGO_NC' "
+            "AND index_name='UX_CAT_CLASE_VALOR_NC' "
+            "AND uniqueness='UNIQUE' AND status='VALID'",
+            [esquema],
+        )
+        exigir(
+            cursor.fetchone()[0] == 1,
+            "Falta el índice condicional UX_CAT_CLASE_VALOR_NC. "
+            "Ejecute como USRFACT docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql.",
+        )
+
         comprobaciones_catalogo = (
             ("tbl_catalogo_nc", 29, "Faltan valores indispensables en tbl_catalogo_nc."),
             ("tbl_configuracion_impacto_nc", 1, "Falta la configuración de impacto."),
