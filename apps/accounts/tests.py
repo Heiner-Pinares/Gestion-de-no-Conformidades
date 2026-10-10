@@ -169,15 +169,31 @@ class ImportarUsuariosOperacionesTests(TestCase):
             archivo.writestr("xl/worksheets/sheet1.xml", xml)
 
     def test_importa_perfiles_claves_jefaturas_y_resuelve_usuario_duplicado(self):
+        existente = Usuario.objects.create_user(
+            username="acceso.anterior",
+            email="carlos1@claro.com.pe",
+            password="ClaveAnterior-2026!",
+            roles=["ADMINISTRADOR"],
+            area="Área anterior",
+        )
         with TemporaryDirectory() as carpeta:
             ruta = Path(carpeta) / "usuarios.xlsx"
             self.crear_xlsx(ruta)
             salida = StringIO()
             call_command("importar_usuarios_operaciones", ruta, dry_run=True, stdout=salida)
             self.assertIn("3 usuarios", salida.getvalue())
-            self.assertFalse(Usuario.objects.exists())
+            self.assertEqual(Usuario.objects.count(), 1)
 
-            call_command("importar_usuarios_operaciones", ruta, stdout=StringIO())
+            call_command(
+                "importar_usuarios_operaciones", ruta,
+                restablecer_claves=True, stdout=StringIO(),
+            )
+            # Repetir la carga actualiza las mismas cuentas y no cambia los
+            # nombres de acceso ya resueltos.
+            call_command(
+                "importar_usuarios_operaciones", ruta,
+                restablecer_claves=True, stdout=StringIO(),
+            )
 
         self.assertEqual(Usuario.objects.count(), 3)
         primero = Usuario.objects.get(email="carlos1@claro.com.pe")
@@ -188,6 +204,7 @@ class ImportarUsuariosOperacionesTests(TestCase):
         ))
         self.assertTrue(primero.check_password("C10001"))
         self.assertTrue(segundo.check_password("C10002"))
+        self.assertEqual(primero.pk, existente.pk)
         self.assertEqual(primero.roles, ["USUARIO"])
         self.assertEqual(primero.area, "Facturación")
         self.assertEqual(primero.gerencia, "Operaciones")
