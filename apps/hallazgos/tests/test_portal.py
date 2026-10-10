@@ -895,6 +895,33 @@ class Recorridos(TestCase):
             entidad='ConfiguracionImpacto', objeto=str(configuracion.pk), accion='actualizar',
         ).exists())
 
+    def test_administrador_crea_usuario_y_registra_auditoria(self):
+        from apps.catalogos.models import AuditoriaAdministracion
+
+        self.client.force_login(self.admin)
+        respuesta = self.client.post(reverse('usuario_crear'), {
+            'username': 'nuevo.usuario',
+            'first_name': 'Nuevo',
+            'last_name': 'Usuario',
+            'email': 'nuevo.usuario@claro.com.pe',
+            'area': 'Facturación',
+            'gerencia': 'Operaciones',
+            'direccion': 'Operaciones Comerciales',
+            'cargo': 'Analista',
+            'jefe': self.admin.pk,
+            'roles': ['USUARIO'],
+            'password1': 'Clave-Segura-Portal-2026!',
+            'password2': 'Clave-Segura-Portal-2026!',
+        })
+
+        self.assertRedirects(respuesta, reverse('usuarios'))
+        creado = Usuario.objects.get(username='nuevo.usuario')
+        self.assertEqual(creado.roles, ['USUARIO'])
+        self.assertTrue(creado.check_password('Clave-Segura-Portal-2026!'))
+        self.assertTrue(AuditoriaAdministracion.objects.filter(
+            entidad='Usuario', objeto=str(creado.pk), accion='crear',
+        ).exists())
+
     def test_urgencia_por_jefatura_y_configuracion_administrativa(self):
         from apps.catalogos.models import AuditoriaAdministracion
 

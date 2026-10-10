@@ -128,7 +128,10 @@ elif DB_ENGINE == "oracle":
                 "No se pudo inicializar Oracle Thick. Revise Instant Client x64 y Microsoft Visual C++ Redistributable."
             ) from error
     DATABASES = {"default": {
-        "ENGINE": "django.db.backends.oracle",
+        # Oracle 19c admite identificadores de 128 caracteres. El backend de
+        # Django conserva por compatibilidad un límite de 30 que truncaba la
+        # tabla oficial tbl_auditoria_administracion_nc (31 caracteres).
+        "ENGINE": "config.oracle_backend",
         "NAME": env("DB_DSN"),
         "USER": DB_USER,
         "PASSWORD": secreto("DB_PASSWORD", "DB_PASSWORD_FILE"),
