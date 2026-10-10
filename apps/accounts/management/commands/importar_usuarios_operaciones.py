@@ -7,6 +7,7 @@ from xml.etree import ElementTree
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+from django.db.models.functions import Lower
 
 from apps.accounts.models import Usuario
 
@@ -190,25 +191,38 @@ class Command(BaseCommand):
             ))
             return
 
+        total = len(perfiles)
+        self.stdout.write(f"Iniciando importación de {total} usuarios...")
+        self.stdout.flush()
+
         with transaction.atomic():
             # Resolvemos primero todas las cuentas existentes. Así los nombres
             # anteriores de esas mismas cuentas pueden reutilizarse sin agregar
             # sufijos innecesarios.
-            existentes = {}
-            for perfil in perfiles:
-                # No usar .first() sobre select_for_update(): Django agrega
-                # LIMIT 1 y Oracle no admite LIMIT/OFFSET con FOR UPDATE.
-                coincidencias = list(
-                    Usuario.objects.select_for_update()
-                    .filter(email__iexact=perfil["email"])
-                )
-                if len(coincidencias) > 1:
+            correos = [perfil["email"].casefold() for perfil in perfiles]
+            coincidencias = list(
+                Usuario.objects.select_for_update()
+                .annotate(email_normalizado=Lower("email"))
+                .filter(email_normalizado__in=correos)
+            )
+            existentes_por_email = {}
+            for usuario in coincidencias:
+                correo = usuario.email.casefold()
+                if correo in existentes_por_email:
                     raise CommandError(
                         "Hay más de una cuenta existente con el correo "
-                        f"{perfil['email']}. Corrija el duplicado antes de importar."
+                        f"{usuario.email}. Corrija el duplicado antes de importar."
                     )
-                usuario = coincidencias[0] if coincidencias else None
-                existentes[perfil["fila"]] = usuario
+                existentes_por_email[correo] = usuario
+            existentes = {
+                perfil["fila"]: existentes_por_email.get(perfil["email"].casefold())
+                for perfil in perfiles
+            }
+            self.stdout.write(
+                f"Cuentas identificadas: {len(coincidencias)} existentes y "
+                f"{total - len(coincidencias)} nuevas."
+            )
+            self.stdout.flush()
 
             ids_importados = {
                 usuario.pk for usuario in existentes.values() if usuario is not None
@@ -232,7 +246,7 @@ class Command(BaseCommand):
             # Evita colisiones cuando dos cuentas existentes deben intercambiar
             # o normalizar sus nombres de acceso dentro de la misma importación.
             temporales = set(reservados)
-            for perfil in perfiles:
+            for indice, perfil in enumerate(perfiles, start=1):
                 usuario = existentes[perfil["fila"]]
                 if usuario is None or usuario.username == perfil["username"]:
                     continue
@@ -278,6 +292,11 @@ class Command(BaseCommand):
                 usuarios_por_email[perfil["email"].casefold()] = usuario
                 creados += creado
                 actualizados += not creado
+                if indice % 25 == 0 or indice == total:
+                    self.stdout.write(
+                        f"Usuarios procesados en la transacción: {indice}/{total}."
+                    )
+                    self.stdout.flush()
 
             vinculados = 0
             autojefaturas = 0
