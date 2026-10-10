@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -11,6 +12,7 @@ import sqlparse
 
 
 BASE = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(BASE))
 CARPETA = BASE / "docs" / "oracle_usrfact"
 MANIFEST = json.loads((CARPETA / "manifest_esquema.json").read_text(encoding="utf-8"))
 ESPERADAS = {nombre.upper() for nombre in MANIFEST["tables"]}
@@ -69,6 +71,7 @@ def main() -> int:
     exigir(archivos_sql, "No se encontraron scripts SQL.")
     textos = {p.name: p.read_text(encoding="utf-8") for p in archivos_sql}
 
+    prevalidacion = textos["00_prevalidacion.sql"]
     ddl = textos["01_crear_tablas.sql"]
     relaciones = textos["02_relaciones_indices.sql"]
     triggers = textos["03_triggers_integridad.sql"]
@@ -77,6 +80,7 @@ def main() -> int:
     ajustes = textos["06_ajustar_identidades.sql"]
     permisos = textos["07_permisos.sql"]
     maestro = textos["INSTALAR_USRFACT.sql"]
+    todo_en_uno = textos["INSTALAR_USRFACT_TODO_EN_UNO.sql"]
 
     tablas = tablas_y_columnas(ddl)
     exigir(set(tablas) == ESPERADAS,
@@ -124,13 +128,47 @@ def main() -> int:
            "CharField debe usar NVARCHAR2 sin semántica CHAR explícita.")
     exigir(not re.search(r"(?<!N)CLOB", ddl, re.I),
            "TextField/JSONField debe usar NCLOB para coincidir con Django Oracle.")
+    exigir(re.search(r"datos\s+NCLOB", prevalidacion, re.I),
+           "La prevalidación no prueba el tipo NCLOB usado por JSONField.")
+    exigir(re.search(r"CHECK\s*\(datos\s+IS\s+JSON\s*\(STRICT\)\)", prevalidacion, re.I),
+           "La prevalidación no prueba NCLOB con IS JSON (STRICT).")
+    exigir(re.search(r"USER_SYS_PRIVS.*CREATE TRIGGER", prevalidacion, re.I | re.S),
+           "La prevalidación no exige el privilegio directo CREATE TRIGGER.")
+    exigir(re.search(
+        r"BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+tbl_nc_prevalidacion_nombre_largo_123",
+        prevalidacion, re.I,
+    ), "La prevalidación no compila y ejecuta el patrón de trigger NCLOB corregido.")
+    exigir("ux_nc_prevalidacion_valor_123" in prevalidacion,
+           "La prevalidación no prueba el índice condicional del catálogo.")
+    exigir("UX_CAT_CLASE_VALOR_NC" in textos["09_validacion_final.sql"].upper(),
+           "La validación final no comprueba el índice condicional del catálogo.")
 
     indices = re.findall(r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)", relaciones, re.I)
-    exigir(len(indices) == 40, f"Se esperaban 40 índices explícitos y se encontraron {len(indices)}.")
+    exigir(len(indices) == 41, f"Se esperaban 41 índices explícitos y se encontraron {len(indices)}.")
+    exigir(not re.search(r"CONSTRAINT\s+uk_cat_clase_valor_nc\b", ddl, re.I),
+           "La unicidad condicional del catálogo no puede ser una restricción UNIQUE de Oracle.")
+    exigir(re.search(
+        r"CREATE\s+UNIQUE\s+INDEX\s+ux_cat_clase_valor_nc\s+ON\s+tbl_catalogo_nc\s*\(\s*"
+        r"CASE\s+WHEN\s+valor\s+IS\s+NOT\s+NULL\s+THEN\s+clase\s+END\s*,\s*"
+        r"CASE\s+WHEN\s+valor\s+IS\s+NOT\s+NULL\s+THEN\s+valor\s+END\s*\)",
+        relaciones, re.I | re.S,
+    ), "Falta el índice funcional que permite varios valores NULL por clase.")
 
     nombres_triggers = re.findall(r"CREATE\s+OR\s+REPLACE\s+TRIGGER\s+(\w+)", triggers, re.I)
     exigir(len(nombres_triggers) == 11,
            f"Se esperaban 11 triggers y se encontraron {len(nombres_triggers)}.")
+
+    columnas_lob = set()
+    for tabla, cuerpo in re.findall(r"CREATE\s+TABLE\s+(\w+)\s*\((.*?)\n\);", ddl, re.I | re.S):
+        for definicion in separar_definiciones(cuerpo):
+            partes = definicion.split(None, 1)
+            if len(partes) == 2 and partes[0].upper() != "CONSTRAINT" and re.search(r"\b(?:NCLOB|CLOB|BLOB)\b", partes[1], re.I):
+                columnas_lob.add((tabla.upper(), partes[0].strip('"').upper()))
+    for columnas, tabla in re.findall(r"UPDATE\s+OF\s+(.*?)\s+ON\s+(\w+)", triggers, re.I | re.S):
+        for columna in columnas.split(","):
+            par = (tabla.upper(), columna.strip().upper())
+            exigir(par not in columnas_lob,
+                   f"Oracle 19c no permite UPDATE OF sobre la columna LOB {tabla}.{columna.strip()}.")
 
     nombres_constraints = re.findall(r"\bCONSTRAINT\s+(\w+)", ddl + "\n" + relaciones, re.I)
     objetos = [n.upper() for n in nombres_constraints + indices + nombres_triggers]
@@ -165,6 +203,22 @@ def main() -> int:
     exigir(len(migraciones) == 56, f"La línea base debe contener 56 migraciones y contiene {len(migraciones)}.")
     exigir(len(migraciones) == len(set(migraciones)), "Hay migraciones duplicadas en la línea base Django.")
 
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    import django
+    from django.db.migrations.loader import MigrationLoader
+
+    django.setup()
+    aplicaciones = {"accounts", "auth", "catalogos", "contenttypes", "hallazgos", "sessions"}
+    migraciones_codigo = {
+        (app, nombre)
+        for app, nombre in MigrationLoader(None, ignore_no_migrations=True).disk_migrations
+        if app in aplicaciones
+    }
+    exigir(set(migraciones) == migraciones_codigo,
+           "La línea base Django no coincide exactamente con las migraciones del código: "
+           f"faltan={sorted(migraciones_codigo-set(migraciones))}, "
+           f"sobran={sorted(set(migraciones)-migraciones_codigo)}")
+
     llamados = re.findall(r"@@([^\s]+\.sql)", maestro, re.I)
     exigir(llamados == [
         "00_prevalidacion.sql", "01_crear_tablas.sql", "02_relaciones_indices.sql",
@@ -173,6 +227,19 @@ def main() -> int:
         "09_validacion_final.sql",
     ], f"Orden de instalación incorrecto: {llamados}")
 
+    exigir(not re.search(r"^\s*@@?", todo_en_uno, re.M),
+           "El instalador todo en uno no puede depender de otros archivos SQL.")
+    for nombre in [
+        "00_prevalidacion.sql", "01_crear_tablas.sql", "02_relaciones_indices.sql",
+        "03_triggers_integridad.sql", "04_datos_base.sql", "05_baseline_django.sql",
+        "06_ajustar_identidades.sql", "07_permisos.sql", "08_prueba_humo.sql",
+        "09_validacion_final.sql",
+    ]:
+        exigir(textos[nombre].rstrip() in todo_en_uno,
+               f"El instalador todo en uno no contiene íntegramente {nombre}.")
+    exigir(len(re.findall(r"^EXIT\s+SUCCESS\s*$", todo_en_uno, re.I | re.M)) == 1,
+           "El instalador todo en uno debe terminar con un único EXIT SUCCESS.")
+
     # sqlparse no valida la gramática Oracle, pero sí detecta archivos vacíos y
     # permite revisar que todo el paquete pueda tokenizarse sin pérdida.
     for nombre, texto in textos.items():
@@ -180,7 +247,7 @@ def main() -> int:
 
     print(
         "OK ESTATICO: 24 tablas, 229 columnas, 44 FK, 22 identidades, "
-        "40 indices, 11 triggers, 22 identidades ajustadas, 29 catalogos, 9 prioridades, "
+        "41 indices, 11 triggers, 22 identidades ajustadas, 29 catalogos, 9 prioridades, "
         "32 preguntas, 56 migraciones base y permisos para 3 usuarios."
     )
     return 0

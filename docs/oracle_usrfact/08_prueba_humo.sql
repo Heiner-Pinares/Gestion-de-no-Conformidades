@@ -34,6 +34,15 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20201, 'Fallo sincronizacion usuario/rol.');
     END IF;
 
+    UPDATE tbl_usuario_nc SET cargo = 'PRUEBA UPDATE' WHERE id = v_usuario_id;
+    SELECT COUNT(*) INTO v_total
+      FROM tbl_usuario_rol_nc
+     WHERE usuario_id = v_usuario_id AND rol = 'USUARIO';
+    IF v_total <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20206,
+            'Fallo trigger de roles al actualizar una columna no JSON.');
+    END IF;
+
     INSERT INTO tbl_proceso_nc (
         nombre, activo, gerencia, responsable_id, validadores_ids
     ) VALUES (
@@ -48,6 +57,15 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20202, 'Fallo sincronizacion proceso/validador.');
     END IF;
 
+    UPDATE tbl_proceso_nc SET gerencia = 'PRUEBA UPDATE' WHERE id = v_proceso_id;
+    SELECT COUNT(*) INTO v_total
+      FROM tbl_proceso_validador_nc
+     WHERE proceso_id = v_proceso_id AND usuario_id = v_usuario_id;
+    IF v_total <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20207,
+            'Fallo trigger de validadores al actualizar una columna no JSON.');
+    END IF;
+
     INSERT INTO tbl_subproceso_nc (proceso_id, nombre, activo)
     VALUES (v_proceso_id, '__SUBPROCESO_PRUEBA__', 1)
     RETURNING id INTO v_subproceso_id;
@@ -60,6 +78,19 @@ BEGIN
      WHERE clase = 'URGENCIA' AND codigo = '1';
     SELECT id INTO v_prioridad_id FROM tbl_catalogo_nc
      WHERE clase = 'PRIORIDAD' AND codigo = 'BAJA';
+
+    INSERT INTO tbl_catalogo_nc (clase, codigo, nombre, activo, valor, orden)
+    VALUES ('CATEGORIA', '__PRUEBA_NULL_1__', 'Prueba NULL 1', 1, NULL, 900);
+    INSERT INTO tbl_catalogo_nc (clase, codigo, nombre, activo, valor, orden)
+    VALUES ('CATEGORIA', '__PRUEBA_NULL_2__', 'Prueba NULL 2', 1, NULL, 901);
+    BEGIN
+        INSERT INTO tbl_catalogo_nc (clase, codigo, nombre, activo, valor, orden)
+        VALUES ('IMPACTO', '__PRUEBA_DUP__', 'Prueba duplicado', 1, 1, 902);
+        RAISE_APPLICATION_ERROR(-20208,
+            'El indice de catalogo permitio un valor no nulo duplicado.');
+    EXCEPTION
+        WHEN DUP_VAL_ON_INDEX THEN NULL;
+    END;
 
     INSERT INTO tbl_registro_general_nc (
         codigo, titulo, descripcion, fecha_registro, aplica_impacto,
@@ -181,7 +212,7 @@ BEGIN
     END IF;
 
     ROLLBACK TO prueba_humo_nc;
-    DBMS_OUTPUT.PUT_LINE('OK: prueba de las 24 tablas, relaciones, JSON, BLOB e identidades revertida.');
+    DBMS_OUTPUT.PUT_LINE('OK: prueba de las 24 tablas, relaciones, JSON, indices condicionales, triggers UPDATE, BLOB e identidades revertida.');
 EXCEPTION
     WHEN OTHERS THEN
         ROLLBACK TO prueba_humo_nc;

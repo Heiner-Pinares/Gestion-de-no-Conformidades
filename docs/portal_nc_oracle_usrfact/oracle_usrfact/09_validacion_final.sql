@@ -61,8 +61,19 @@ BEGIN
       FROM USER_INDEXES
      WHERE INDEX_NAME LIKE 'IX\_%\_NC' ESCAPE '\'
         OR INDEX_NAME LIKE 'UX\_%\_NC' ESCAPE '\';
-    IF v_total <> 40 THEN
-        RAISE_APPLICATION_ERROR(-20304, 'Se esperaban 40 indices explícitos y existen ' || v_total || '.');
+    IF v_total <> 41 THEN
+        RAISE_APPLICATION_ERROR(-20304, 'Se esperaban 41 indices explícitos y existen ' || v_total || '.');
+    END IF;
+
+    SELECT COUNT(*) INTO v_total
+      FROM USER_INDEXES
+     WHERE INDEX_NAME = 'UX_CAT_CLASE_VALOR_NC'
+       AND TABLE_NAME = 'TBL_CATALOGO_NC'
+       AND UNIQUENESS = 'UNIQUE'
+       AND STATUS = 'VALID';
+    IF v_total <> 1 THEN
+        RAISE_APPLICATION_ERROR(-20317,
+            'El indice condicional UX_CAT_CLASE_VALOR_NC no existe o no es valido.');
     END IF;
 
     SELECT COUNT(*) INTO v_total
@@ -149,7 +160,7 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20314, 'El contenido de evidencias no quedó como BLOB.');
     END IF;
 
-    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 40 indices, 11 triggers, 56 migraciones base y 288 permisos validados.');
+    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 41 indices, 11 triggers, 56 migraciones base y 288 permisos validados.');
 END;
 /
 

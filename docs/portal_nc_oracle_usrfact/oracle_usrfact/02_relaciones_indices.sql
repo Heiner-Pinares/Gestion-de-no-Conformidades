@@ -160,6 +160,14 @@ CREATE INDEX ix_pregunta_categoria_nc
     ON tbl_pregunta_causa_nc (categoria_id);
 CREATE INDEX ix_audit_usuario_fecha_nc
     ON tbl_auditoria_administracion_nc (usuario_id, fecha DESC);
+-- Oracle considera duplicadas las claves compuestas (clase, NULL) cuando la
+-- primera columna no es nula. El indice funcional reproduce la regla del
+-- modelo: valor es unico por clase solamente cuando valor no es NULL.
+CREATE UNIQUE INDEX ux_cat_clase_valor_nc
+    ON tbl_catalogo_nc (
+        CASE WHEN valor IS NOT NULL THEN clase END,
+        CASE WHEN valor IS NOT NULL THEN valor END
+    );
 CREATE UNIQUE INDEX ux_conf_imp_default_nc
     ON tbl_configuracion_impacto_nc
        (CASE WHEN predeterminada = 1 THEN 1 ELSE NULL END);

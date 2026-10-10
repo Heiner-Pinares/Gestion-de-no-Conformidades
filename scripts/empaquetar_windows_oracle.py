@@ -12,6 +12,7 @@ BASE = Path(__file__).resolve().parents[1]
 DESTINO = BASE / "docs" / "portal_nc_windows_oracle.zip"
 EXCLUIR_DIRECTORIOS = {
     ".git", ".venv", ".runtime", ".cache", "__pycache__", "media", "staticfiles",
+    "portal_nc_oracle_usrfact",
 }
 EXCLUIR_ARCHIVOS = {".env", ".env.local", ".DS_Store"}
 

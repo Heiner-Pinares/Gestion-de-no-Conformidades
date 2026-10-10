@@ -2,3 +2,4 @@ Django==5.2.17
 oracledb>=2.3.0,<=4.0.2
 django-environ==0.14.0
 Pillow==12.3.0
+waitress==3.0.2

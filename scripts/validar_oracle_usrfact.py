@@ -132,13 +132,43 @@ def main() -> int:
            "La prevalidación no prueba el tipo NCLOB usado por JSONField.")
     exigir(re.search(r"CHECK\s*\(datos\s+IS\s+JSON\s*\(STRICT\)\)", prevalidacion, re.I),
            "La prevalidación no prueba NCLOB con IS JSON (STRICT).")
+    exigir(re.search(r"USER_SYS_PRIVS.*CREATE TRIGGER", prevalidacion, re.I | re.S),
+           "La prevalidación no exige el privilegio directo CREATE TRIGGER.")
+    exigir(re.search(
+        r"BEFORE\s+INSERT\s+OR\s+UPDATE\s+ON\s+tbl_nc_prevalidacion_nombre_largo_123",
+        prevalidacion, re.I,
+    ), "La prevalidación no compila y ejecuta el patrón de trigger NCLOB corregido.")
+    exigir("ux_nc_prevalidacion_valor_123" in prevalidacion,
+           "La prevalidación no prueba el índice condicional del catálogo.")
+    exigir("UX_CAT_CLASE_VALOR_NC" in textos["09_validacion_final.sql"].upper(),
+           "La validación final no comprueba el índice condicional del catálogo.")
 
     indices = re.findall(r"CREATE\s+(?:UNIQUE\s+)?INDEX\s+(\w+)", relaciones, re.I)
-    exigir(len(indices) == 40, f"Se esperaban 40 índices explícitos y se encontraron {len(indices)}.")
+    exigir(len(indices) == 41, f"Se esperaban 41 índices explícitos y se encontraron {len(indices)}.")
+    exigir(not re.search(r"CONSTRAINT\s+uk_cat_clase_valor_nc\b", ddl, re.I),
+           "La unicidad condicional del catálogo no puede ser una restricción UNIQUE de Oracle.")
+    exigir(re.search(
+        r"CREATE\s+UNIQUE\s+INDEX\s+ux_cat_clase_valor_nc\s+ON\s+tbl_catalogo_nc\s*\(\s*"
+        r"CASE\s+WHEN\s+valor\s+IS\s+NOT\s+NULL\s+THEN\s+clase\s+END\s*,\s*"
+        r"CASE\s+WHEN\s+valor\s+IS\s+NOT\s+NULL\s+THEN\s+valor\s+END\s*\)",
+        relaciones, re.I | re.S,
+    ), "Falta el índice funcional que permite varios valores NULL por clase.")
 
     nombres_triggers = re.findall(r"CREATE\s+OR\s+REPLACE\s+TRIGGER\s+(\w+)", triggers, re.I)
     exigir(len(nombres_triggers) == 11,
            f"Se esperaban 11 triggers y se encontraron {len(nombres_triggers)}.")
+
+    columnas_lob = set()
+    for tabla, cuerpo in re.findall(r"CREATE\s+TABLE\s+(\w+)\s*\((.*?)\n\);", ddl, re.I | re.S):
+        for definicion in separar_definiciones(cuerpo):
+            partes = definicion.split(None, 1)
+            if len(partes) == 2 and partes[0].upper() != "CONSTRAINT" and re.search(r"\b(?:NCLOB|CLOB|BLOB)\b", partes[1], re.I):
+                columnas_lob.add((tabla.upper(), partes[0].strip('"').upper()))
+    for columnas, tabla in re.findall(r"UPDATE\s+OF\s+(.*?)\s+ON\s+(\w+)", triggers, re.I | re.S):
+        for columna in columnas.split(","):
+            par = (tabla.upper(), columna.strip().upper())
+            exigir(par not in columnas_lob,
+                   f"Oracle 19c no permite UPDATE OF sobre la columna LOB {tabla}.{columna.strip()}.")
 
     nombres_constraints = re.findall(r"\bCONSTRAINT\s+(\w+)", ddl + "\n" + relaciones, re.I)
     objetos = [n.upper() for n in nombres_constraints + indices + nombres_triggers]
@@ -217,7 +247,7 @@ def main() -> int:
 
     print(
         "OK ESTATICO: 24 tablas, 229 columnas, 44 FK, 22 identidades, "
-        "40 indices, 11 triggers, 22 identidades ajustadas, 29 catalogos, 9 prioridades, "
+        "41 indices, 11 triggers, 22 identidades ajustadas, 29 catalogos, 9 prioridades, "
         "32 preguntas, 56 migraciones base y permisos para 3 usuarios."
     )
     return 0

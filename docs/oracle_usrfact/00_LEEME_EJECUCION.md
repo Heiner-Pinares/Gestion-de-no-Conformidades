@@ -10,6 +10,17 @@ Este paquete crea en el esquema `USRFACT` la estructura equivalente al esquema P
 - El esquema debe tener los privilegios `CREATE TABLE` y `CREATE TRIGGER`, además de cuota en su tablespace predeterminado.
 - Los usuarios `C27826`, `C28111` y `C28134` deben existir antes de ejecutar la instalación.
 
+El DBA puede conceder el privilegio requerido para los disparadores con:
+
+```sql
+GRANT CREATE TRIGGER TO USRFACT;
+```
+
+Los permisos concedidos a `C27826`, `C28111` y `C28134` no reemplazan este
+privilegio del propietario `USRFACT`. Una vez instalada y validada la base, el
+DBA puede revocarlo con `REVOKE CREATE TRIGGER FROM USRFACT;`; los triggers ya
+creados seguirán ejecutándose con las operaciones DML del portal.
+
 ## Archivo único recomendado
 
 Ejecute **`INSTALAR_USRFACT_TODO_EN_UNO.sql`**. Es un archivo autocontenido: incluye la creación de las 24 tablas con todas sus columnas y tipos, claves primarias, claves foráneas, restricciones, índices, triggers, datos base, línea de migraciones, ajuste de identidades, permisos y pruebas finales. No llama a ningún otro archivo con `@` o `@@`.
@@ -75,3 +86,20 @@ La creación de estas tablas no cambia por sí sola la conexión activa. En Wind
 Oracle confirma los DDL de forma implícita. Por ello, un `ROLLBACK` no elimina automáticamente objetos creados antes de un error; la primera ejecución debe hacerse siempre en un esquema vacío de homologación.
 
 No ejecute `99_desinstalar.sql` en un esquema con información real.
+## Si una instalación anterior falló
+
+Oracle confirma los comandos DDL de forma implícita. Por eso pueden quedar
+tablas, restricciones o permisos creados aunque una instrucción posterior haya
+fallado. En un esquema de instalación nuevo y sin datos reales:
+
+1. Ejecute `99_desinstalar.sql` completo conectado como `USRFACT`.
+2. Compruebe que muestre `OK: quedan 0 tablas del Portal NC.` y termine con
+   `Esquema funcional del Portal NC eliminado y verificado.`
+3. Abra una **Command Window** nueva en PL/SQL Developer.
+4. Ejecute desde el inicio el `INSTALAR_USRFACT_TODO_EN_UNO.sql` corregido.
+5. Acepte la instalación únicamente si termina con
+   `INSTALACION COMPLETADA Y VALIDADA`.
+
+No continúe desde la línea que falló ni vuelva a ejecutar el instalador sobre
+las tablas parciales. Si el esquema ya contiene datos reales, no use el
+desinstalador: primero debe hacerse una reparación controlada y un respaldo.

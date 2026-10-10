@@ -10,11 +10,28 @@ Este paquete crea en el esquema `USRFACT` la estructura equivalente al esquema P
 - El esquema debe tener los privilegios `CREATE TABLE` y `CREATE TRIGGER`, además de cuota en su tablespace predeterminado.
 - Los usuarios `C27826`, `C28111` y `C28134` deben existir antes de ejecutar la instalación.
 
-## Orden recomendado
+El DBA puede conceder el privilegio requerido para los disparadores con:
 
-Ejecute `INSTALAR_USRFACT.sql`. El archivo fija la sesión en UTC y llama, en este orden, a:
+```sql
+GRANT CREATE TRIGGER TO USRFACT;
+```
 
-1. `00_prevalidacion.sql`: comprueba versión, esquema, usuarios, ausencia de tablas anteriores y prueba realmente los privilegios DDL, la cuota y los nombres largos.
+Los permisos concedidos a `C27826`, `C28111` y `C28134` no reemplazan este
+privilegio del propietario `USRFACT`. Una vez instalada y validada la base, el
+DBA puede revocarlo con `REVOKE CREATE TRIGGER FROM USRFACT;`; los triggers ya
+creados seguirán ejecutándose con las operaciones DML del portal.
+
+## Archivo único recomendado
+
+Ejecute **`INSTALAR_USRFACT_TODO_EN_UNO.sql`**. Es un archivo autocontenido: incluye la creación de las 24 tablas con todas sus columnas y tipos, claves primarias, claves foráneas, restricciones, índices, triggers, datos base, línea de migraciones, ajuste de identidades, permisos y pruebas finales. No llama a ningún otro archivo con `@` o `@@`.
+
+Los scripts numerados se conservan solo como fuente modular para mantenimiento y auditoría. `INSTALAR_USRFACT.sql` continúa disponible como alternativa modular, pero requiere que toda la carpeta permanezca junta.
+
+## Contenido y orden de ejecución
+
+El archivo único fija la sesión en UTC y ejecuta, en este orden:
+
+1. `00_prevalidacion.sql`: comprueba versión, esquema, usuarios, ausencia de tablas anteriores y prueba realmente los privilegios DDL, la cuota, los nombres largos y `NCLOB IS JSON (STRICT)` antes de crear tablas definitivas.
 2. `01_crear_tablas.sql`: crea las 24 tablas, identidades, claves primarias, restricciones y validaciones JSON.
 3. `02_relaciones_indices.sql`: crea las 44 relaciones foráneas y los índices de consulta/FK.
 4. `03_triggers_integridad.sql`: crea valores JSON predeterminados y sincroniza roles y validadores.
@@ -32,7 +49,7 @@ Ejecute `INSTALAR_USRFACT.sql`. El archivo fija la sesión en UTC y llama, en es
 ## Decisiones de compatibilidad
 
 - Los identificadores se crean sin comillas; Oracle los mostrará en mayúsculas y Django puede referenciarlos en minúsculas.
-- Los campos PostgreSQL `JSONB` se almacenan como `NCLOB` con `CHECK (... IS JSON STRICT)`.
+- Los campos PostgreSQL `JSONB` se almacenan como `NCLOB` con `CHECK (... IS JSON STRICT)`, que es el tipo generado para `JSONField` por el backend Oracle de Django 5.2. El instalador prueba primero esta combinación en una tabla temporal y aborta si la instancia no la admite.
 - Los campos de texto usan `NVARCHAR2`/`NCLOB` y los `DateTimeField` usan `TIMESTAMP(6)`, igual que el backend Oracle de Django 5.2.
 - El archivo de evidencia se almacena íntegramente en `BLOB`; no depende de una carpeta del servidor.
 - Los booleanos se almacenan como `NUMBER(1)` con valores `0` o `1`.
@@ -47,12 +64,12 @@ Este paquete prepara y valida la base. Para que el portal Django trabaje con Ora
 - host, puerto y `SERVICE_NAME`/PDB de Oracle;
 - versión exacta de Oracle y valor de `COMPATIBLE`;
 - tablespace y cuota asignada a `USRFACT`;
-- credencial que usará la aplicación (idealmente una cuenta técnica distinta de las cuentas personales);
-- instalación del controlador definido en `requirements-oracle.txt` y cambio del `ENGINE` de Django;
+- credencial DML que usará la aplicación (`C27826`, `C28111` o `C28134`);
+- instalación de las dependencias definidas en `requirements-oracle.txt`;
 - estrategia para trasladar los datos operativos actuales de PostgreSQL a Oracle (la línea base incluida solo registra el estado de las migraciones);
 - prueba integral del portal conectándose a una base Oracle de homologación.
 
-La creación de estas tablas no cambia por sí sola la conexión actual del portal, que continúa apuntando a PostgreSQL hasta que se configure el backend Oracle.
+La creación de estas tablas no cambia por sí sola la conexión activa. En Windows se debe copiar `.env.oracle.example` como `.env`, completar los valores y usar `DB_ENGINE=oracle`.
 
 ## Alcance exacto de los permisos
 
@@ -60,10 +77,29 @@ La creación de estas tablas no cambia por sí sola la conexión actual del port
 
 ## Ejecución en PL/SQL Developer
 
-1. Copie la carpeta completa sin separar los archivos.
+1. Copie `INSTALAR_USRFACT_TODO_EN_UNO.sql`; ese es el único archivo necesario para crear y validar el esquema.
 2. Abra una **Command Window** con la conexión `USRFACT`.
-3. Cambie al directorio de esta carpeta o ejecute `@ruta_completa/INSTALAR_USRFACT.sql`.
+3. Ejecute el archivo completo desde esa ventana.
 4. Conserve el `Spool` completo. Si algún paso falla, `WHENEVER SQLERROR` detendrá la cadena y devolverá el código Oracle.
 5. Considere aprobada la instalación únicamente si aparece `INSTALACION COMPLETADA Y VALIDADA`.
 
+Oracle confirma los DDL de forma implícita. Por ello, un `ROLLBACK` no elimina automáticamente objetos creados antes de un error; la primera ejecución debe hacerse siempre en un esquema vacío de homologación.
+
 No ejecute `99_desinstalar.sql` en un esquema con información real.
+## Si una instalación anterior falló
+
+Oracle confirma los comandos DDL de forma implícita. Por eso pueden quedar
+tablas, restricciones o permisos creados aunque una instrucción posterior haya
+fallado. En un esquema de instalación nuevo y sin datos reales:
+
+1. Ejecute `99_desinstalar.sql` completo conectado como `USRFACT`.
+2. Compruebe que muestre `OK: quedan 0 tablas del Portal NC.` y termine con
+   `Esquema funcional del Portal NC eliminado y verificado.`
+3. Abra una **Command Window** nueva en PL/SQL Developer.
+4. Ejecute desde el inicio el `INSTALAR_USRFACT_TODO_EN_UNO.sql` corregido.
+5. Acepte la instalación únicamente si termina con
+   `INSTALACION COMPLETADA Y VALIDADA`.
+
+No continúe desde la línea que falló ni vuelva a ejecutar el instalador sobre
+las tablas parciales. Si el esquema ya contiene datos reales, no use el
+desinstalador: primero debe hacerse una reparación controlada y un respaldo.

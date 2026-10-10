@@ -1,7 +1,7 @@
 PROMPT [3/9] Creacion de triggers de integridad y sincronizacion
 
 CREATE OR REPLACE TRIGGER trg_usuario_json_nc
-BEFORE INSERT OR UPDATE OF roles ON tbl_usuario_nc
+BEFORE INSERT OR UPDATE ON tbl_usuario_nc
 FOR EACH ROW
 BEGIN
     IF :NEW.roles IS NULL THEN
@@ -11,7 +11,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_usuario_roles_sync_nc
-AFTER INSERT OR UPDATE OF roles ON tbl_usuario_nc
+AFTER INSERT OR UPDATE ON tbl_usuario_nc
 FOR EACH ROW
 BEGIN
     DELETE FROM tbl_usuario_rol_nc WHERE usuario_id = :NEW.id;
@@ -30,7 +30,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_proceso_json_nc
-BEFORE INSERT OR UPDATE OF validadores_ids ON tbl_proceso_nc
+BEFORE INSERT OR UPDATE ON tbl_proceso_nc
 FOR EACH ROW
 BEGIN
     IF :NEW.validadores_ids IS NULL THEN
@@ -40,7 +40,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_proceso_valid_sync_nc
-AFTER INSERT OR UPDATE OF validadores_ids ON tbl_proceso_nc
+AFTER INSERT OR UPDATE ON tbl_proceso_nc
 FOR EACH ROW
 BEGIN
     DELETE FROM tbl_proceso_validador_nc WHERE proceso_id = :NEW.id;
@@ -59,7 +59,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_auditoria_json_nc
-BEFORE INSERT OR UPDATE OF antes, despues ON tbl_auditoria_administracion_nc
+BEFORE INSERT OR UPDATE ON tbl_auditoria_administracion_nc
 FOR EACH ROW
 BEGIN
     IF :NEW.antes IS NULL THEN
@@ -72,8 +72,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_ciclo_json_nc
-BEFORE INSERT OR UPDATE OF checklist_snapshot, respuestas, control
-ON tbl_ciclo_tratamiento_nc
+BEFORE INSERT OR UPDATE ON tbl_ciclo_tratamiento_nc
 FOR EACH ROW
 BEGIN
     IF :NEW.checklist_snapshot IS NULL THEN
@@ -89,7 +88,7 @@ END;
 /
 
 CREATE OR REPLACE TRIGGER trg_historial_json_nc
-BEFORE INSERT OR UPDATE OF metadata_json ON tbl_historial_hallazgo_nc
+BEFORE INSERT OR UPDATE ON tbl_historial_hallazgo_nc
 FOR EACH ROW
 BEGIN
     IF :NEW.metadata_json IS NULL THEN

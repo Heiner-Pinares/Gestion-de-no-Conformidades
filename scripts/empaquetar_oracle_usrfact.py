@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -12,6 +13,7 @@ BASE = Path(__file__).resolve().parents[1]
 ORIGEN = BASE / "docs" / "oracle_usrfact"
 CHECKSUMS = ORIGEN / "SHA256SUMS.txt"
 DESTINO = BASE / "docs" / "portal_nc_oracle_usrfact.zip"
+ESPEJO = BASE / "docs" / "portal_nc_oracle_usrfact"
 
 
 def sha256(path: Path) -> str:
@@ -31,11 +33,25 @@ def main() -> None:
     CHECKSUMS.write_text(contenido, encoding="utf-8", newline="\n")
 
     archivos.append(CHECKSUMS)
+
+    if ESPEJO.exists():
+        shutil.rmtree(ESPEJO)
+    espejo_sql = ESPEJO / "oracle_usrfact"
+    espejo_sql.mkdir(parents=True)
+    for path in sorted(archivos):
+        shutil.copy2(path, espejo_sql / path.name)
+    shutil.copy2(BASE / "requirements-oracle.txt", ESPEJO / "requirements-oracle.txt")
+    (ESPEJO / "scripts").mkdir()
+    shutil.copy2(
+        BASE / "scripts" / "validar_oracle_usrfact.py",
+        ESPEJO / "scripts" / "validar_oracle_usrfact.py",
+    )
+
     with zipfile.ZipFile(DESTINO, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as paquete:
         for path in sorted(archivos):
             paquete.write(path, Path("oracle_usrfact") / path.name)
 
-    print(f"{DESTINO}\nSHA256={sha256(DESTINO)}\narchivos={len(archivos)}")
+    print(f"{DESTINO}\nSHA256={sha256(DESTINO)}\narchivos={len(archivos)}\nespejo={ESPEJO}")
 
 
 if __name__ == "__main__":

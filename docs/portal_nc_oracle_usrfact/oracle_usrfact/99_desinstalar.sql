@@ -44,4 +44,29 @@ BEGIN
 END;
 /
 
-PROMPT Esquema funcional del Portal NC eliminado.
+DECLARE
+    v_restantes PLS_INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO v_restantes
+      FROM USER_TABLES
+     WHERE TABLE_NAME IN (
+        'TBL_USUARIO_NC','TBL_USUARIO_ROL_NC','TBL_CATALOGO_NC',
+        'TBL_PROCESO_NC','TBL_PROCESO_VALIDADOR_NC','TBL_SUBPROCESO_NC',
+        'TBL_MATRIZ_PRIORIDAD_NC','TBL_CONFIGURACION_IMPACTO_NC',
+        'TBL_CONFIGURACION_URGENCIA_NC','TBL_PREGUNTA_CAUSA_NC',
+        'TBL_AUDITORIA_ADMINISTRACION_NC','TBL_CORRELATIVO_SAC_NC',
+        'TBL_REGISTRO_GENERAL_NC','TBL_CICLO_TRATAMIENTO_NC',
+        'TBL_ACTIVIDAD_NC','TBL_PBI_NC','TBL_EVALUACION_EFICACIA_NC',
+        'TBL_COMUNICACION_NC','TBL_EVIDENCIA_NC','TBL_ARCHIVO_EVIDENCIA_NC',
+        'TBL_HISTORIAL_HALLAZGO_NC','TBL_NOTIFICACION_NC',
+        'TBL_DJANGO_MIGRATIONS_NC','TBL_DJANGO_SESSION_NC'
+     );
+    IF v_restantes <> 0 THEN
+        RAISE_APPLICATION_ERROR(-20401,
+            'La limpieza no termino. Quedan ' || v_restantes || ' tablas del Portal NC.');
+    END IF;
+    DBMS_OUTPUT.PUT_LINE('OK: quedan 0 tablas del Portal NC.');
+END;
+/
+
+PROMPT Esquema funcional del Portal NC eliminado y verificado.

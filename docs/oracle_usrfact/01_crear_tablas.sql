@@ -51,7 +51,6 @@ CREATE TABLE tbl_catalogo_nc (
     orden   NUMBER(5) DEFAULT 0 NOT NULL,
     CONSTRAINT pk_catalogo_nc PRIMARY KEY (id),
     CONSTRAINT uk_cat_clase_codigo_nc UNIQUE (clase, codigo),
-    CONSTRAINT uk_cat_clase_valor_nc UNIQUE (clase, valor),
     CONSTRAINT ck_cat_clase_nc CHECK
         (clase IN ('TIPO','FUENTE','IMPACTO','URGENCIA','PRIORIDAD','CATEGORIA')),
     CONSTRAINT ck_cat_activo_nc CHECK (activo IN (0, 1)),

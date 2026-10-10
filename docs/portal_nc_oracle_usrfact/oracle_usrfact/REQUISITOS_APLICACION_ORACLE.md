@@ -1,34 +1,35 @@
 # Requisitos para conectar el portal a Oracle
 
-La instalación SQL deja listo el esquema `USRFACT`, pero no cambia la conexión activa del portal. El cambio debe probarse primero contra una base Oracle de homologación.
+La instalación SQL deja listo el esquema `USRFACT`. El portal ya admite elegir Oracle mediante variables de entorno, pero el cambio debe probarse primero contra una base Oracle de homologación.
 
 ## Controlador y versión
 
 - Oracle Database 19c o superior.
 - Django 5.2.17.
 - `python-oracledb` entre 2.3.0 y 4.0.2, definido en `requirements-oracle.txt`.
-- Acceso de la cuenta de aplicación a `SYS.DBMS_LOB` y `SYS.DBMS_RANDOM`.
+- `waitress` para servir Django en Windows, incluido en `requirements-oracle.txt`.
 
-## Variables de conexión pendientes
+## Variables de conexión
 
-Se deben recibir del DBA estos datos antes de configurar `settings.py`:
+Se deben recibir del DBA estos datos y escribirlos en `.env`, usando `.env.oracle.example` como guía:
 
 - host y puerto;
 - `SERVICE_NAME` o cadena Easy Connect completa;
-- usuario técnico de la aplicación;
+- usuario DML de la aplicación (`C27826`, `C28111` o `C28134`);
 - contraseña mediante secreto de Windows/servidor, nunca dentro del repositorio;
-- política TLS, pool y tiempo de espera;
-- tablespace y cuota del esquema propietario.
+- política TLS y tiempo de espera;
+- dominio, HTTPS y secretos de la aplicación.
 
-La configuración usará `ENGINE = "django.db.backends.oracle"`. Cuando `NAME` sea una cadena Easy Connect como `host:1521/servicio`, `HOST` y `PORT` se dejan vacíos.
+`DB_ENGINE=oracle` activa `django.db.backends.oracle`; `DB_DSN` recibe una cadena Easy Connect como `host:1521/servicio`.
 
 ## Propiedad del esquema
 
 Las tablas pertenecen a `USRFACT`.
 
-- Si el portal se conecta como `USRFACT`, los nombres actuales de los modelos resuelven directamente.
-- Si el portal usa otra cuenta técnica, los `GRANT` no bastan para resolver nombres sin esquema. El DBA debe crear sinónimos privados para las 24 tablas o el código debe referirlas como `USRFACT.TBL_*_NC`.
-- `C27826`, `C28111` y `C28134` reciben los permisos pedidos, y desde PL/SQL Developer deben consultar como `USRFACT.TBL_REGISTRO_GENERAL_NC`, por ejemplo, salvo que el DBA les cree sinónimos.
+- El portal rechaza conectarse como `USRFACT` cuando `DB_REQUIRE_DML_ONLY=True`.
+- Al abrir cada conexión Oracle, configura `CURRENT_SCHEMA=USRFACT`. Esto resuelve los nombres sin conceder permisos adicionales.
+- La conexión se rechaza si la cuenta tiene privilegios de sistema distintos de `CREATE SESSION`.
+- `C27826`, `C28111` y `C28134` reciben exactamente `SELECT`, `INSERT`, `UPDATE` y `DELETE` sobre las 24 tablas.
 
 ## Migraciones
 
@@ -36,14 +37,16 @@ No debe ejecutarse el historial antiguo de migraciones para crear esta base. `05
 
 Para cambios futuros, el equipo debe entregar al DBA un script Oracle versionado y, después de aprobarlo, registrar la nueva migración. No se debe usar `migrate --fake` sin comparar antes el esquema real.
 
+`manage.py` bloquea `migrate`, `makemigrations`, `sqlmigrate`, `squashmigrations`, `test` y `flush` cuando `DB_ENGINE=oracle`. El control definitivo sigue siendo la ausencia de privilegios DDL en la cuenta de conexión.
+
 ## Compatibilidad revisada en el código
 
 Las consultas que antes aplicaban `DISTINCT` sobre modelos con campos `TextField` o `JSONField` fueron cambiadas para deduplicar solo IDs. Oracle no permite `SELECT DISTINCT` sobre `NCLOB`.
 
 Antes del pase faltará ejecutar, en homologación Oracle:
 
-1. `INSTALAR_USRFACT.sql` completo.
-2. La prueba de conexión con la cuenta técnica.
+1. `INSTALAR_USRFACT_TODO_EN_UNO.sql` completo.
+2. `scripts/verificar_oracle_dml.py` con la cuenta DML.
 3. `manage.py check` y los 64 casos funcionales contra Oracle.
 4. Una carga de copia anonimizada de datos de PostgreSQL.
 5. Pruebas de carga y descarga de archivos BLOB, concurrencia de correlativos, sesiones, permisos y cierre de hallazgos.

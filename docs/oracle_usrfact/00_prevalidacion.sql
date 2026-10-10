@@ -5,6 +5,7 @@ DECLARE
     v_objetos           PLS_INTEGER;
     v_restricciones     PLS_INTEGER;
     v_usuarios          PLS_INTEGER;
+    v_create_trigger    PLS_INTEGER;
     v_json              PLS_INTEGER;
     v_random            NUMBER;
     v_blob              BLOB;
@@ -17,6 +18,16 @@ BEGIN
     IF DBMS_DB_VERSION.VERSION < 19 THEN
         RAISE_APPLICATION_ERROR(-20002,
             'Se requiere Oracle Database 19c o superior.');
+    END IF;
+
+    SELECT COUNT(*)
+      INTO v_create_trigger
+      FROM USER_SYS_PRIVS
+     WHERE PRIVILEGE IN ('CREATE TRIGGER', 'CREATE ANY TRIGGER');
+
+    IF v_create_trigger = 0 THEN
+        RAISE_APPLICATION_ERROR(-20009,
+            'Falta privilegio directo para crear triggers. El DBA debe ejecutar: GRANT CREATE TRIGGER TO USRFACT;');
     END IF;
 
     SELECT COUNT(*)
@@ -84,24 +95,49 @@ BEGIN
     BEGIN
         EXECUTE IMMEDIATE q'[CREATE TABLE tbl_nc_prevalidacion_nombre_largo_123 (
             id NUMBER,
+            clase NVARCHAR2(12),
+            valor NUMBER(5),
             datos NCLOB,
             CONSTRAINT ck_nc_prevalidacion_json_123
                 CHECK (datos IS JSON (STRICT))
         )]';
+        EXECUTE IMMEDIATE q'[CREATE UNIQUE INDEX ux_nc_prevalidacion_valor_123
+            ON tbl_nc_prevalidacion_nombre_largo_123 (
+                CASE WHEN valor IS NOT NULL THEN clase END,
+                CASE WHEN valor IS NOT NULL THEN valor END
+            )]';
+        EXECUTE IMMEDIATE q'~CREATE OR REPLACE TRIGGER trg_nc_prevalidacion_nombre_largo_123
+            BEFORE INSERT OR UPDATE ON tbl_nc_prevalidacion_nombre_largo_123
+            FOR EACH ROW
+            BEGIN
+                IF :NEW.datos IS NULL THEN
+                    :NEW.datos := TO_NCLOB('{}');
+                END IF;
+            END;~';
         EXECUTE IMMEDIATE q'[INSERT INTO tbl_nc_prevalidacion_nombre_largo_123
-            (id, datos) VALUES (1, TO_NCLOB('{"portal":"nc"}'))]';
+            (id, clase, valor, datos)
+            VALUES (1, 'CATEGORIA', NULL, TO_NCLOB('{"portal":"nc"}'))]';
+        EXECUTE IMMEDIATE q'[INSERT INTO tbl_nc_prevalidacion_nombre_largo_123
+            (id, clase, valor, datos) VALUES (2, 'CATEGORIA', NULL, NULL)]';
+        EXECUTE IMMEDIATE q'[INSERT INTO tbl_nc_prevalidacion_nombre_largo_123
+            (id, clase, valor, datos) VALUES (3, 'IMPACTO', 1, NULL)]';
+        BEGIN
+            EXECUTE IMMEDIATE q'[INSERT INTO tbl_nc_prevalidacion_nombre_largo_123
+                (id, clase, valor, datos) VALUES (4, 'IMPACTO', 1, NULL)]';
+            RAISE_APPLICATION_ERROR(-20008,
+                'El indice condicional no rechazo el valor no nulo duplicado.');
+        EXCEPTION
+            WHEN DUP_VAL_ON_INDEX THEN NULL;
+        END;
+        EXECUTE IMMEDIATE q'[UPDATE tbl_nc_prevalidacion_nombre_largo_123
+            SET datos = NULL WHERE id = 1]';
         EXECUTE IMMEDIATE q'[SELECT COUNT(*)
             FROM tbl_nc_prevalidacion_nombre_largo_123
             WHERE datos IS JSON (STRICT)]' INTO v_json;
-        IF v_json <> 1 THEN
+        IF v_json <> 3 THEN
             RAISE_APPLICATION_ERROR(-20007,
-                'La prueba NCLOB con IS JSON no devolvio el registro esperado.');
+                'La prueba NCLOB/trigger no devolvio los tres registros JSON esperados.');
         END IF;
-        EXECUTE IMMEDIATE q'[CREATE OR REPLACE TRIGGER trg_nc_prevalidacion_nombre_largo_123
-            BEFORE INSERT ON tbl_nc_prevalidacion_nombre_largo_123
-            BEGIN
-                NULL;
-            END;]';
         EXECUTE IMMEDIATE 'DROP TABLE tbl_nc_prevalidacion_nombre_largo_123 PURGE';
     EXCEPTION
         WHEN OTHERS THEN
@@ -111,11 +147,11 @@ BEGIN
                 WHEN OTHERS THEN NULL;
             END;
             RAISE_APPLICATION_ERROR(-20005,
-                'USRFACT no supera la prevalidacion DDL/JSON. Revise CREATE TABLE, CREATE TRIGGER, cuota, COMPATIBLE >= 12.2 y NCLOB IS JSON. Detalle: ' || SQLERRM);
+                'USRFACT no supera la prevalidacion DDL/JSON. Revise CREATE TABLE, CREATE INDEX funcional, CREATE TRIGGER, cuota, COMPATIBLE >= 12.2 y NCLOB IS JSON. Detalle: ' || SQLERRM);
     END;
 
     DBMS_OUTPUT.PUT_LINE('OK: usuario=' || USER ||
                          ', Oracle=' || DBMS_DB_VERSION.VERSION || '.' || DBMS_DB_VERSION.RELEASE ||
-                         ', usuarios destino=3, tablas previas=0, DDL y NCLOB IS JSON verificados.');
+                         ', usuarios destino=3, tablas previas=0, DDL, indice condicional, trigger NCLOB y JSON verificados.');
 END;
 /
