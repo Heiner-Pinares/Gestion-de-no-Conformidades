@@ -120,7 +120,7 @@ def main() -> int:
 
         cursor.execute(
             "SELECT table_name, privilege FROM all_tab_privs "
-            "WHERE owner = %s AND grantee = %s "
+            "WHERE table_schema = %s AND grantee = %s "
             "AND privilege IN ('SELECT','INSERT','UPDATE','DELETE')",
             [esquema, usuario_sesion.upper()],
         )
@@ -137,7 +137,7 @@ def main() -> int:
         exigir(permisos == requeridos, f"Permisos DML incompletos: {sorted(requeridos-permisos)}")
         cursor.execute(
             "SELECT table_name, privilege FROM all_tab_privs "
-            "WHERE owner = %s AND grantee = %s",
+            "WHERE table_schema = %s AND grantee = %s",
             [esquema, usuario_sesion.upper()],
         )
         privilegios_objeto = {
