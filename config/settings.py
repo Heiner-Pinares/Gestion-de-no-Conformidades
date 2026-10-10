@@ -10,7 +10,33 @@ local_env = BASE_DIR / ".env.local"
 if local_env.exists():
     environ.Env.read_env(local_env)
 environ.Env.read_env(BASE_DIR / ".env")
-SECRET_KEY = env("SECRET_KEY")
+
+
+def secreto(nombre: str, archivo_nombre: str, *, default: str | None = None) -> str:
+    """Obtiene un secreto desde archivo o entorno sin exponer su contenido."""
+    archivo = env(archivo_nombre, default="").strip()
+    if archivo:
+        ruta = Path(archivo)
+        if not ruta.is_absolute():
+            ruta = BASE_DIR / ruta
+        try:
+            valor = ruta.read_text(encoding="utf-8").rstrip("\r\n")
+        except OSError as error:
+            raise ImproperlyConfigured(
+                f"No se pudo leer el archivo configurado en {archivo_nombre}."
+            ) from error
+        if not valor:
+            raise ImproperlyConfigured(f"El archivo configurado en {archivo_nombre} está vacío.")
+        return valor
+    valor = env(nombre, default=default)
+    if valor is None or (default is None and not str(valor)):
+        raise ImproperlyConfigured(
+            f"Falta {nombre}. Defina {nombre} o, preferentemente, {archivo_nombre}."
+        )
+    return str(valor)
+
+
+SECRET_KEY = secreto("SECRET_KEY", "SECRET_KEY_FILE")
 DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
@@ -22,6 +48,7 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -46,14 +73,17 @@ DB_ENGINE = env("DB_ENGINE", default="postgresql").strip().lower()
 if DB_ENGINE in {"postgres", "postgresql"}:
     DATABASES = {"default": {
         "ENGINE": "django.db.backends.postgresql", "NAME": env("DB_NAME"),
-        "USER": env("DB_USER"), "PASSWORD": env("DB_PASSWORD"),
+        "USER": env("DB_USER"), "PASSWORD": secreto("DB_PASSWORD", "DB_PASSWORD_FILE"),
         "HOST": env("DB_HOST", default="127.0.0.1"), "PORT": env("DB_PORT", default="5432"),
         "CONN_MAX_AGE": 60, "CONN_HEALTH_CHECKS": True,
         "OPTIONS": {"connect_timeout": 5},
     }}
 elif DB_ENGINE == "oracle":
     DB_SCHEMA = env("DB_SCHEMA", default="USRFACT").strip().upper()
-    DB_USER = env("DB_USER").strip().upper()
+    # Se conserva exactamente el usuario recibido para conectarse. La versión
+    # normalizada solo se usa en las validaciones de seguridad.
+    DB_USER = env("DB_USER").strip()
+    DB_USER_NORMALIZADO = DB_USER.upper()
     DB_REQUIRE_DML_ONLY = env.bool("DB_REQUIRE_DML_ONLY", default=True)
     DB_ALLOWED_USERS = {
         usuario.strip().upper()
@@ -65,11 +95,11 @@ elif DB_ENGINE == "oracle":
     }
     if DB_SCHEMA != "USRFACT":
         raise ImproperlyConfigured("DB_SCHEMA debe ser USRFACT para este paquete de base de datos.")
-    if DB_REQUIRE_DML_ONLY and DB_USER == DB_SCHEMA:
+    if DB_REQUIRE_DML_ONLY and DB_USER_NORMALIZADO == DB_SCHEMA:
         raise ImproperlyConfigured(
             "El portal no puede conectarse como USRFACT. Use una cuenta con permisos DML."
         )
-    if DB_REQUIRE_DML_ONLY and DB_ALLOWED_USERS and DB_USER not in DB_ALLOWED_USERS:
+    if DB_REQUIRE_DML_ONLY and DB_ALLOWED_USERS and DB_USER_NORMALIZADO not in DB_ALLOWED_USERS:
         raise ImproperlyConfigured(
             "DB_USER debe ser una cuenta DML autorizada: " + ", ".join(sorted(DB_ALLOWED_USERS))
         )
@@ -77,7 +107,7 @@ elif DB_ENGINE == "oracle":
         "ENGINE": "django.db.backends.oracle",
         "NAME": env("DB_DSN"),
         "USER": DB_USER,
-        "PASSWORD": env("DB_PASSWORD"),
+        "PASSWORD": secreto("DB_PASSWORD", "DB_PASSWORD_FILE"),
         "CONN_MAX_AGE": env.int("DB_CONN_MAX_AGE", default=60),
         "CONN_HEALTH_CHECKS": True,
     }}
@@ -97,6 +127,15 @@ USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+# Durante pruebas y despliegues graduales permite resolver desde STATICFILES_DIRS;
+# run.py siempre ejecuta collectstatic antes de abrir el puerto de producción.
+WHITENOISE_MANIFEST_STRICT = False
 MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "media")))
 MEDIA_URL = "/evidencias-privadas/"  # Nunca publicada como directorio estático.
 FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
@@ -123,14 +162,20 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0 if DEBUG else 31536000)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG
-SECURE_HSTS_PRELOAD = False
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+if env.bool("TRUST_X_FORWARDED_PROTO", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SAC_SEQUENCE_SCOPE = env("SAC_SEQUENCE_SCOPE", default="TYPE")
 REQUIRE_CLOSED_PBI = env.bool("REQUIRE_CLOSED_PBI", default=False)
 ENABLE_DEMO_DATA = env.bool("ENABLE_DEMO_DATA", default=False)
 MICROSOFT_SSO_ENABLED = env.bool("MICROSOFT_SSO_ENABLED", default=False)
 MICROSOFT_TENANT_ID = env("MICROSOFT_TENANT_ID", default="")
 MICROSOFT_CLIENT_ID = env("MICROSOFT_CLIENT_ID", default="")
-MICROSOFT_CLIENT_SECRET = env("MICROSOFT_CLIENT_SECRET", default="")
+MICROSOFT_CLIENT_SECRET = secreto(
+    "MICROSOFT_CLIENT_SECRET",
+    "MICROSOFT_CLIENT_SECRET_FILE",
+    default="",
+)
 MICROSOFT_REDIRECT_URI = env("MICROSOFT_REDIRECT_URI", default="")
 LOGGING = {
     "version": 1, "disable_existing_loggers": False,

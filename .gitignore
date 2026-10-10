@@ -1,5 +1,8 @@
 .env
 .env.local
+secrets/
+logs/
+*.log
 .venv/
 .runtime/
 .cache/

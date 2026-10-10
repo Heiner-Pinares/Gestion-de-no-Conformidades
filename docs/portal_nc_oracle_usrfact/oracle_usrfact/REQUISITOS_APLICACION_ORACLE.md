@@ -6,7 +6,7 @@ La instalación SQL deja listo el esquema `USRFACT`. El portal ya admite elegir 
 
 - Oracle Database 19c o superior.
 - Django 5.2.17.
-- `python-oracledb` entre 2.3.0 y 4.0.2, definido en `requirements-oracle.txt`.
+- `python-oracledb` 4.0.2 en modo Thin, definido en `requirements-oracle.txt`.
 - `waitress` para servir Django en Windows, incluido en `requirements-oracle.txt`.
 
 ## Variables de conexión
@@ -16,7 +16,7 @@ Se deben recibir del DBA estos datos y escribirlos en `.env`, usando `.env.oracl
 - host y puerto;
 - `SERVICE_NAME` o cadena Easy Connect completa;
 - usuario DML de la aplicación (`C27826`, `C28111` o `C28134`);
-- contraseña mediante secreto de Windows/servidor, nunca dentro del repositorio;
+- contraseña en `secrets/oracle_password.txt` mediante `DB_PASSWORD_FILE`, nunca dentro del repositorio ni del `.env`;
 - política TLS y tiempo de espera;
 - dominio, HTTPS y secretos de la aplicación.
 
@@ -46,7 +46,7 @@ Las consultas que antes aplicaban `DISTINCT` sobre modelos con campos `TextField
 Antes del pase faltará ejecutar, en homologación Oracle:
 
 1. `INSTALAR_USRFACT_TODO_EN_UNO.sql` completo.
-2. `scripts/verificar_oracle_dml.py` con la cuenta DML.
-3. `manage.py check` y los 64 casos funcionales contra Oracle.
+2. `run.py check` con la cuenta DML.
+3. `run.py start` y los 64 casos funcionales contra Oracle.
 4. Una carga de copia anonimizada de datos de PostgreSQL.
 5. Pruebas de carga y descarga de archivos BLOB, concurrencia de correlativos, sesiones, permisos y cierre de hallazgos.

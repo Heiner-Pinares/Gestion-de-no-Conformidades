@@ -4,7 +4,7 @@ Primera versión funcional local con Django 5.2 LTS, Python 3.12 y PostgreSQL. C
 
 ## Entrega Windows + Oracle 19c
 
-La entrega para Windows usa `requirements-oracle.txt`, `.env.oracle.example` y `scripts/iniciar_windows_oracle.ps1`. El esquema se instala una sola vez con `docs/oracle_usrfact/INSTALAR_USRFACT_TODO_EN_UNO.sql`; después, la aplicación se conecta con `C27826`, `C28111` o `C28134` y rechaza cuentas con privilegios DDL. Consulte [Despliegue Windows con Oracle](docs/DESPLIEGUE_WINDOWS_ORACLE.md) antes de copiar el sistema al servidor.
+La entrega para Windows usa `requirements-oracle.txt`, `.env.oracle.example` y `run.py`. El esquema se instala una sola vez con `docs/oracle_usrfact/INSTALAR_USRFACT_TODO_EN_UNO.sql`; después, la aplicación se conecta con `C27826`, `C28111` o `C28134` y rechaza cuentas con privilegios DDL. `python run.py check` valida la conexión y `python run.py start` ejecuta el portal. Consulte [Despliegue Windows con Oracle](docs/DESPLIEGUE_WINDOWS_ORACLE.md) antes de copiar el sistema al servidor.
 
 ## Estructura actual: 24 tablas físicas y ninguna vista
 
@@ -44,7 +44,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Configura en `.env`: SECRET_KEY aleatoria, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DEBUG y ALLOWED_HOSTS. `.env` está excluido de Git. No copies claves productivas al repositorio. Genera SECRET_KEY con `python -c "import secrets; print(secrets.token_urlsafe(60))"` y colócala localmente en `.env`.
+Configura en `.env`: DB_NAME, DB_USER, DB_HOST, DB_PORT, DEBUG y ALLOWED_HOSTS. Guarda la contraseña en `secrets/postgres_password.txt` y una clave aleatoria en `secrets/django_secret_key.txt`, tal como indica `.env.example`. `.env` y `secrets` están excluidos de Git.
 
 Crea una base vacía y un usuario propio desde pgAdmin o mediante `createuser --pwprompt portal_nc` y `createdb --owner=portal_nc gestion_no_conformidades` con una cuenta PostgreSQL autorizada. Si usas el script aislado, ejecútalo antes de copiar `.env.example`: crea automáticamente `.env` con valores privados y configura su propia instancia. `PG_BIN` permite indicar la carpeta bin de PostgreSQL; `LOCAL_PG_PORT` permite otro puerto local.
 
@@ -77,7 +77,7 @@ Agrega el permiso delegado de Microsoft Graph `User.Read`, crea un secreto de cl
 MICROSOFT_SSO_ENABLED=True
 MICROSOFT_TENANT_ID=<Id. del directorio (inquilino)>
 MICROSOFT_CLIENT_ID=<Id. de la aplicación (cliente)>
-MICROSOFT_CLIENT_SECRET=<valor del secreto, no su identificador>
+MICROSOFT_CLIENT_SECRET_FILE=secrets/microsoft_client_secret.txt
 MICROSOFT_REDIRECT_URI=http://localhost:8000/cuentas/microsoft/callback/
 ```
 
