@@ -8,7 +8,7 @@
 - Waitress 3.0.2 como servidor WSGI en Windows.
 - WhiteNoise 6.12.0 para servir los archivos estáticos recolectados desde el mismo proceso.
 - Esquema propietario fijo: `USRFACT`.
-- Cuenta de la aplicación: una de `C27826`, `C28111` o `C28134`, con solo `CREATE SESSION` y DML sobre las 24 tablas.
+- Cuenta de la aplicación: `USRFACSOP`, con solo `CREATE SESSION` y DML sobre las 24 tablas.
 
 El portal nunca ejecuta DDL en Oracle. El DBA instala o actualiza el esquema con SQL revisado. En cada arranque, `run.py` compara la base con el código y se detiene si falta una tabla, columna, migración, trigger, permiso o catálogo indispensable. Esto evita que una cuenta web cree o cambie objetos sin control.
 
@@ -20,7 +20,17 @@ Conectado como `USRFACT`, el DBA ejecuta en homologación:
 docs\oracle_usrfact\INSTALAR_USRFACT_TODO_EN_UNO.sql
 ```
 
-Debe conservar el log y comprobar que termine con `INSTALACION COMPLETADA Y VALIDADA`. El script concede a las tres cuentas autorizadas `SELECT`, `INSERT`, `UPDATE` y `DELETE`. No les concede permisos para crear tablas, columnas, secuencias, restricciones ni triggers.
+Debe conservar el log y comprobar que termine con `INSTALACION COMPLETADA Y VALIDADA`. El script concede a la cuenta técnica `USRFACSOP` `SELECT`, `INSERT`, `UPDATE` y `DELETE`. No le concede permisos para crear tablas, columnas, secuencias, restricciones ni triggers.
+
+Como las tablas ya fueron creadas en `USRFACT`, el DBA no debe repetir el
+instalador. Debe ejecutar una sola vez, conectado como `USRFACT`:
+
+```text
+docs\oracle_usrfact\10_otorgar_permisos_usrfacsop.sql
+```
+
+El script se puede repetir sin duplicar datos: comprueba que existan las 24
+tablas, concede los cuatro permisos DML a `USRFACSOP` y exige un total de 96.
 
 ## 2. Clonar e instalar en Windows Server
 
@@ -41,19 +51,21 @@ Edite `.env` y complete valores no secretos:
 
 ```env
 DEBUG=False
-ALLOWED_HOSTS=portal.interno.ejemplo,10.0.0.20
-CSRF_TRUSTED_ORIGINS=https://portal.interno.ejemplo
-SECURE_SSL_REDIRECT=True
+ALLOWED_HOSTS=172.19.194.219,127.0.0.1,localhost
+CSRF_TRUSTED_ORIGINS=http://172.19.194.219:8000
+SECURE_SSL_REDIRECT=False
+SESSION_COOKIE_SECURE=False
+CSRF_COOKIE_SECURE=False
 SECURE_HSTS_PRELOAD=False
 TRUST_X_FORWARDED_PROTO=False
 
 DB_ENGINE=oracle
-DB_DSN=oracle-scan.interno:1521/SERVICIO_PDB
+DB_DSN="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=scan-dwo.tim.com.pe)(PORT=1521))(CONNECT_DATA=(SERVER=DEDICATED)(SERVICE_NAME=DWO)))"
 DB_SCHEMA=USRFACT
-DB_USER=C27826
+DB_USER=USRFACSOP
 DB_PASSWORD_FILE=secrets/oracle_password.txt
 DB_REQUIRE_DML_ONLY=True
-DB_ALLOWED_USERS=C27826,C28111,C28134
+DB_ALLOWED_USERS=USRFACSOP
 
 SECRET_KEY_FILE=secrets/django_secret_key.txt
 PORTAL_BIND_HOST=0.0.0.0
@@ -63,7 +75,7 @@ PORTAL_THREADS=8
 
 `DB_DSN` usa `host:puerto/SERVICE_NAME`. Si el DBA entrega un descriptor TNS completo, colóquelo completo en `DB_DSN`. No use un SID como si fuera `SERVICE_NAME`.
 
-Active `TRUST_X_FORWARDED_PROTO=True` únicamente cuando el proxy inverso aprobado elimine cualquier encabezado entrante y establezca por sí mismo `X-Forwarded-Proto`. Active `SECURE_HSTS_PRELOAD=True` solo después de aprobar la inclusión permanente del dominio y sus subdominios en la lista preload de los navegadores.
+La configuración entregada publica inicialmente por HTTP en `172.19.194.219:8000`. Al habilitar HTTPS en IIS o en el proxy aprobado, cambie `CSRF_TRUSTED_ORIGINS` al origen `https://`, y establezca `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE` y `CSRF_COOKIE_SECURE` en `True`. Active `TRUST_X_FORWARDED_PROTO=True` únicamente cuando el proxy elimine cualquier encabezado entrante y establezca por sí mismo `X-Forwarded-Proto`. Active `SECURE_HSTS_PRELOAD=True` solo después de aprobar la inclusión permanente del dominio y sus subdominios en la lista preload de los navegadores.
 
 Cree los secretos sin mostrarlos en pantalla:
 

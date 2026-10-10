@@ -11,16 +11,21 @@ La instalación SQL deja listo el esquema `USRFACT`. El portal ya admite elegir 
 
 ## Variables de conexión
 
-Se deben recibir del DBA estos datos y escribirlos en `.env`, usando `.env.oracle.example` como guía:
+La plantilla `.env.oracle.example` ya contiene la configuración no secreta recibida:
 
-- host y puerto;
-- `SERVICE_NAME` o cadena Easy Connect completa;
-- usuario DML de la aplicación (`C27826`, `C28111` o `C28134`);
+- SCAN `scan-dwo.tim.com.pe`, puerto `1521` y `SERVICE_NAME=DWO`;
+- descriptor TNS completo para conexión dedicada;
+- usuario DML de la aplicación (`USRFACSOP`) y esquema propietario (`USRFACT`);
+- servidor web `172.19.194.219`, inicialmente en el puerto `8000`;
 - contraseña en `secrets/oracle_password.txt` mediante `DB_PASSWORD_FILE`, nunca dentro del repositorio ni del `.env`;
-- política TLS y tiempo de espera;
-- dominio, HTTPS y secretos de la aplicación.
+- `SECRET_KEY` en `secrets/django_secret_key.txt`.
 
-`DB_ENGINE=oracle` activa `django.db.backends.oracle`; `DB_DSN` recibe una cadena Easy Connect como `host:1521/servicio`.
+Antes de exponer el portal fuera de la red interna falta definir el dominio,
+certificado y proxy HTTPS. Esos valores no se pueden deducir de la conexión
+Oracle y no deben inventarse.
+
+`DB_ENGINE=oracle` activa `django.db.backends.oracle`; `DB_DSN` contiene el
+descriptor entregado y usa `SERVICE_NAME=DWO`, no un SID.
 
 ## Propiedad del esquema
 
@@ -29,7 +34,7 @@ Las tablas pertenecen a `USRFACT`.
 - El portal rechaza conectarse como `USRFACT` cuando `DB_REQUIRE_DML_ONLY=True`.
 - Al abrir cada conexión Oracle, configura `CURRENT_SCHEMA=USRFACT`. Esto resuelve los nombres sin conceder permisos adicionales.
 - La conexión se rechaza si la cuenta tiene privilegios de sistema distintos de `CREATE SESSION`.
-- `C27826`, `C28111` y `C28134` reciben exactamente `SELECT`, `INSERT`, `UPDATE` y `DELETE` sobre las 24 tablas.
+- `USRFACSOP` recibe exactamente `SELECT`, `INSERT`, `UPDATE` y `DELETE` sobre las 24 tablas.
 
 ## Migraciones
 

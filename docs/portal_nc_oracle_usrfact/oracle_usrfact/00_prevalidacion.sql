@@ -73,11 +73,11 @@ BEGIN
     SELECT COUNT(*)
       INTO v_usuarios
       FROM ALL_USERS
-     WHERE USERNAME IN ('C27826','C28111','C28134');
+     WHERE USERNAME = 'USRFACSOP';
 
-    IF v_usuarios <> 3 THEN
+    IF v_usuarios <> 1 THEN
         RAISE_APPLICATION_ERROR(-20004,
-            'Deben existir C27826, C28111 y C28134 antes de instalar. Encontrados: ' || v_usuarios);
+            'Debe existir USRFACSOP antes de instalar. Encontrados: ' || v_usuarios);
     END IF;
 
     -- Django y la prueba de archivos usan estos paquetes. Al estar aquí, una
@@ -152,6 +152,6 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('OK: usuario=' || USER ||
                          ', Oracle=' || DBMS_DB_VERSION.VERSION || '.' || DBMS_DB_VERSION.RELEASE ||
-                         ', usuarios destino=3, tablas previas=0, DDL, indice condicional, trigger NCLOB y JSON verificados.');
+                         ', usuario destino=USRFACSOP, tablas previas=0, DDL, indice condicional, trigger NCLOB y JSON verificados.');
 END;
 /

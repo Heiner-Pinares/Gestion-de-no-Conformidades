@@ -2,7 +2,7 @@
 -- PORTAL CLARO - GESTION DE NO CONFORMIDADES
 -- INSTALADOR ORACLE 19c TODO EN UNO
 -- Esquema propietario: USRFACT
--- Usuarios con acceso: C27826, C28111 y C28134
+-- Usuario de aplicación con acceso: USRFACSOP
 --
 -- Ejecutar el archivo completo conectado como USRFACT en una ventana de
 -- comandos de PL/SQL Developer. No requiere archivos SQL adicionales.
@@ -106,11 +106,11 @@ BEGIN
     SELECT COUNT(*)
       INTO v_usuarios
       FROM ALL_USERS
-     WHERE USERNAME IN ('C27826','C28111','C28134');
+     WHERE USERNAME = 'USRFACSOP';
 
-    IF v_usuarios <> 3 THEN
+    IF v_usuarios <> 1 THEN
         RAISE_APPLICATION_ERROR(-20004,
-            'Deben existir C27826, C28111 y C28134 antes de instalar. Encontrados: ' || v_usuarios);
+            'Debe existir USRFACSOP antes de instalar. Encontrados: ' || v_usuarios);
     END IF;
 
     -- Django y la prueba de archivos usan estos paquetes. Al estar aquí, una
@@ -185,7 +185,7 @@ BEGIN
 
     DBMS_OUTPUT.PUT_LINE('OK: usuario=' || USER ||
                          ', Oracle=' || DBMS_DB_VERSION.VERSION || '.' || DBMS_DB_VERSION.RELEASE ||
-                         ', usuarios destino=3, tablas previas=0, DDL, indice condicional, trigger NCLOB y JSON verificados.');
+                         ', usuario destino=USRFACSOP, tablas previas=0, DDL, indice condicional, trigger NCLOB y JSON verificados.');
 END;
 /
 -- FIN DEL MODULO INTEGRADO: 00_prevalidacion.sql
@@ -1515,58 +1515,58 @@ PROMPT OK: 22 identidades ajustadas al limite de sus datos actuales.
 -- ============================================================================
 -- INICIO DEL MODULO INTEGRADO: 07_permisos.sql
 -- ============================================================================
-PROMPT [7/9] Permisos para C27826, C28111 y C28134
+PROMPT [7/9] Permisos para USRFACSOP
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_usuario_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_usuario_rol_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_catalogo_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_proceso_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_proceso_validador_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_subproceso_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_matriz_prioridad_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_configuracion_impacto_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_configuracion_urgencia_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_pregunta_causa_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_auditoria_administracion_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_correlativo_sac_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_registro_general_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_ciclo_tratamiento_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_actividad_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_pbi_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_evaluacion_eficacia_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_comunicacion_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_evidencia_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_archivo_evidencia_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_historial_hallazgo_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_notificacion_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_django_migrations_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 GRANT SELECT, INSERT, UPDATE, DELETE ON tbl_django_session_nc
-    TO C27826, C28111, C28134;
+    TO USRFACSOP;
 
-PROMPT OK: permisos DML concedidos sobre las 24 tablas a los 3 usuarios.
+PROMPT OK: permisos DML concedidos sobre las 24 tablas al usuario USRFACSOP.
 -- FIN DEL MODULO INTEGRADO: 07_permisos.sql
 
 -- ============================================================================
@@ -1934,7 +1934,7 @@ BEGIN
 
     SELECT COUNT(*) INTO v_total
       FROM USER_TAB_PRIVS_MADE
-     WHERE GRANTEE IN ('C27826','C28111','C28134')
+     WHERE GRANTEE = 'USRFACSOP'
        AND PRIVILEGE IN ('SELECT','INSERT','UPDATE','DELETE')
        AND TABLE_NAME IN (
         'TBL_USUARIO_NC','TBL_USUARIO_ROL_NC','TBL_CATALOGO_NC',
@@ -1948,9 +1948,9 @@ BEGIN
         'TBL_HISTORIAL_HALLAZGO_NC','TBL_NOTIFICACION_NC',
         'TBL_DJANGO_MIGRATIONS_NC','TBL_DJANGO_SESSION_NC'
        );
-    IF v_total <> 288 THEN
+    IF v_total <> 96 THEN
         RAISE_APPLICATION_ERROR(-20313,
-            'Se esperaban 288 permisos de objeto y existen ' || v_total || '.');
+            'Se esperaban 96 permisos de objeto para USRFACSOP y existen ' || v_total || '.');
     END IF;
 
     SELECT COUNT(*) INTO v_total
@@ -1962,7 +1962,7 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20314, 'El contenido de evidencias no quedó como BLOB.');
     END IF;
 
-    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 41 indices, 11 triggers, 56 migraciones base y 288 permisos validados.');
+    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 41 indices, 11 triggers, 56 migraciones base y 96 permisos DML para USRFACSOP validados.');
 END;
 /
 

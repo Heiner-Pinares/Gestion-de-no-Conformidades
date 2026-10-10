@@ -79,6 +79,7 @@ def main() -> int:
     baseline = textos["05_baseline_django.sql"]
     ajustes = textos["06_ajustar_identidades.sql"]
     permisos = textos["07_permisos.sql"]
+    permisos_existente = textos["10_otorgar_permisos_usrfacsop.sql"]
     maestro = textos["INSTALAR_USRFACT.sql"]
     todo_en_uno = textos["INSTALAR_USRFACT_TODO_EN_UNO.sql"]
 
@@ -182,11 +183,21 @@ def main() -> int:
 
     grants = re.findall(
         r"GRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+(\w+)\s+"
-        r"TO\s+C27826\s*,\s*C28111\s*,\s*C28134\s*;",
+        r"TO\s+USRFACSOP\s*;",
         permisos, re.I | re.S,
     )
     exigir({g.upper() for g in grants} == ESPERADAS,
-           "Los GRANT no cubren exactamente las 24 tablas y los tres usuarios.")
+           "Los GRANT no cubren exactamente las 24 tablas para USRFACSOP.")
+
+    grants_existente = re.findall(
+        r"GRANT\s+SELECT\s*,\s*INSERT\s*,\s*UPDATE\s*,\s*DELETE\s+ON\s+(\w+)\s+"
+        r"TO\s+USRFACSOP\s*;",
+        permisos_existente, re.I | re.S,
+    )
+    exigir({g.upper() for g in grants_existente} == ESPERADAS,
+           "El script para el esquema existente no cubre las 24 tablas para USRFACSOP.")
+    exigir("v_permisos <> 96" in permisos_existente,
+           "El script para el esquema existente no valida los 96 permisos DML.")
 
     exigir(len(re.findall(r"INSERT\s+INTO\s+tbl_catalogo_nc\b", datos, re.I)) == 29,
            "La carga base no contiene 29 catálogos.")
@@ -248,7 +259,7 @@ def main() -> int:
     print(
         "OK ESTATICO: 24 tablas, 229 columnas, 44 FK, 22 identidades, "
         "41 indices, 11 triggers, 22 identidades ajustadas, 29 catalogos, 9 prioridades, "
-        "32 preguntas, 56 migraciones base y permisos para 3 usuarios."
+        "32 preguntas, 56 migraciones base y 96 permisos DML para USRFACSOP."
     )
     return 0
 

@@ -8,7 +8,7 @@ Este paquete crea en el esquema `USRFACT` la estructura equivalente al esquema P
 - Parámetro `COMPATIBLE` igual o superior a 12.2. Es necesario porque algunos nombres oficiales superan 30 bytes.
 - Ejecución desde **PL/SQL Developer – Command Window** conectado como `USRFACT`.
 - El esquema debe tener los privilegios `CREATE TABLE` y `CREATE TRIGGER`, además de cuota en su tablespace predeterminado.
-- Los usuarios `C27826`, `C28111` y `C28134` deben existir antes de ejecutar la instalación.
+- El usuario técnico `USRFACSOP` debe existir antes de ejecutar la instalación.
 
 El DBA puede conceder el privilegio requerido para los disparadores con:
 
@@ -16,7 +16,7 @@ El DBA puede conceder el privilegio requerido para los disparadores con:
 GRANT CREATE TRIGGER TO USRFACT;
 ```
 
-Los permisos concedidos a `C27826`, `C28111` y `C28134` no reemplazan este
+Los permisos concedidos a `USRFACSOP` no reemplazan este
 privilegio del propietario `USRFACT`. Una vez instalada y validada la base, el
 DBA puede revocarlo con `REVOKE CREATE TRIGGER FROM USRFACT;`; los triggers ya
 creados seguirán ejecutándose con las operaciones DML del portal.
@@ -38,11 +38,15 @@ El archivo único fija la sesión en UTC y ejecuta, en este orden:
 5. `04_datos_base.sql`: registra catálogos, matrices y las 32 preguntas 6M necesarias para operar.
 6. `05_baseline_django.sql`: registra las 56 migraciones vigentes, para impedir que Django intente recrear las tablas.
 7. `06_ajustar_identidades.sql`: coloca las 22 identidades por encima de los IDs cargados explícitamente.
-8. `07_permisos.sql`: otorga `SELECT`, `INSERT`, `UPDATE` y `DELETE` a los tres usuarios indicados.
+8. `07_permisos.sql`: otorga `SELECT`, `INSERT`, `UPDATE` y `DELETE` a `USRFACSOP`.
 9. `08_prueba_humo.sql`: prueba las 24 tablas, relaciones, identidades, JSON, BLOB y triggers; al final revierte todos sus datos temporales.
-10. `09_validacion_final.sql`: exige 24 tablas, 44 FK, 22 identidades, 56 migraciones base, objetos válidos, secuencias seguras y los 288 permisos.
+10. `09_validacion_final.sql`: exige 24 tablas, 44 FK, 22 identidades, 56 migraciones base, objetos válidos, secuencias seguras y los 96 permisos DML.
 
 `99_desinstalar.sql` se entrega únicamente para ambientes descartables. No forma parte de la instalación.
+
+Si las 24 tablas ya existen, no vuelva a ejecutar el instalador. Ejecute solamente
+`10_otorgar_permisos_usrfacsop.sql` conectado como `USRFACT`; concede y valida
+los 96 permisos DML de la cuenta técnica sin crear ni modificar tablas.
 
 `REQUISITOS_APLICACION_ORACLE.md` enumera los datos y ajustes que faltarán para que Django se conecte al esquema desde el servidor Windows.
 
@@ -59,21 +63,22 @@ El archivo único fija la sesión en UTC y ejecuta, en este orden:
 
 ## Lo que todavía debe definirse antes del pase
 
-Este paquete prepara y valida la base. Para que el portal Django trabaje con Oracle también deben confirmarse:
+La conexión no secreta ya está preparada para `scan-dwo.tim.com.pe:1521`,
+`SERVICE_NAME=DWO`, `USRFACT` y `USRFACSOP`. Antes del pase todavía deben
+confirmarse:
 
-- host, puerto y `SERVICE_NAME`/PDB de Oracle;
 - versión exacta de Oracle y valor de `COMPATIBLE`;
 - tablespace y cuota asignada a `USRFACT`;
-- credencial DML que usará la aplicación (`C27826`, `C28111` o `C28134`);
 - instalación de las dependencias definidas en `requirements-oracle.txt`;
 - estrategia para trasladar los datos operativos actuales de PostgreSQL a Oracle (la línea base incluida solo registra el estado de las migraciones);
-- prueba integral del portal conectándose a una base Oracle de homologación.
+- prueba integral del portal conectándose desde el servidor Windows;
+- puerto web definitivo y configuración de dominio, certificado y proxy HTTPS.
 
 La creación de estas tablas no cambia por sí sola la conexión activa. En Windows se debe copiar `.env.oracle.example` como `.env`, completar los valores y usar `DB_ENGINE=oracle`.
 
 ## Alcance exacto de los permisos
 
-`07_permisos.sql` concede los cuatro permisos DML solicitados sobre cada una de las 24 tablas a `C27826`, `C28111` y `C28134`: 24 × 4 × 3 = 288 privilegios. Esto incluye las tablas técnicas de migraciones y sesiones porque el alcance pedido fue sobre todo el esquema del portal. Antes de producción, el responsable de seguridad puede reemplazar ese archivo por roles o por una cuenta técnica con privilegios mínimos; la validación final deberá ajustarse si cambia ese alcance.
+`07_permisos.sql` concede los cuatro permisos DML solicitados sobre cada una de las 24 tablas a `USRFACSOP`: 24 × 4 = 96 privilegios. Esto incluye las tablas técnicas de migraciones y sesiones porque el alcance pedido fue sobre todo el esquema del portal. Antes de producción, el responsable de seguridad puede reemplazar ese archivo por un rol Oracle aprobado; la validación final deberá ajustarse si cambia ese alcance.
 
 ## Ejecución en PL/SQL Developer
 

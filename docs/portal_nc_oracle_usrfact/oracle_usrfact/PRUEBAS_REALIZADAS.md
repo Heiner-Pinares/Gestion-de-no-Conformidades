@@ -10,7 +10,7 @@ Fecha de revisión: 09/10/2026.
 - Datos base: 29 catálogos, 1 configuración de impacto, 2 configuraciones de urgencia, 9 combinaciones de prioridad y 32 preguntas 6M.
 - Línea base Django: las 56 filas coinciden exactamente con las 56 migraciones disponibles de las aplicaciones instaladas.
 - Prevalidación Oracle: antes de crear objetos definitivos se exige `CREATE TRIGGER` directamente sobre `USRFACT`; luego se crea una tabla temporal y se prueban `NCLOB IS JSON (STRICT)`, un trigger de fila sobre `INSERT OR UPDATE` y el índice único condicional que permite varios `NULL`. Los objetos temporales se eliminan al terminar.
-- Permisos: cobertura estática exacta de 24 tablas × 4 privilegios × 3 usuarios = 288 privilegios.
+- Permisos: cobertura estática exacta de 24 tablas × 4 privilegios para `USRFACSOP` = 96 privilegios.
 - Instalador autocontenido `INSTALAR_USRFACT_TODO_EN_UNO.sql`: contiene íntegramente y en orden los diez módulos de instalación, no usa `@`/`@@` y termina con un único `EXIT SUCCESS`.
 - Tokenización SQL de todos los archivos aprobada; además, el validador rechaza cualquier `UPDATE OF` aplicado a una columna `NCLOB`, `CLOB` o `BLOB` y exige la forma exacta del índice condicional del catálogo.
 - `python manage.py check`: aprobado, cero observaciones.

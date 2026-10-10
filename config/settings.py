@@ -89,7 +89,7 @@ elif DB_ENGINE == "oracle":
         usuario.strip().upper()
         for usuario in env.list(
             "DB_ALLOWED_USERS",
-            default=["C27826", "C28111", "C28134"],
+            default=["USRFACSOP"],
         )
         if usuario.strip()
     }
@@ -157,8 +157,8 @@ SESSION_COOKIE_AGE = 8 * 60 * 60
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
-SESSION_COOKIE_SECURE = not DEBUG
-CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
 SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0 if DEBUG else 31536000)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = not DEBUG

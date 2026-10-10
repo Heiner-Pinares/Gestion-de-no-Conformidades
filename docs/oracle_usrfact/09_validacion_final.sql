@@ -132,7 +132,7 @@ BEGIN
 
     SELECT COUNT(*) INTO v_total
       FROM USER_TAB_PRIVS_MADE
-     WHERE GRANTEE IN ('C27826','C28111','C28134')
+     WHERE GRANTEE = 'USRFACSOP'
        AND PRIVILEGE IN ('SELECT','INSERT','UPDATE','DELETE')
        AND TABLE_NAME IN (
         'TBL_USUARIO_NC','TBL_USUARIO_ROL_NC','TBL_CATALOGO_NC',
@@ -146,9 +146,9 @@ BEGIN
         'TBL_HISTORIAL_HALLAZGO_NC','TBL_NOTIFICACION_NC',
         'TBL_DJANGO_MIGRATIONS_NC','TBL_DJANGO_SESSION_NC'
        );
-    IF v_total <> 288 THEN
+    IF v_total <> 96 THEN
         RAISE_APPLICATION_ERROR(-20313,
-            'Se esperaban 288 permisos de objeto y existen ' || v_total || '.');
+            'Se esperaban 96 permisos de objeto para USRFACSOP y existen ' || v_total || '.');
     END IF;
 
     SELECT COUNT(*) INTO v_total
@@ -160,7 +160,7 @@ BEGIN
         RAISE_APPLICATION_ERROR(-20314, 'El contenido de evidencias no quedó como BLOB.');
     END IF;
 
-    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 41 indices, 11 triggers, 56 migraciones base y 288 permisos validados.');
+    DBMS_OUTPUT.PUT_LINE('OK: 24 tablas, 44 FK, 22 identidades, 41 indices, 11 triggers, 56 migraciones base y 96 permisos DML para USRFACSOP validados.');
 END;
 /
 

@@ -28,7 +28,7 @@ CABECERA = """-- ===============================================================
 -- PORTAL CLARO - GESTION DE NO CONFORMIDADES
 -- INSTALADOR ORACLE 19c TODO EN UNO
 -- Esquema propietario: USRFACT
--- Usuarios con acceso: C27826, C28111 y C28134
+-- Usuario de aplicación con acceso: USRFACSOP
 --
 -- Ejecutar el archivo completo conectado como USRFACT en una ventana de
 -- comandos de PL/SQL Developer. No requiere archivos SQL adicionales.
