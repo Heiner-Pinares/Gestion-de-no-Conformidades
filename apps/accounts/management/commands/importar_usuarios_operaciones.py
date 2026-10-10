@@ -196,11 +196,18 @@ class Command(BaseCommand):
             # sufijos innecesarios.
             existentes = {}
             for perfil in perfiles:
-                usuario = (
+                # No usar .first() sobre select_for_update(): Django agrega
+                # LIMIT 1 y Oracle no admite LIMIT/OFFSET con FOR UPDATE.
+                coincidencias = list(
                     Usuario.objects.select_for_update()
                     .filter(email__iexact=perfil["email"])
-                    .first()
                 )
+                if len(coincidencias) > 1:
+                    raise CommandError(
+                        "Hay más de una cuenta existente con el correo "
+                        f"{perfil['email']}. Corrija el duplicado antes de importar."
+                    )
+                usuario = coincidencias[0] if coincidencias else None
                 existentes[perfil["fila"]] = usuario
 
             ids_importados = {

@@ -157,14 +157,24 @@ def sync_user(profile: dict) -> Usuario:
     email = (profile.get("mail") or profile.get("userPrincipalName") or "").strip().lower()
     principal_name = (profile.get("userPrincipalName") or email).strip()
 
-    user = Usuario.objects.select_for_update().filter(
-        corporate_identifier=corporate_identifier
-    ).first()
+    # Oracle no permite LIMIT/OFFSET en una consulta SELECT FOR UPDATE.
+    # Evaluar la consulta completa evita el límite implícito de .first().
+    matches = list(
+        Usuario.objects.select_for_update().filter(
+            corporate_identifier=corporate_identifier
+        )
+    )
+    if len(matches) > 1:
+        raise MicrosoftLoginError(
+            "Hay más de una cuenta vinculada a la identidad corporativa. "
+            "Contacta al administrador."
+        )
+    user = matches[0] if matches else None
     if user is None and email:
         matches = list(
             Usuario.objects.select_for_update().filter(
                 email__iexact=email, corporate_identifier__isnull=True
-            )[:2]
+            )
         )
         if len(matches) > 1:
             raise MicrosoftLoginError(

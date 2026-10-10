@@ -6,6 +6,7 @@ from unittest.mock import patch
 from zipfile import ZipFile
 
 from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -121,10 +122,15 @@ class MicrosoftLoginTests(TestCase):
         }
         self.client.get(reverse("microsoft_start"))
         oauth = self.client.session["microsoft_oauth"]
-        self.client.get(
-            reverse("microsoft_callback"),
-            {"state": oauth["state"], "code": "codigo"},
-        )
+        with patch.object(
+            connection.features,
+            "supports_select_for_update_with_limit",
+            False,
+        ):
+            self.client.get(
+                reverse("microsoft_callback"),
+                {"state": oauth["state"], "code": "codigo"},
+            )
         local.refresh_from_db()
         self.assertEqual(Usuario.objects.count(), 1)
         self.assertEqual(local.corporate_identifier, "microsoft:tenant-corporativo:microsoft-ana")
@@ -184,16 +190,23 @@ class ImportarUsuariosOperacionesTests(TestCase):
             self.assertIn("3 usuarios", salida.getvalue())
             self.assertEqual(Usuario.objects.count(), 1)
 
-            call_command(
-                "importar_usuarios_operaciones", ruta,
-                restablecer_claves=True, stdout=StringIO(),
-            )
-            # Repetir la carga actualiza las mismas cuentas y no cambia los
-            # nombres de acceso ya resueltos.
-            call_command(
-                "importar_usuarios_operaciones", ruta,
-                restablecer_claves=True, stdout=StringIO(),
-            )
+            # Reproduce la restricción de Oracle: SELECT FOR UPDATE no puede
+            # combinarse con la consulta limitada que genera QuerySet.first().
+            with patch.object(
+                connection.features,
+                "supports_select_for_update_with_limit",
+                False,
+            ):
+                call_command(
+                    "importar_usuarios_operaciones", ruta,
+                    restablecer_claves=True, stdout=StringIO(),
+                )
+                # Repetir la carga actualiza las mismas cuentas y no cambia los
+                # nombres de acceso ya resueltos.
+                call_command(
+                    "importar_usuarios_operaciones", ruta,
+                    restablecer_claves=True, stdout=StringIO(),
+                )
 
         self.assertEqual(Usuario.objects.count(), 3)
         primero = Usuario.objects.get(email="carlos1@claro.com.pe")
