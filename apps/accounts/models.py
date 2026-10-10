@@ -1,5 +1,5 @@
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.db import models, router, transaction
 
 
 ROLES = [
@@ -45,7 +45,18 @@ class Usuario(AbstractUser):
     def save(self, *args, **kwargs):
         self.corporate_identifier = self.corporate_identifier or None
         self.roles = sorted(set(self.roles or []))
-        super().save(*args, **kwargs)
+        update_fields = kwargs.get("update_fields")
+        sincronizar_roles = self._state.adding or update_fields is None or "roles" in update_fields
+        alias = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=alias):
+            super().save(*args, **kwargs)
+            if sincronizar_roles:
+                roles_validos = {codigo for codigo, _ in ROLES}
+                roles = sorted(set(self.roles or []) & roles_validos)
+                UsuarioRol.objects.using(alias).filter(usuario_id=self.pk).delete()
+                UsuarioRol.objects.using(alias).bulk_create(
+                    [UsuarioRol(usuario_id=self.pk, rol=rol) for rol in roles]
+                )
 
     def has_role(self, role):
         return role in (self.roles or [])

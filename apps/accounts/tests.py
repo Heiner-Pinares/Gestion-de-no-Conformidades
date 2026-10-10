@@ -194,3 +194,48 @@ class ImportarUsuariosOperacionesTests(TestCase):
         self.assertEqual(primero.direccion, "Operaciones Comerciales")
         self.assertEqual(primero.jefe, jefa)
         self.assertEqual(jefa.cargo, "Jefe")
+
+
+class RelationalSyncFallbackTests(TestCase):
+    """La aplicación conserva relaciones aunque Oracle no permita crear triggers."""
+
+    def test_usuario_sincroniza_roles_relacionales(self):
+        from .models import UsuarioRol
+
+        usuario = Usuario.objects.create_user(
+            username="sin.triggers",
+            password="clave-segura",
+            roles=["VALIDADOR", "USUARIO"],
+        )
+        self.assertEqual(
+            set(UsuarioRol.objects.filter(usuario=usuario).values_list("rol", flat=True)),
+            {"USUARIO", "VALIDADOR"},
+        )
+
+        usuario.set_roles(["ADMINISTRADOR"])
+        self.assertEqual(
+            list(UsuarioRol.objects.filter(usuario=usuario).values_list("rol", flat=True)),
+            ["ADMINISTRADOR"],
+        )
+
+    def test_proceso_sincroniza_validadores_relacionales(self):
+        from apps.catalogos.models import Proceso, ProcesoValidador
+
+        validador = Usuario.objects.create_user(
+            username="validador.sin.triggers",
+            password="clave-segura",
+            roles=["VALIDADOR"],
+        )
+        proceso = Proceso.objects.create(
+            nombre="Proceso sin triggers",
+            validadores_ids=[validador.pk],
+        )
+        self.assertTrue(
+            ProcesoValidador.objects.filter(
+                proceso=proceso,
+                usuario=validador,
+            ).exists()
+        )
+
+        proceso.validadores.set([])
+        self.assertFalse(ProcesoValidador.objects.filter(proceso=proceso).exists())

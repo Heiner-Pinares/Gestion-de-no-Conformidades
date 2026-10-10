@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.db import models
+from django.db import models, router, transaction
 
 class Maestro(models.Model):
     nombre = models.CharField(max_length=180)
@@ -158,6 +158,32 @@ class Proceso(Maestro):
 
     def __str__(self):
         return self.nombre
+
+    def save(self, *args, **kwargs):
+        self.validadores_ids = sorted({int(pk) for pk in (self.validadores_ids or [])})
+        update_fields = kwargs.get("update_fields")
+        sincronizar_validadores = (
+            self._state.adding
+            or update_fields is None
+            or "validadores_ids" in update_fields
+        )
+        alias = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=alias):
+            super().save(*args, **kwargs)
+            if sincronizar_validadores:
+                modelo_usuario = self._meta.get_field("responsable").remote_field.model
+                ids_existentes = set(
+                    modelo_usuario.objects.using(alias)
+                    .filter(pk__in=self.validadores_ids)
+                    .values_list("pk", flat=True)
+                )
+                ProcesoValidador.objects.using(alias).filter(proceso_id=self.pk).delete()
+                ProcesoValidador.objects.using(alias).bulk_create(
+                    [
+                        ProcesoValidador(proceso_id=self.pk, usuario_id=usuario_id)
+                        for usuario_id in sorted(ids_existentes)
+                    ]
+                )
 
 
 class ProcesoValidador(models.Model):

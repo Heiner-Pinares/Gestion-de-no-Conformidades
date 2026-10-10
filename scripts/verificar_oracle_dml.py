@@ -160,10 +160,9 @@ def main() -> int:
         faltantes_trigger = TRIGGERS_REQUERIDOS - set(estados_trigger)
         invalidos_trigger = {
             nombre
-            for nombre in TRIGGERS_REQUERIDOS
-            if estados_trigger.get(nombre) != "VALID"
+            for nombre in TRIGGERS_REQUERIDOS & set(estados_trigger)
+            if estados_trigger[nombre] != "VALID"
         }
-        exigir(not faltantes_trigger, f"Faltan triggers requeridos: {sorted(faltantes_trigger)}")
         exigir(not invalidos_trigger, f"Hay triggers inválidos: {sorted(invalidos_trigger)}")
         cursor.execute(
             "SELECT trigger_name, status FROM all_triggers WHERE owner=%s",
@@ -216,9 +215,16 @@ def main() -> int:
     print(f"Modo python-oracledb: {'Thin' if oracledb.is_thin_mode() else 'Thick'}")
     print(f"Usuario de sesión: {usuario_sesion}")
     print(f"Esquema activo: {esquema_actual}")
+    if faltantes_trigger:
+        print(
+            "AVISO ORACLE: no están instalados los triggers opcionales: "
+            + ", ".join(sorted(faltantes_trigger))
+            + ". El portal aplicará estas reglas desde Django."
+        )
     print(
         "OK ORACLE DML: 24 tablas, 229 columnas, 96 permisos DML, "
-        f"{len(migraciones_bd)} migraciones, {len(TRIGGERS_REQUERIDOS)} triggers y evidencias BLOB."
+        f"{len(migraciones_bd)} migraciones, "
+        f"{len(TRIGGERS_REQUERIDOS) - len(faltantes_trigger)} triggers y evidencias BLOB."
     )
     return 0
 
