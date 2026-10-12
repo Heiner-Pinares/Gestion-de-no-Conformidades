@@ -12,7 +12,7 @@
         <p class="page-sub">Seguimiento de fechas, reprogramaciones, estado y eficiencia por actividad.</p>
       </div>
       {% if puede_evaluar %}
-        <button class="btn primary" type="submit" name="accion" value="evaluar">Ir a evaluación de eficacia →</button>
+        <button class="btn primary" type="submit" name="accion" value="evaluar">Enviar a evaluación de eficacia →</button>
       {% else %}
         <button class="btn primary" type="button" disabled title="Completa todas las actividades para habilitar el paso 4">Paso 4 bloqueado</button>
       {% endif %}
@@ -71,7 +71,7 @@
         <button class="btn" type="submit" name="accion" value="guardar">Guardar seguimiento</button>
         <a class="btn activity-detail-link" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Ver a detalle →</a>
         {% if puede_evaluar %}
-          <button class="btn primary" type="submit" name="accion" value="evaluar">Evaluar eficacia →</button>
+          <button class="btn primary" type="submit" name="accion" value="evaluar">Enviar a evaluación de eficacia →</button>
         {% else %}
           <button class="btn primary" type="button" disabled>Paso 4 bloqueado</button>
         {% endif %}

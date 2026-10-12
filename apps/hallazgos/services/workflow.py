@@ -123,6 +123,15 @@ class WorkflowService:
             exigir(analisis_completo(ciclo) and ciclo.acciones.filter(tipo="CORRECTIVA").exists(), "Se necesita análisis finalizado y al menos una acción correctiva.")
         elif accion == "enviar_verificacion":
             ciclo = tratamiento_completo(hallazgo)
+            validadores = hallazgo.proceso.validadores.filter(
+                is_active=True,
+                asignaciones_rol__rol="VALIDADOR",
+            )
+            exigir(
+                validadores.exists(),
+                "El proceso no tiene un validador activo asignado. "
+                "Solicite al administrador asignarlo antes de enviar a verificación.",
+            )
             if hallazgo.es_critica == "SI":
                 exigir(hallazgo.estado == "EN_IMPLEMENTACION", "El caso crítico debe completar análisis y acciones correctivas.")
         elif accion == "cerrar":
@@ -141,7 +150,7 @@ class WorkflowService:
         hallazgo.estado = destino
         registrar(hallazgo, usuario, accion.upper(), comentario, anterior=anterior)
         destinatarios = None
-        if accion == "enviar":
+        if accion in {"enviar", "enviar_verificacion"}:
             destinatarios = set(hallazgo.proceso.validadores.filter(is_active=True).values_list("pk", flat=True)) | {hallazgo.registrado_por_id, hallazgo.responsable_id}
         notificar(hallazgo, accion, f"{etiqueta}. {comentario}".strip(), destinatarios)
         return hallazgo

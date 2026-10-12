@@ -615,6 +615,20 @@ class Recorridos(TestCase):
         self.paso(h,'enviar_verificacion')
         with self.assertRaises(ValidationError): self.paso(h,'cerrar',self.admin)
 
+    def test_no_envia_a_verificacion_sin_validador_activo_asignado(self):
+        hallazgo = self.crear()
+        self.inmediata(hallazgo)
+        self.proceso.validadores.set([])
+
+        with self.assertRaisesMessage(
+            ValidationError,
+            'El proceso no tiene un validador activo asignado.',
+        ):
+            self.paso(hallazgo, 'enviar_verificacion')
+
+        hallazgo.refresh_from_db()
+        self.assertNotEqual(hallazgo.estado, 'EN_VERIFICACION')
+
     def test_control_6m_obligatorio_y_snapshot(self):
         h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
         preguntas = [p for p in PreguntaCausa.objects.all() if p.texto.strip().rstrip(':').casefold() != 'otro']
@@ -1110,17 +1124,38 @@ class Recorridos(TestCase):
             'accion': 'evaluar',
         }
         response = self.client.post(reverse('hallazgo_acciones_seguimiento', args=[hallazgo.pk]), completado)
-        self.assertEqual(response.url, reverse('hallazgo_eficacia', args=[hallazgo.pk]))
+        self.assertEqual(response.url, reverse('hallazgo_detalle', args=[hallazgo.pk]))
         hallazgo.refresh_from_db()
         actividad.refresh_from_db()
         self.assertEqual(hallazgo.estado, 'EN_VERIFICACION')
         self.assertEqual((actividad.estado, actividad.porcentaje_avance), ('COMPLETADA', 100))
-        eficacia = self.client.get(response.url)
+        self.assertEqual(
+            self.client.get(reverse('hallazgo_eficacia', args=[hallazgo.pk])).status_code,
+            403,
+        )
+        self.assertTrue(Notificacion.objects.filter(
+            usuario=self.calidad,
+            hallazgo=hallazgo,
+            tipo='enviar_verificacion',
+        ).exists())
+
+        self.client.force_login(self.calidad)
+        panel_calidad = self.client.get(reverse('inicio'))
+        self.assertContains(panel_calidad, '?estado=EN_VERIFICACION')
+        self.assertNotContains(panel_calidad, '?estado=PENDIENTE_VALIDACION')
+        bandeja_calidad = self.client.get(
+            reverse('hallazgo_buscar'),
+            {'estado': 'EN_VERIFICACION'},
+        )
+        self.assertContains(bandeja_calidad, hallazgo.codigo)
+
+        eficacia_url = reverse('hallazgo_eficacia', args=[hallazgo.pk])
+        eficacia = self.client.get(eficacia_url)
         self.assertContains(eficacia, 'Resumen de actividades')
         self.assertContains(eficacia, 'Resultado de eficacia')
         self.assertContains(eficacia, 'Abiertas: <b>0</b>')
         self.assertContains(eficacia, '>Seleccionar</option>')
-        response = self.client.post(reverse('hallazgo_eficacia', args=[hallazgo.pk]), {
+        response = self.client.post(eficacia_url, {
             'fecha_evaluacion': timezone.localdate().isoformat(), 'resultado': 'EFICAZ',
             'comentario': 'La solución eliminó la desviación.',
         })

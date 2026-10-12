@@ -627,7 +627,11 @@ def hallazgo_acciones_seguimiento(request, pk):
             error_general = " ".join(error.messages)
         else:
             if accion_solicitada == "evaluar":
-                return redirect("hallazgo_eficacia", pk=h.pk)
+                messages.success(
+                    request,
+                    "El hallazgo fue enviado a Calidad para la evaluación de eficacia.",
+                )
+                return redirect("hallazgo_detalle", pk=h.pk)
             messages.success(request, "El seguimiento de las actividades fue guardado.")
             return redirect("hallazgo_acciones_seguimiento", pk=h.pk)
     actividades_vigentes = [a for a in acciones if a.estado != "CANCELADA"]
@@ -757,7 +761,7 @@ def accion_reprogramacion_resolver(request, pk, decision):
 @login_required
 def hallazgo_eficacia(request, pk):
     h = obtener_hallazgo(request.user, pk)
-    autorizado = (puede_validar(request.user, h) and request.user.has_perm("accounts.evaluar_eficacia")) or puede_gestionar(request.user, h)
+    autorizado = puede_validar(request.user, h) and request.user.has_perm("accounts.evaluar_eficacia")
     if not autorizado or h.estado != "EN_VERIFICACION":
         raise PermissionDenied
     ciclo = h.ciclo_actual
