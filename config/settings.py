@@ -1,4 +1,6 @@
 """Configuración del portal para PostgreSQL local u Oracle en producción."""
+import os
+import tempfile
 from pathlib import Path
 import environ
 from django.core.exceptions import ImproperlyConfigured
@@ -153,7 +155,26 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = BASE_DIR / "staticfiles"
+
+
+def _static_root_predeterminado() -> Path:
+    """Devuelve una carpeta escribible y propia de la cuenta en Windows.
+
+    El checkout puede pertenecer al administrador que instaló el portal y el
+    proceso web puede ejecutarse con otra cuenta. Guardar ``collectstatic``
+    dentro del repositorio hacía que ambas cuentas disputaran los permisos de
+    ``staticfiles.json``. LOCALAPPDATA mantiene una copia independiente para la
+    cuenta que realmente inicia Waitress.
+    """
+    if os.name == "nt":
+        base_usuario = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+        return Path(base_usuario) / "PortalNC" / "staticfiles"
+    return BASE_DIR / "staticfiles"
+
+
+# Puede fijarse una ruta compartida mediante STATIC_ROOT, siempre que la cuenta
+# que ejecuta el portal tenga permisos de modificación sobre toda la carpeta.
+STATIC_ROOT = Path(env("STATIC_ROOT", default=str(_static_root_predeterminado())))
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {

@@ -159,7 +159,7 @@ Equivale a:
 .\.venv\Scripts\python.exe run.py start
 ```
 
-Primero valida Oracle y Django, luego ejecuta `collectstatic` y finalmente inicia Waitress. Si la configuración, permisos o esquema no coinciden, el proceso termina antes de abrir el puerto. Para producción, ejecute este comando con una cuenta de servicio y publique HTTPS mediante el proxy inverso aprobado (por ejemplo IIS ARR).
+Primero valida Oracle y Django, luego ejecuta `collectstatic` y finalmente inicia Waitress. En Windows los estáticos se guardan, por defecto, en `%LOCALAPPDATA%\PortalNC\staticfiles` de la cuenta que inicia el proceso. Esto evita que una instalación realizada por un administrador deje `staticfiles.json` bloqueado para la cuenta de servicio. La ruta puede fijarse con `STATIC_ROOT`, pero esa cuenta debe tener permisos de modificación sobre toda la carpeta. Si la configuración, permisos o esquema no coinciden, el proceso termina antes de abrir el puerto. Para producción, ejecute este comando con una cuenta de servicio y publique HTTPS mediante el proxy inverso aprobado (por ejemplo IIS ARR).
 
 ## Actualizar desde Git
 

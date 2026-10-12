@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -34,6 +35,26 @@ def verificar() -> None:
     print("OK DJANGO: validación de despliegue ejecutada; no hay DDL pendiente.")
 
 
+def verificar_directorio_estaticos(ruta: Path) -> None:
+    """Comprueba antes de collectstatic que la cuenta pueda escribir la ruta."""
+    try:
+        ruta.mkdir(parents=True, exist_ok=True)
+        manifiesto = ruta / "staticfiles.json"
+        if manifiesto.exists():
+            # En Windows elimina el atributo de solo lectura cuando fue dejado
+            # por una copia, antivirus o herramienta de despliegue anterior.
+            manifiesto.chmod(manifiesto.stat().st_mode | stat.S_IWRITE)
+        prueba = ruta / f".portal-nc-write-{os.getpid()}"
+        prueba.write_bytes(b"")
+        prueba.unlink()
+    except OSError as error:
+        raise RuntimeError(
+            "La cuenta que inicia el portal no puede escribir en STATIC_ROOT "
+            f"({ruta}). Configure STATIC_ROOT con una carpeta propia o conceda "
+            "permisos de modificación a esa cuenta."
+        ) from error
+
+
 def iniciar() -> None:
     verificar()
     from django.conf import settings
@@ -43,7 +64,11 @@ def iniciar() -> None:
     # WhiteNoise construye su inventario al crear la aplicación WSGI. En una
     # instalación nueva debemos recolectar primero; si se importa WSGI antes,
     # el proceso conserva un inventario vacío y el portal aparece sin CSS.
-    call_command("collectstatic", interactive=False, verbosity=1, clear=True)
+    raiz_estaticos = Path(settings.STATIC_ROOT)
+    verificar_directorio_estaticos(raiz_estaticos)
+    # No usar clear=True: borrar todos los archivos en cada arranque provocaba
+    # fallos de permisos en Windows y no aporta nada al manifiesto versionado.
+    call_command("collectstatic", interactive=False, verbosity=1, clear=False)
     requeridos = (
         "css/portal-v8.css",
         "css/portal.css",
@@ -51,7 +76,7 @@ def iniciar() -> None:
     )
     faltantes = [
         nombre for nombre in requeridos
-        if not (Path(settings.STATIC_ROOT) / Path(nombre)).is_file()
+        if not (raiz_estaticos / Path(nombre)).is_file()
     ]
     if faltantes:
         raise RuntimeError(
@@ -63,7 +88,7 @@ def iniciar() -> None:
     # los archivos recién creados.
     from config.wsgi import application
 
-    print("OK ESTÁTICOS: CSS, imagen de acceso y WhiteNoise preparados.")
+    print(f"OK ESTÁTICOS: CSS, imagen de acceso y WhiteNoise preparados en {raiz_estaticos}.")
     host = os.environ.get("PORTAL_BIND_HOST", "0.0.0.0").strip()
     puerto = int(os.environ.get("PORTAL_PORT", "8000"))
     hilos = int(os.environ.get("PORTAL_THREADS", "8"))
