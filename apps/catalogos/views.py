@@ -18,7 +18,10 @@ from apps.accounts.forms import UsuarioCreacionForm, UsuarioEdicionForm
 from apps.accounts.models import Usuario, UsuarioRol
 from apps.accounts.permissions import es_administrador, es_validador
 from .forms import CATALOGOS, ConfiguracionImpactoForm, ConfiguracionUrgenciaForm, formulario_catalogo
-from .models import AuditoriaAdministracion, ConfiguracionImpacto, ConfiguracionUrgencia
+from .models import (
+    AuditoriaAdministracion, ConfiguracionImpacto, ConfiguracionUrgencia,
+    Proceso, ProcesoValidador,
+)
 
 
 def solo_admin(view):
@@ -40,11 +43,33 @@ def registrar_auditoria(usuario, entidad, objeto, accion, antes, despues):
     AuditoriaAdministracion.objects.create(usuario=usuario, entidad=entidad, objeto=str(objeto), accion=accion, antes=antes, despues=despues)
 
 
+def guardar_procesos_validador(usuario, procesos):
+    """Sincroniza la relación normalizada y el JSON compatible del proceso."""
+    seleccionados = {proceso.pk for proceso in procesos}
+    anteriores = set(
+        ProcesoValidador.objects.filter(usuario=usuario).values_list(
+            "proceso_id", flat=True,
+        )
+    )
+    for proceso in Proceso.objects.select_for_update().filter(
+        pk__in=anteriores | seleccionados,
+    ):
+        validadores = set(proceso.validadores_ids or [])
+        if proceso.pk in seleccionados:
+            validadores.add(usuario.pk)
+        else:
+            validadores.discard(usuario.pk)
+        proceso.validadores_ids = sorted(validadores)
+        proceso.save(update_fields=["validadores_ids"])
+
+
 @solo_admin
 def usuarios(request):
     q = request.GET.get("q", "").strip()
     rol = request.GET.get("rol", "").strip()
-    qs = Usuario.objects.filter(is_superuser=False).select_related("jefe").order_by("username")
+    qs = Usuario.objects.filter(is_superuser=False).select_related("jefe").prefetch_related(
+        "asignaciones_proceso__proceso",
+    ).order_by("username")
     if q:
         qs = qs.filter(
             Q(username__icontains=q) | Q(first_name__icontains=q)
@@ -74,8 +99,14 @@ def usuario_crear(request):
         with transaction.atomic():
             obj = form.save()
             obj.set_roles(form.cleaned_data["roles"])
-            registrar_auditoria(request.user, "Usuario", obj.pk, "crear", {}, {"username": obj.username, "roles": obj.roles})
-        messages.success(request, "Usuario creado con sus roles.")
+            procesos = form.cleaned_data["procesos_validacion"]
+            guardar_procesos_validador(obj, procesos)
+            registrar_auditoria(request.user, "Usuario", obj.pk, "crear", {}, {
+                "username": obj.username,
+                "roles": obj.roles,
+                "procesos_validacion": [proceso.pk for proceso in procesos],
+            })
+        messages.success(request, "Usuario creado con sus roles y procesos de validación.")
         return redirect("usuarios")
     return render(request, "administrador/formulario.html", {"form": form, "titulo": "Crear usuario", "volver": "usuarios"})
 
@@ -99,12 +130,20 @@ def usuario_editar(request, pk):
             else:
                 antes = serializar(actual, ["first_name", "last_name", "email", "area", "gerencia", "direccion", "cargo", "jefe", "is_active"])
                 antes["roles"] = actual.roles
+                antes["procesos_validacion"] = list(
+                    ProcesoValidador.objects.filter(usuario=actual).values_list(
+                        "proceso_id", flat=True,
+                    )
+                )
                 guardado = form.save()
                 guardado.set_roles(roles)
+                procesos = form.cleaned_data["procesos_validacion"]
+                guardar_procesos_validador(guardado, procesos)
                 despues = serializar(guardado, ["first_name", "last_name", "email", "area", "gerencia", "direccion", "cargo", "jefe", "is_active"])
                 despues["roles"] = roles
+                despues["procesos_validacion"] = [proceso.pk for proceso in procesos]
                 registrar_auditoria(request.user, "Usuario", pk, "actualizar", antes, despues)
-                messages.success(request, "Usuario actualizado.")
+                messages.success(request, "Usuario y procesos de validación actualizados.")
                 return redirect("usuarios")
     return render(request, "administrador/formulario.html", {"form": form, "titulo": f"Editar {obj.username}", "volver": "usuarios", "usuario_editado": obj})
 

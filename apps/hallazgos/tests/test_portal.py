@@ -1308,7 +1308,28 @@ class Recorridos(TestCase):
         self.client.force_login(self.admin)
         r=self.client.post(reverse('catalogo_crear',args=['procesos']),{'nombre':'Nuevo proceso','activo':'on','validadores':[self.calidad.pk]})
         self.assertEqual(r.status_code,302)
-        self.assertTrue(Proceso.objects.get(nombre='Nuevo proceso').validadores.filter(pk=self.calidad.pk).exists())
+        nuevo_proceso = Proceso.objects.get(nombre='Nuevo proceso')
+        self.assertTrue(nuevo_proceso.validadores.filter(pk=self.calidad.pk).exists())
+
+        edicion = self.client.get(reverse('usuario_editar', args=[self.calidad.pk]))
+        self.assertContains(edicion, 'Procesos que valida')
+        sin_alcance = self.client.post(reverse('usuario_editar', args=[self.calidad.pk]), {
+            'roles': ['VALIDADOR'], 'is_active': 'on',
+        })
+        self.assertEqual(sin_alcance.status_code, 200)
+        self.assertContains(sin_alcance, 'Seleccione al menos un proceso')
+
+        asignado = self.client.post(reverse('usuario_editar', args=[self.calidad.pk]), {
+            'roles': ['VALIDADOR'],
+            'procesos_validacion': [nuevo_proceso.pk],
+            'is_active': 'on',
+        })
+        self.assertEqual(asignado.status_code, 302)
+        nuevo_proceso.refresh_from_db()
+        self.proceso.refresh_from_db()
+        self.assertTrue(nuevo_proceso.validadores.filter(pk=self.calidad.pk).exists())
+        self.assertFalse(self.proceso.validadores.filter(pk=self.calidad.pk).exists())
+
         r=self.client.post(reverse('usuario_editar',args=[self.admin.pk]),{'roles':['USUARIO'],'is_active':'on'})
         self.assertEqual(r.status_code,200)
         self.assertContains(r,'Debe permanecer al menos un administrador activo.')
