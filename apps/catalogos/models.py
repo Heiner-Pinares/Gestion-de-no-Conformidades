@@ -82,7 +82,13 @@ class Catalogo(models.Model):
 
 class CatalogoManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(clase=self.model.CLASE)
+        consulta = super().get_queryset().filter(clase=self.model.CLASE)
+        # Las actividades comparten la tabla maestra con CATEGORIA por
+        # compatibilidad con el CHECK de Oracle 19c. El prefijo técnico evita
+        # que aparezcan como categorías del análisis 6M.
+        if self.model.CLASE == "CATEGORIA":
+            consulta = consulta.exclude(codigo__startswith="ACT_")
+        return consulta
 
 
 class CatalogoTipado:

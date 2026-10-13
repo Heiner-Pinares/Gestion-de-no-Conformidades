@@ -16,6 +16,7 @@ from PIL import Image
 
 from apps.accounts.models import Usuario
 from apps.catalogos.models import AuditoriaAdministracion, CategoriaCausa, ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
+from apps.catalogos.services import actividades_queryset
 from apps.hallazgos.forms import HallazgoForm
 from apps.hallazgos.models import Accion, CicloTratamiento, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
 from apps.hallazgos.selectors import acciones_disponibles, hallazgos_visibles, timeline_hallazgo
@@ -1427,6 +1428,58 @@ class Recorridos(TestCase):
         self.assertEqual(r.status_code,200)
         self.assertContains(r,'Debe permanecer al menos un administrador activo.')
         self.admin.refresh_from_db(); self.assertTrue(self.admin.has_role('ADMINISTRADOR'))
+
+    def test_administrador_edita_actividades_y_filtra_por_estado(self):
+        self.client.force_login(self.admin)
+        resumen = self.client.get(reverse('catalogos'))
+        self.assertContains(resumen, 'Actividades')
+
+        proceso = Proceso.objects.get(nombre='Facturacion')
+        emision = Subproceso.objects.get(proceso=proceso, nombre='Emision')
+        actividad = actividades_queryset().get(
+            codigo__startswith=f'ACT_{emision.pk}_',
+            nombre='Billing',
+        )
+        listado = self.client.get(reverse('catalogos'), {
+            'tipo': 'actividades', 'q': 'Billing', 'estado': 'activo',
+        })
+        self.assertContains(listado, 'Billing')
+        self.assertContains(listado, 'Emision')
+
+        respuesta = self.client.post(
+            reverse('catalogo_editar', args=['actividades', actividad.pk]),
+            {'proceso': proceso.pk, 'subproceso': emision.pk, 'nombre': 'Billing mensual'},
+        )
+        self.assertEqual(respuesta.status_code, 302)
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.nombre, 'Billing mensual')
+        self.assertFalse(actividad.activo)
+
+        inactivas = self.client.get(reverse('catalogos'), {
+            'tipo': 'actividades', 'q': 'Billing mensual', 'estado': 'inactivo',
+        })
+        self.assertContains(inactivas, 'Billing mensual')
+        activas = self.client.get(reverse('catalogos'), {
+            'tipo': 'actividades', 'q': 'Billing mensual', 'estado': 'activo',
+        })
+        self.assertNotContains(activas, '<td>Billing mensual</td>', html=True)
+
+        nueva = self.client.post(reverse('catalogo_crear', args=['actividades']), {
+            'proceso': proceso.pk,
+            'subproceso': emision.pk,
+            'nombre': 'Conciliación de emisión',
+            'activo': 'on',
+        })
+        self.assertEqual(nueva.status_code, 302)
+        self.assertTrue(actividades_queryset().filter(
+            codigo__startswith=f'ACT_{emision.pk}_',
+            nombre='Conciliación de emisión',
+            activo=True,
+        ).exists())
+        self.assertTrue(AuditoriaAdministracion.objects.filter(
+            entidad='ActividadCatalogo',
+            accion='crear',
+        ).exists())
 
     def test_avisos_vencimiento_idempotentes(self):
         h=self.crear();self.paso(h,'enviar');self.paso(h,'validar',self.calidad);self.paso(h,'iniciar_inmediata');self.accion(h)

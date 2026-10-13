@@ -19,9 +19,28 @@ from apps.accounts.models import Usuario, UsuarioRol
 from apps.accounts.permissions import es_administrador, es_validador
 from .forms import CATALOGOS, ConfiguracionImpactoForm, ConfiguracionUrgenciaForm, formulario_catalogo
 from .models import (
-    AuditoriaAdministracion, ConfiguracionImpacto, ConfiguracionUrgencia,
+    AuditoriaAdministracion, Catalogo, ConfiguracionImpacto, ConfiguracionUrgencia,
     Proceso, ProcesoValidador,
 )
+from .services import actividades_queryset, detalle_actividad
+
+
+TIPO_ACTIVIDADES = "actividades"
+TITULO_ACTIVIDADES = "Actividades"
+
+
+def tipos_catalogo():
+    return [(k, v[2]) for k, v in CATALOGOS.items()] + [(TIPO_ACTIVIDADES, TITULO_ACTIVIDADES)]
+
+
+def datos_actividad(actividad):
+    detalle = detalle_actividad(actividad)
+    return {
+        "proceso": str(detalle["proceso"].pk) if detalle["proceso"] else "",
+        "subproceso": str(detalle["subproceso"].pk) if detalle["subproceso"] else "",
+        "nombre": actividad.nombre,
+        "activo": str(actividad.activo),
+    }
 
 
 def solo_admin(view):
@@ -169,44 +188,90 @@ def catalogos(request):
             {"clave": clave, "titulo": titulo, "total": modelo.objects.count()}
             for clave, (modelo, _, titulo) in CATALOGOS.items()
         ]
+        resumen_catalogos.append({
+            "clave": TIPO_ACTIVIDADES,
+            "titulo": TITULO_ACTIVIDADES,
+            "total": actividades_queryset().count(),
+        })
         return render(request, "administrador/catalogos.html", {
-            "tipos": [(k, v[2]) for k, v in CATALOGOS.items()],
+            "tipos": tipos_catalogo(),
             "resumen_catalogos": resumen_catalogos,
         })
-    if tipo not in CATALOGOS:
+    if tipo not in CATALOGOS and tipo != TIPO_ACTIVIDADES:
         raise Http404
-    modelo, _, titulo = CATALOGOS[tipo]
-    qs = modelo.objects.all()
-    if tipo == "matriz":
-        qs = qs.select_related("impacto", "urgencia", "prioridad")
+    q = request.GET.get("q", "").strip()
+    estado = request.GET.get("estado", "").strip()
+    if estado not in {"", "activo", "inactivo"}:
+        estado = ""
+    if tipo == TIPO_ACTIVIDADES:
+        titulo = TITULO_ACTIVIDADES
+        qs = actividades_queryset()
+    else:
+        modelo, _, titulo = CATALOGOS[tipo]
+        qs = modelo.objects.all()
+        if tipo == "matriz":
+            qs = qs.select_related("impacto", "urgencia", "prioridad")
+    if estado:
+        qs = qs.filter(activo=estado == "activo")
+    if q:
+        campos = {campo.name for campo in qs.model._meta.fields}
+        busqueda = Q()
+        if "nombre" in campos:
+            busqueda |= Q(nombre__icontains=q)
+        if "codigo" in campos:
+            busqueda |= Q(codigo__icontains=q)
+        if "texto" in campos:
+            busqueda |= Q(texto__icontains=q)
+        if tipo == "subprocesos":
+            busqueda |= Q(proceso__nombre__icontains=q)
+        if busqueda:
+            qs = qs.filter(busqueda)
+    pagina = Paginator(qs, 10).get_page(request.GET.get("page"))
+    if tipo == TIPO_ACTIVIDADES:
+        for actividad in pagina.object_list:
+            detalle = detalle_actividad(actividad)
+            actividad.proceso_catalogo = detalle["proceso"]
+            actividad.subproceso_catalogo = detalle["subproceso"]
     return render(request, "administrador/catalogos.html", {
-        "tipos": [(k, v[2]) for k, v in CATALOGOS.items()], "tipo": tipo, "titulo": titulo,
-        "pagina": Paginator(qs, 10).get_page(request.GET.get("page")),
-        "filtros": urlencode({"tipo": tipo}),
+        "tipos": tipos_catalogo(), "tipo": tipo, "titulo": titulo,
+        "pagina": pagina, "q": q, "estado": estado,
+        "filtros": urlencode({k: v for k, v in {"tipo": tipo, "q": q, "estado": estado}.items() if v}),
         "puede_crear": tipo not in ("tipos", "impactos", "urgencias", "categorias"),
     })
 
 
 @solo_admin
 def catalogo_editar(request, tipo, pk=None):
-    if tipo not in CATALOGOS:
+    if tipo not in CATALOGOS and tipo != TIPO_ACTIVIDADES:
         raise Http404
-    modelo, campos, titulo = CATALOGOS[tipo]
+    if tipo == TIPO_ACTIVIDADES:
+        modelo, campos, titulo = Catalogo, ["proceso", "subproceso", "nombre", "activo"], TITULO_ACTIVIDADES
+    else:
+        modelo, campos, titulo = CATALOGOS[tipo]
     if pk is None and tipo in ("tipos", "impactos", "urgencias", "categorias"):
         raise PermissionDenied
-    obj = get_object_or_404(modelo, pk=pk) if pk is not None else None
+    if tipo == TIPO_ACTIVIDADES:
+        obj = get_object_or_404(actividades_queryset(), pk=pk) if pk is not None else None
+    else:
+        obj = get_object_or_404(modelo, pk=pk) if pk is not None else None
     form = formulario_catalogo(tipo, request.POST or None, instance=obj)
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
-            anterior = modelo.objects.select_for_update().get(pk=pk) if obj else None
-            antes = serializar(anterior, campos) if anterior else {}
+            if tipo == TIPO_ACTIVIDADES:
+                anterior = actividades_queryset().select_for_update().get(pk=pk) if obj else None
+                antes = datos_actividad(anterior) if anterior else {}
+                form.instance = anterior
+            else:
+                anterior = modelo.objects.select_for_update().get(pk=pk) if obj else None
+                antes = serializar(anterior, campos) if anterior else {}
             guardado = form.save()
             if "validadores" in form.cleaned_data:
                 guardado.validadores.set(form.cleaned_data["validadores"])
-            despues = serializar(guardado, campos)
+            despues = datos_actividad(guardado) if tipo == TIPO_ACTIVIDADES else serializar(guardado, campos)
             if "validadores" in form.cleaned_data:
                 despues["validadores"] = list(guardado.validadores.values_list("pk", flat=True))
-            registrar_auditoria(request.user, modelo.__name__, guardado.pk, "actualizar" if anterior else "crear", antes, despues)
+            entidad = "ActividadCatalogo" if tipo == TIPO_ACTIVIDADES else modelo.__name__
+            registrar_auditoria(request.user, entidad, guardado.pk, "actualizar" if anterior else "crear", antes, despues)
         messages.success(request, "Catálogo guardado. Los valores históricos del caso se conservan.")
         return redirect(f"/administracion/catalogos/?tipo={tipo}")
     return render(request, "administrador/formulario.html", {"form": form, "titulo": titulo, "volver": "catalogos"})

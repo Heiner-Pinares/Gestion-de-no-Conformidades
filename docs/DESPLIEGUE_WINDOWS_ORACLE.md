@@ -260,3 +260,8 @@ El primer comando usa únicamente `SELECT`, `INSERT` y `UPDATE`. Activa
 `Facturacion` con sus tres subprocesos y 18 actividades, e inactiva las
 opciones anteriores sin borrarlas para conservar los hallazgos históricos. Es
 idempotente: puede repetirse sin duplicar filas.
+
+Las actividades se guardan en `USRFACT.tbl_catalogo_nc` y pueden crearse,
+editarse, activarse o inactivarse desde **Administración > Catálogos >
+Actividades**. Esta función reutiliza las tablas instaladas y no ejecuta DDL ni
+requiere migraciones nuevas.

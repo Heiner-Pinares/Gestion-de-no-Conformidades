@@ -50,7 +50,7 @@ class Command(BaseCommand):
             ConfiguracionImpacto.objects.create()
         for codigo, nombre in (("FACTURACION", "Emisión de facturación"), ("POST_FACTURACION", "Vencimiento de ciclo")):
             ConfiguracionUrgencia.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre, "activo": True})
-        sincronizar_catalogo_identificacion()
+        identificacion = sincronizar_catalogo_identificacion()
         # TODO negocio: reemplazar esta matriz DEMO por la oficial aprobada.
         demo = [["BAJA", "MEDIA", "ALTA"], ["MEDIA", "ALTA", "ALTA"], ["ALTA", "ALTA", "CRITICA"]]
         for impacto, fila in enumerate(demo, 1):
@@ -63,6 +63,7 @@ class Command(BaseCommand):
                 PreguntaCausa.objects.get_or_create(codigo=pregunta["codigo"], defaults={"categoria": obj, "texto": pregunta["texto"], "orden": orden})
         reparar_textos_corruptos()
         self.stdout.write(self.style.SUCCESS(
-            "Maestros, roles integrados, 1 proceso, 3 subprocesos y 18 actividades "
-            "y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."
+            "Maestros, roles integrados, 1 proceso, 3 subprocesos, "
+            f"{identificacion['actividades']} actividades activas y 32 preguntas 6M "
+            "disponibles. Matriz de prioridad inicial: DEMO."
         ))

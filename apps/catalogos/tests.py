@@ -65,4 +65,5 @@ class CatalogoIdentificacionTests(TestCase):
         self.assertEqual(segunda["subprocesos_creados"], 0)
         self.assertEqual(segunda["subprocesos_activados"], 0)
         self.assertEqual(segunda["subprocesos_inactivados"], 0)
+        self.assertEqual(segunda["actividades_creadas"], 0)
         self.assertEqual(segunda["actividades"], 18)

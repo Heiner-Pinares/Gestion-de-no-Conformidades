@@ -4,6 +4,7 @@ from .models import (
     CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad, PreguntaCausa,
     Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
 )
+from .services import actividades_queryset, detalle_actividad, guardar_actividad
 
 
 class ConfiguracionImpactoForm(forms.ModelForm):
@@ -59,6 +60,66 @@ class ConfiguracionUrgenciaForm(forms.ModelForm):
         return datos
 
 
+class ActividadCatalogoForm(forms.Form):
+    proceso = forms.ModelChoiceField(
+        label="Proceso",
+        queryset=Proceso.objects.none(),
+        empty_label="Seleccionar",
+    )
+    subproceso = forms.ModelChoiceField(
+        label="Subproceso",
+        queryset=Subproceso.objects.none(),
+        empty_label="Seleccionar",
+    )
+    nombre = forms.CharField(label="Actividad", max_length=180)
+    activo = forms.BooleanField(label="Activo", required=False)
+
+    def __init__(self, *args, instance=None, **kwargs):
+        self.instance = instance
+        super().__init__(*args, **kwargs)
+        self.fields["proceso"].queryset = Proceso.objects.filter(activo=True).order_by("nombre")
+        self.fields["subproceso"].queryset = Subproceso.objects.filter(
+            activo=True,
+            proceso__activo=True,
+        ).select_related("proceso").order_by("proceso__nombre", "nombre")
+        if instance is not None:
+            detalle = detalle_actividad(instance)
+            self.initial.update(detalle)
+        elif not self.is_bound:
+            procesos = list(self.fields["proceso"].queryset[:2])
+            if len(procesos) == 1:
+                self.initial["proceso"] = procesos[0]
+        for campo in self.fields.values():
+            campo.widget.attrs.setdefault("class", "input")
+
+    def clean(self):
+        datos = super().clean()
+        proceso = datos.get("proceso")
+        subproceso = datos.get("subproceso")
+        nombre = (datos.get("nombre") or "").strip()
+        if proceso and subproceso and subproceso.proceso_id != proceso.pk:
+            self.add_error("subproceso", "El subproceso no pertenece al proceso seleccionado.")
+        if subproceso and nombre:
+            repetida = actividades_queryset().filter(
+                codigo__startswith=f"ACT_{subproceso.pk}_",
+                nombre__iexact=nombre,
+            )
+            if self.instance is not None:
+                repetida = repetida.exclude(pk=self.instance.pk)
+            if repetida.exists():
+                self.add_error("nombre", "Ya existe esta actividad para el subproceso seleccionado.")
+        datos["nombre"] = nombre
+        return datos
+
+    def save(self):
+        return guardar_actividad(
+            subproceso=self.cleaned_data["subproceso"],
+            nombre=self.cleaned_data["nombre"],
+            activo=self.cleaned_data["activo"],
+            actividad=self.instance,
+        )
+
+
 # Lista explícita: nunca aceptar un nombre de modelo enviado por el navegador.
 CATALOGOS = {
     "tipos": (TipoRegistro, ["nombre", "activo"], "Tipos de registro"),
@@ -75,6 +136,8 @@ CATALOGOS = {
 
 
 def formulario_catalogo(tipo, *args, instance=None, **kwargs):
+    if tipo == "actividades":
+        return ActividadCatalogoForm(*args, instance=instance, **kwargs)
     modelo, campos, _ = CATALOGOS[tipo]
     campos_modelo = [campo for campo in campos if campo != "validadores"]
     form_class = forms.modelform_factory(modelo, fields=campos_modelo)
