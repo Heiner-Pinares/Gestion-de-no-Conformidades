@@ -153,6 +153,8 @@
   const proceso = document.getElementById('id_proceso');
   const subproceso = document.getElementById('id_subproceso');
   const opcionesSubproceso = [...subproceso.options].filter(opcion => opcion.value);
+  const actividad = document.getElementById('id_actividad');
+  const opcionesActividad = [...actividad.options].filter(opcion => opcion.value);
   const codigoHallazgo = document.getElementById('hallazgoCode');
   const codigoStatus = document.getElementById('hallazgoCodeStatus');
   const codigosSac = JSON.parse(document.getElementById('codigosSac').textContent);
@@ -175,6 +177,21 @@
     const seleccionada = subproceso.options[subproceso.selectedIndex];
     if (seleccionada && seleccionada.value && seleccionada.disabled) subproceso.value = '';
     subproceso.disabled = !procesoId;
+    filtrarActividades();
+  }
+
+  function filtrarActividades() {
+    const subprocesoId = subproceso.value;
+    let disponibles = 0;
+    opcionesActividad.forEach(opcion => {
+      const corresponde = Boolean(subprocesoId) && opcion.dataset.subproceso === subprocesoId;
+      opcion.hidden = !corresponde;
+      opcion.disabled = !corresponde;
+      if (corresponde) disponibles += 1;
+    });
+    const seleccionada = actividad.options[actividad.selectedIndex];
+    if (seleccionada && seleccionada.value && seleccionada.disabled) actividad.value = '';
+    actividad.disabled = !subprocesoId || disponibles === 0;
   }
 
   function aplicarColorNivel(elemento, nivel) {
@@ -285,6 +302,7 @@
   }));
   tipoRegistro.addEventListener('change', actualizarCodigoHallazgo);
   proceso.addEventListener('change', filtrarSubprocesos);
+  subproceso.addEventListener('change', filtrarActividades);
   opcionesTecnologia.forEach(opcion => opcion.addEventListener('change', actualizarTicketTecnologico));
   actualizarCodigoHallazgo();
   filtrarSubprocesos();

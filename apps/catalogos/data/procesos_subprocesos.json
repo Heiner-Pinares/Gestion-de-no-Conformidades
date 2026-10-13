@@ -1,41 +1,42 @@
 {
   "procesos": [
-    "Planeamiento Estratégico",
-    "Gestión de Proyectos",
-    "Mejoramiento de la Calidad",
-    "Gestión Experiencia Cliente",
-    "Facturación",
-    "Post-Facturación",
-    "Recursos Humanos",
-    "Tecnología",
-    "Compras",
-    "Finanzas",
-    "Legal y Regulatorio"
-  ],
-  "subprocesos": [
-    "Emisión de Recibo",
-    "Generación de Recibo",
-    "Distribución de Recibo",
-    "Estrategia de Facturación",
-    "Planificación Cambios Facturación",
-    "Planificación Servicios Facturación",
-    "Planificación Proyectos e Iniciativas",
-    "Planificación Recursos",
-    "Gestionar Insumos / Cerrar Tráfico",
-    "Ejecutar Pre Billing",
-    "Ejecutar Billing",
-    "Ejecutar Co-Billing",
-    "Generar Recibo",
-    "Distribuir Recibo",
-    "Facturación a Demanda",
-    "Control y Correcciones de Facturación",
-    "Gestión OKR",
-    "Desempeño Proceso Facturación",
-    "Desempeño Servicios Facturación",
-    "NPS Cliente",
-    "Automatización Facturación",
-    "Mejora Servicio Facturación",
-    "Gestión PQRS",
-    "Gestión Problemas"
+    {
+      "nombre": "Facturacion",
+      "subprocesos": [
+        {
+          "nombre": "Emision",
+          "actividades": [
+            "Cierre de tráfico",
+            "Pre-billing",
+            "Billing",
+            "traslado de documentos al oac",
+            "Co-billing",
+            "Estados de documentos en SUNAT",
+            "Generacion de Nota de Credito retenidos",
+            "Generacion de Reportes",
+            "Carga de tramas a Sunat SUNAT"
+          ]
+        },
+        {
+          "nombre": "Generacion",
+          "actividades": [
+            "Generación de PDF y Journal",
+            "Validación del recibo",
+            "Carga en repositorios",
+            "Impresión"
+          ]
+        },
+        {
+          "nombre": "Distribucion",
+          "actividades": [
+            "Envío electrónico",
+            "Envío físico",
+            "Medios alternativos",
+            "Gestión de rezagados",
+            "Control de entrega"
+          ]
+        }
+      ]
+    }
   ]
 }

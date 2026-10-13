@@ -245,3 +245,18 @@ No se requiere que `USRFACT` altere la tabla. Con la cuenta de aplicación `USRF
 ```
 
 El archivo `docs/oracle_usrfact/12_reparar_indice_catalogo_existente.sql` queda como normalización opcional para el propietario del esquema, pero no es necesario para instalar ni arrancar el portal.
+
+### Actualizar Proceso, Subproceso y Actividad de identificación
+
+Después de actualizar el código en un servidor que ya tiene datos, ejecute con
+la cuenta de aplicación `USRFACSOP`:
+
+```powershell
+.\.venv\Scripts\python.exe manage.py sincronizar_catalogo_identificacion
+.\.venv\Scripts\python.exe run.py check
+```
+
+El primer comando usa únicamente `SELECT`, `INSERT` y `UPDATE`. Activa
+`Facturacion` con sus tres subprocesos y 18 actividades, e inactiva las
+opciones anteriores sin borrarlas para conservar los hallazgos históricos. Es
+idempotente: puede repetirse sin duplicar filas.

@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from apps.catalogos.models import ConfiguracionImpacto, ConfiguracionUrgencia, MatrizPrioridad, PreguntaCausa, Proceso, TipoRegistro, Urgencia
+from apps.catalogos.services import actividades_para, catalogo_identificacion
 from .estados import ESTADOS
 from .models import Accion, CicloTratamiento, ComunicacionHallazgo, EvaluacionEficacia, Hallazgo, PBI, SI_NO_NA
 from .services.evidencia import validar_archivo
@@ -22,6 +23,20 @@ class SubprocesoSelect(forms.Select):
         instancia = getattr(value, "instance", None)
         if instancia is not None:
             opcion["attrs"]["data-proceso"] = str(instancia.proceso_id)
+        return opcion
+
+
+class ActividadSelect(forms.Select):
+    """Identifica el subproceso de cada actividad para el filtro dependiente."""
+
+    def __init__(self, *args, subprocesos=None, **kwargs):
+        self.subprocesos = subprocesos or {}
+        super().__init__(*args, **kwargs)
+
+    def create_option(self, name, value, label, selected, index, subindex=None, attrs=None):
+        opcion = super().create_option(name, value, label, selected, index, subindex, attrs)
+        if value and str(value) in self.subprocesos:
+            opcion["attrs"]["data-subproceso"] = str(self.subprocesos[str(value)])
         return opcion
 
 
@@ -65,7 +80,22 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         self.fields["ticket_remedy"].widget.attrs["placeholder"] = "Ej. INC000001305088"
         self.fields["actividad"].required = False
         self.fields["actividad"].label = "Actividad (opcional)"
-        self.fields["actividad"].widget.attrs["placeholder"] = "Ej. Conciliación, validación o tarea relacionada"
+        opciones_actividad = []
+        subprocesos_por_actividad = {}
+        for subproceso in campo_subproceso.queryset.select_related("proceso"):
+            for actividad in actividades_para(subproceso.proceso, subproceso):
+                opciones_actividad.append((actividad, actividad))
+                subprocesos_por_actividad[actividad] = subproceso.pk
+        actividad_actual = instance.actividad if instance and instance.pk else ""
+        if actividad_actual and actividad_actual not in subprocesos_por_actividad:
+            opciones_actividad.append((actividad_actual, actividad_actual))
+            if instance.subproceso_id:
+                subprocesos_por_actividad[actividad_actual] = instance.subproceso_id
+        self.fields["actividad"].widget = ActividadSelect(
+            attrs=self.fields["actividad"].widget.attrs,
+            choices=[("", "Seleccionar actividad")] + opciones_actividad,
+            subprocesos=subprocesos_por_actividad,
+        )
         self.fields["descripcion"].widget.attrs["placeholder"] = "Describe de forma clara y concisa la no conformidad encontrada..."
         for nombre in ("tipo_registro", "fuente_deteccion", "urgencia"):
             self.fields[nombre].empty_label = "Seleccionar"
@@ -130,6 +160,15 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         sub, proceso = datos.get("subproceso"), datos.get("proceso")
         if sub and proceso and sub.proceso_id != proceso.pk:
             self.add_error("subproceso", "El subproceso debe pertenecer al proceso seleccionado.")
+        actividad = (datos.get("actividad") or "").strip()
+        permitidas = actividades_para(proceso, sub) if proceso and sub else ()
+        proceso_catalogado = proceso and proceso.nombre in {
+            item["nombre"] for item in catalogo_identificacion()
+        }
+        if actividad and proceso_catalogado and not sub:
+            self.add_error("subproceso", "Selecciona el subproceso de la actividad.")
+        elif actividad and proceso_catalogado and actividad not in permitidas:
+            self.add_error("actividad", "La actividad no pertenece al subproceso seleccionado.")
         if datos.get("origen_tecnologico") and not datos.get("ticket_remedy", "").strip():
             self.add_error("ticket_remedy", "Este campo es obligatorio para hallazgos tecnológicos.")
         if not datos.get("aplica_impacto", True):

@@ -5,9 +5,9 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from apps.catalogos.models import (
     Catalogo, CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
-    PreguntaCausa, Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
+    PreguntaCausa, Prioridad, TipoRegistro, Urgencia,
 )
-from apps.catalogos.services import reparar_textos_corruptos
+from apps.catalogos.services import reparar_textos_corruptos, sincronizar_catalogo_identificacion
 
 ROLES = {
     "USUARIO": ["registrar_hallazgo"],
@@ -50,36 +50,7 @@ class Command(BaseCommand):
             ConfiguracionImpacto.objects.create()
         for codigo, nombre in (("FACTURACION", "Emisión de facturación"), ("POST_FACTURACION", "Vencimiento de ciclo")):
             ConfiguracionUrgencia.objects.get_or_create(codigo=codigo, defaults={"nombre": nombre, "activo": True})
-        ruta_catalogos = Path(__file__).resolve().parents[2] / "data" / "procesos_subprocesos.json"
-        catalogos = json.loads(ruta_catalogos.read_text(encoding="utf-8"))
-        procesos = []
-        for nombre in catalogos["procesos"]:
-            proceso, _ = Proceso.objects.get_or_create(
-                nombre=nombre,
-                defaults={"activo": True},
-            )
-            if not proceso.activo:
-                Proceso.objects.filter(pk=proceso.pk).update(activo=True)
-                proceso.activo = True
-            procesos.append(proceso)
-        nombres_subprocesos = catalogos["subprocesos"]
-        existentes = set(
-            Subproceso.objects.filter(
-                proceso__in=procesos,
-                nombre__in=nombres_subprocesos,
-            ).values_list("proceso_id", "nombre")
-        )
-        Subproceso.objects.bulk_create([
-            Subproceso(proceso=proceso, nombre=nombre, activo=True)
-            for proceso in procesos
-            for nombre in nombres_subprocesos
-            if (proceso.pk, nombre) not in existentes
-        ])
-        Subproceso.objects.filter(
-            proceso__in=procesos,
-            nombre__in=nombres_subprocesos,
-            activo=False,
-        ).update(activo=True)
+        sincronizar_catalogo_identificacion()
         # TODO negocio: reemplazar esta matriz DEMO por la oficial aprobada.
         demo = [["BAJA", "MEDIA", "ALTA"], ["MEDIA", "ALTA", "ALTA"], ["ALTA", "ALTA", "CRITICA"]]
         for impacto, fila in enumerate(demo, 1):
@@ -92,6 +63,6 @@ class Command(BaseCommand):
                 PreguntaCausa.objects.get_or_create(codigo=pregunta["codigo"], defaults={"categoria": obj, "texto": pregunta["texto"], "orden": orden})
         reparar_textos_corruptos()
         self.stdout.write(self.style.SUCCESS(
-            "Maestros, roles integrados, 11 procesos, 24 subprocesos por proceso "
+            "Maestros, roles integrados, 1 proceso, 3 subprocesos y 18 actividades "
             "y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."
         ))

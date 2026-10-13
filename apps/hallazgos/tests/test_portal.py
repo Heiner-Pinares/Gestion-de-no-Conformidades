@@ -834,6 +834,12 @@ class Recorridos(TestCase):
         self.assertIn('data-proceso=', html)
         self.assertIn('filtrarSubprocesos', html)
         self.assertIn('id_actividad', html)
+        self.assertIn('<select name="actividad"', html)
+        self.assertIn('Cierre de tráfico', html)
+        self.assertIn('Generación de PDF y Journal', html)
+        self.assertIn('Envío electrónico', html)
+        self.assertIn('data-subproceso=', html)
+        self.assertIn('filtrarActividades', html)
         self.assertNotIn('id_criterio_categoria', html)
         self.assertNotIn('id_requisito_referencia', html)
         self.assertFalse(HallazgoForm(usuario=self.usuario).fields['actividad'].required)
@@ -873,6 +879,22 @@ class Recorridos(TestCase):
         })
         self.assertEqual(intento_borrador.status_code, 200)
         self.assertFalse(Hallazgo.objects.exists())
+
+    def test_actividad_de_identificacion_debe_corresponder_al_subproceso(self):
+        proceso = Proceso.objects.get(nombre='Facturacion')
+        emision = Subproceso.objects.get(proceso=proceso, nombre='Emision')
+        with self.assertRaisesMessage(ValidationError, 'La actividad no pertenece al subproceso seleccionado.'):
+            self.crear(
+                proceso=proceso,
+                subproceso=emision,
+                actividad='Envío físico',
+            )
+        hallazgo = self.crear(
+            proceso=proceso,
+            subproceso=emision,
+            actividad='Cierre de tráfico',
+        )
+        self.assertEqual(hallazgo.actividad, 'Cierre de tráfico')
 
     def test_administrador_configura_rangos_de_impacto(self):
         from apps.catalogos.models import AuditoriaAdministracion, ConfiguracionImpacto
@@ -1243,11 +1265,11 @@ class Recorridos(TestCase):
         TipoRegistro.objects.filter(codigo='INC').update(valor=None)
         call_command('seed_initial_data',stdout=StringIO())
         self.assertEqual(PreguntaCausa.objects.count(),32);self.assertEqual(MatrizPrioridad.objects.count(),9)
-        procesos_oficiales = Proceso.objects.exclude(nombre='Proceso de prueba')
-        self.assertEqual(procesos_oficiales.count(), 11)
+        procesos_oficiales = Proceso.objects.filter(activo=True).exclude(nombre='Proceso de prueba')
+        self.assertEqual(procesos_oficiales.count(), 1)
         self.assertEqual(
-            Subproceso.objects.filter(proceso__in=procesos_oficiales).count(),
-            11 * 24,
+            Subproceso.objects.filter(proceso__in=procesos_oficiales, activo=True).count(),
+            3,
         )
         self.assertFalse(procesos_oficiales.exclude(subprocesos__activo=True).exists())
         self.assertEqual({"USUARIO", "VALIDADOR", "ADMINISTRADOR"}, {"USUARIO", "VALIDADOR", "ADMINISTRADOR"})

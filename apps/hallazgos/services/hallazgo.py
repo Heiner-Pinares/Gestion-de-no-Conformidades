@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from apps.accounts.permissions import puede_validar
 from apps.catalogos.models import AuditoriaAdministracion, MatrizPrioridad
+from apps.catalogos.services import actividades_para, catalogo_identificacion
 from apps.hallazgos.models import CorrelativoSAC, Hallazgo
 from .common import bloquear, campos_permitidos, exigir, notificar, registrar
 
@@ -92,6 +93,13 @@ def validar_datos(hallazgo, *, completo=False, fecha_cambiada=True, actualizar_s
         exigir(hallazgo.fecha_deteccion <= timezone.now(), "La fecha de detección no puede estar en el futuro.")
     if hallazgo.subproceso_id:
         exigir(hallazgo.subproceso.proceso_id == hallazgo.proceso_id, "El subproceso no pertenece al proceso seleccionado.")
+    procesos_catalogados = {item["nombre"] for item in catalogo_identificacion()}
+    if hallazgo.proceso.nombre in procesos_catalogados:
+        permitidas = actividades_para(hallazgo.proceso, hallazgo.subproceso)
+        exigir(
+            not hallazgo.actividad or hallazgo.actividad in permitidas,
+            "La actividad no pertenece al subproceso seleccionado.",
+        )
     exigir(hallazgo.responsable.is_active, "El responsable debe ser un usuario activo.")
     for nombre in ("tipo_registro", "fuente_deteccion", "proceso", "subproceso", "urgencia"):
         obj = getattr(hallazgo, nombre)
