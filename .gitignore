@@ -2,6 +2,7 @@
 .env.local
 secrets/
 logs/
+work/
 *.log
 .venv/
 .runtime/

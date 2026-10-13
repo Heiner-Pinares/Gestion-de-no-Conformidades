@@ -22,7 +22,8 @@ from .forms import (
 from .models import Accion, ArchivoEvidencia, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
 from .selectors import acciones_disponibles, hallazgos_visibles, indicadores, timeline_hallazgo
 from .services import (
-    AccionService, CausaService, CodigoSACService, ComunicacionService, EficaciaService,
+    AccionService, CausaService, CodigoSACService, ComunicacionService,
+    CorreoCompromisoError, CorreoCompromisoService, EficaciaService,
     EvidenciaService, HallazgoService, PBIService, WorkflowService,
 )
 from .services.plantillas import generar_plantilla
@@ -550,6 +551,7 @@ def hallazgo_accion(request, pk):
     )
     if request.method == "POST" and formset.is_valid():
         formularios = [f for f in formset.forms if f.cleaned_data and not f.cleaned_data.get("DELETE")]
+        acciones_creadas = []
         try:
             tipos = set(tipos_existentes)
             tipos.update(f.cleaned_data["tipo"] for f in formularios)
@@ -565,13 +567,43 @@ def hallazgo_accion(request, pk):
                 )
             with transaction.atomic():
                 for formulario in formularios:
-                    AccionService.crear(usuario=request.user, hallazgo=h, datos=formulario.datos_servicio())
+                    acciones_creadas.append(
+                        AccionService.crear(
+                            usuario=request.user,
+                            hallazgo=h,
+                            datos=formulario.datos_servicio(),
+                        )
+                    )
                 h.refresh_from_db()
                 if h.estado == "PLAN_ACCION":
                     h = WorkflowService.ejecutar(usuario=request.user, hallazgo=h, accion="iniciar_implementacion")
         except ValidationError as error:
             formset._non_form_errors = formset.error_class(error.messages)
         else:
+            aceptados = 0
+            fallidos = []
+            for accion in acciones_creadas:
+                try:
+                    resultado = CorreoCompromisoService.enviar_asignacion(
+                        accion=accion,
+                        usuario=request.user,
+                    )
+                except CorreoCompromisoError as error:
+                    fallidos.append(f"{accion.codigo}: {error}")
+                else:
+                    aceptados += int(resultado.aceptado)
+            if aceptados:
+                messages.success(
+                    request,
+                    f"{aceptados} correo(s) de asignación fueron aceptados por sendmail. "
+                    "La entrega final al buzón depende del sistema corporativo.",
+                )
+            if fallidos:
+                messages.warning(
+                    request,
+                    "Los compromisos se guardaron, pero no se pudo completar el correo: "
+                    + " | ".join(fallidos),
+                )
             return redirect("hallazgo_acciones_creadas", pk=h.pk)
     siguiente = acciones_existentes + 1
     return render(request, "hallazgos/plan_actividades.html", {

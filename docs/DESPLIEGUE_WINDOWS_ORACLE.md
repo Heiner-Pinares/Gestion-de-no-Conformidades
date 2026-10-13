@@ -161,6 +161,40 @@ Equivale a:
 
 Primero valida Oracle y Django, luego ejecuta `collectstatic` y finalmente inicia Waitress. En Windows los estáticos se guardan, por defecto, en `%LOCALAPPDATA%\PortalNC\staticfiles` de la cuenta que inicia el proceso. Esto evita que una instalación realizada por un administrador deje `staticfiles.json` bloqueado para la cuenta de servicio. La ruta puede fijarse con `STATIC_ROOT`, pero esa cuenta debe tener permisos de modificación sobre toda la carpeta. Si la configuración, permisos o esquema no coinciden, el proceso termina antes de abrir el puerto. Para producción, ejecute este comando con una cuenta de servicio y publique HTTPS mediante el proxy inverso aprobado (por ejemplo IIS ARR).
 
+## 8. Habilitar correos de compromisos
+
+Al guardar una actividad en el paso 3, el portal toma el correo del responsable desde `tbl_usuario_nc.email` y copia al usuario relacionado mediante `tbl_usuario_nc.jefe_id`. El navegador solo envía el identificador del responsable; no puede definir direcciones arbitrarias. El mensaje se construye en texto plano y HTML, y se entrega ejecutando `sendmail` en el servidor corporativo a través de SSH.
+
+Complete estas variables en `.env`:
+
+```dotenv
+CORREO_COMPROMISOS_ENABLED=False
+CORREO_SSH_HOST=172.19.30.62
+CORREO_SSH_PORT=22
+CORREO_SSH_USER=usr_mds
+CORREO_SSH_PASSWORD_FILE=secrets/correo_ssh_password.txt
+CORREO_SSH_TIMEOUT=10
+CORREO_SSH_KNOWN_HOSTS=work/correo_known_hosts
+CORREO_REMITENTE_NOMBRE=Portal Claro - Gestión de No Conformidades
+CORREO_REMITENTE_EMAIL=portal-no-conformidades@claro.com.pe
+PORTAL_PUBLIC_URL=http://172.19.194.219:8000
+```
+
+Confirme con Infraestructura el remitente autorizado antes de usar el valor del ejemplo. Cree el secreto sin mostrarlo ni escribirlo en Git:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\configurar_correo_windows.ps1" -ServiceAccount "claro\c27826"
+```
+
+La cuenta indicada debe ser la misma que inicia el portal. El script guarda la contraseña en `secrets\correo_ssh_password.txt` y restringe sus ACL. Después:
+
+1. Mantenga `CORREO_COMPROMISOS_ENABLED=False` durante la instalación y las pruebas funcionales ordinarias.
+2. Compruebe que cada responsable tenga un correo válido y, cuando corresponda, un jefe activo con correo.
+3. Autorice una prueba controlada con una actividad de prueba.
+4. Cambie `CORREO_COMPROMISOS_ENABLED=True` y reinicie el portal.
+
+La primera conexión conserva la identidad del servidor en `work\correo_known_hosts`; una identidad distinta para el mismo host bloquea los envíos posteriores. Un registro `CORREO_COMPROMISO_ACEPTADO` significa que `sendmail` devolvió código 0. No confirma que Outlook haya entregado finalmente el mensaje al buzón. Los intentos fallidos o inciertos quedan en `tbl_historial_hallazgo_nc` y no eliminan el compromiso guardado.
+
 ## Actualizar desde Git
 
 Detenga el servicio web, respalde `.env` y `secrets`, y ejecute:

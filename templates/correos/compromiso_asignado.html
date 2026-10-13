@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nuevo compromiso asignado</title>
+</head>
+
+<body style="
+    margin:0;
+    padding:0;
+    background-color:#F3F5F7;
+    font-family:Arial, Helvetica, sans-serif;
+    color:#18233A;
+">
+
+<table
+    role="presentation"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    width="100%"
+    style="
+        width:100%;
+        background-color:#F3F5F7;
+        margin:0;
+        padding:0;
+    "
+>
+    <tr>
+        <td align="center" style="padding:32px 14px;">
+
+            <!-- CONTENEDOR PRINCIPAL -->
+            <table
+                role="presentation"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                width="650"
+                style="
+                    width:100%;
+                    max-width:650px;
+                    background-color:#FFFFFF;
+                    border:1px solid #E1E6EC;
+                    border-radius:14px;
+                    overflow:hidden;
+                "
+            >
+
+                <!-- BARRA SUPERIOR CLARO -->
+                <tr>
+                    <td
+                        style="
+                            height:7px;
+                            background-color:#DA291C;
+                            font-size:0;
+                            line-height:0;
+                        "
+                    >
+                        &nbsp;
+                    </td>
+                </tr>
+
+                <!-- CABECERA -->
+                <tr>
+                    <td style="padding:28px 32px 22px 32px;">
+
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                        >
+                            <tr>
+
+                                <td valign="middle">
+                                    <div style="
+                                        font-size:13px;
+                                        font-weight:bold;
+                                        color:#DA291C;
+                                        margin-bottom:7px;
+                                        text-transform:uppercase;
+                                        letter-spacing:.5px;
+                                    ">
+                                        Gestión de No Conformidades
+                                    </div>
+
+                                    <div style="
+                                        font-size:26px;
+                                        line-height:32px;
+                                        font-weight:700;
+                                        color:#111B33;
+                                    ">
+                                        Nuevo compromiso asignado
+                                    </div>
+                                </td>
+
+                                <td
+                                    width="75"
+                                    align="right"
+                                    valign="middle"
+                                >
+                                    <div style="
+                                        font-size:25px;
+                                        font-weight:bold;
+                                        color:#DA291C;
+                                    ">
+                                        Claro
+                                    </div>
+                                </td>
+
+                            </tr>
+                        </table>
+
+                    </td>
+                </tr>
+
+
+                <!-- CONTENIDO -->
+                <tr>
+                    <td style="padding:0 32px 28px 32px;">
+
+                        <div style="
+                            height:1px;
+                            background-color:#E9EDF2;
+                            margin-bottom:25px;
+                        ">
+                            &nbsp;
+                        </div>
+
+                        <!-- SALUDO -->
+                        <div style="
+                            font-size:16px;
+                            line-height:25px;
+                            color:#33415C;
+                            margin-bottom:12px;
+                        ">
+                            Hola <strong style="color:#111B33;">
+                                {{ responsable_nombre }}
+                            </strong>,
+                        </div>
+
+                        <div style="
+                            font-size:15px;
+                            line-height:24px;
+                            color:#56647C;
+                            margin-bottom:24px;
+                        ">
+                            Se te ha asignado un nuevo compromiso relacionado con la
+                            No Conformidad
+                            <strong style="color:#DA291C;">
+                                {{ codigo_hallazgo }}
+                            </strong>.
+                            Revisa la información y realiza el seguimiento correspondiente
+                            dentro de la fecha establecida.
+                        </div>
+
+
+                        <!-- TARJETA CÓDIGO -->
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                            style="
+                                width:100%;
+                                background-color:#F8FAFC;
+                                border:1px solid #E2E8F0;
+                                border-radius:10px;
+                                margin-bottom:20px;
+                            "
+                        >
+                            <tr>
+                                <td style="padding:19px 22px;">
+
+                                    <div style="
+                                        font-size:11px;
+                                        font-weight:bold;
+                                        color:#66758D;
+                                        text-transform:uppercase;
+                                        letter-spacing:.7px;
+                                        margin-bottom:7px;
+                                    ">
+                                        Código de actividad
+                                    </div>
+
+                                    <div style="
+                                        font-size:20px;
+                                        line-height:25px;
+                                        font-weight:bold;
+                                        color:#1B365D;
+                                    ">
+                                        {{ codigo_actividad }}
+                                    </div>
+
+                                </td>
+                            </tr>
+                        </table>
+
+
+                        <!-- DETALLE -->
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                            style="
+                                width:100%;
+                                border:1px solid #E2E8F0;
+                                border-radius:10px;
+                                border-collapse:separate;
+                                overflow:hidden;
+                                margin-bottom:26px;
+                            "
+                        >
+
+                            <!-- ACCIÓN -->
+                            <tr>
+                                <td
+                                    width="180"
+                                    style="
+                                        padding:15px 18px;
+                                        background-color:#F8FAFC;
+                                        border-bottom:1px solid #E7EBF0;
+                                        font-size:13px;
+                                        font-weight:bold;
+                                        color:#526078;
+                                    "
+                                >
+                                    Acción
+                                </td>
+
+                                <td style="
+                                    padding:15px 18px;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:14px;
+                                    color:#18233A;
+                                ">
+                                    {{ accion }}
+                                </td>
+                            </tr>
+
+
+                            <!-- TIPO -->
+                            <tr>
+                                <td style="
+                                    padding:15px 18px;
+                                    background-color:#F8FAFC;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:13px;
+                                    font-weight:bold;
+                                    color:#526078;
+                                ">
+                                    Tipo
+                                </td>
+
+                                <td style="
+                                    padding:15px 18px;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:14px;
+                                    color:#18233A;
+                                ">
+                                    {{ tipo_accion }}
+                                </td>
+                            </tr>
+
+
+                            <!-- RESPONSABLE -->
+                            <tr>
+                                <td style="
+                                    padding:15px 18px;
+                                    background-color:#F8FAFC;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:13px;
+                                    font-weight:bold;
+                                    color:#526078;
+                                ">
+                                    Responsable
+                                </td>
+
+                                <td style="
+                                    padding:15px 18px;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:14px;
+                                    color:#18233A;
+                                ">
+                                    {{ responsable_nombre }}
+                                </td>
+                            </tr>
+
+
+                            <!-- FET -->
+                            <tr>
+                                <td style="
+                                    padding:15px 18px;
+                                    background-color:#F8FAFC;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:13px;
+                                    font-weight:bold;
+                                    color:#526078;
+                                ">
+                                    FET compromiso
+                                </td>
+
+                                <td style="
+                                    padding:15px 18px;
+                                    border-bottom:1px solid #E7EBF0;
+                                    font-size:14px;
+                                    font-weight:bold;
+                                    color:#18233A;
+                                ">
+                                    {{ fet_compromiso }}
+                                </td>
+                            </tr>
+
+
+                            <!-- ESTADO -->
+                            <tr>
+                                <td style="
+                                    padding:15px 18px;
+                                    background-color:#F8FAFC;
+                                    font-size:13px;
+                                    font-weight:bold;
+                                    color:#526078;
+                                ">
+                                    Estado
+                                </td>
+
+                                <td style="
+                                    padding:15px 18px;
+                                    font-size:14px;
+                                    color:#18233A;
+                                ">
+
+                                    <span style="
+                                        display:inline-block;
+                                        padding:6px 12px;
+                                        background-color:#FFF6DC;
+                                        border:1px solid #F5D875;
+                                        border-radius:20px;
+                                        font-size:12px;
+                                        font-weight:bold;
+                                        color:#855E00;
+                                    ">
+                                        ● {{ estado }}
+                                    </span>
+
+                                </td>
+                            </tr>
+
+                        </table>
+
+
+                        <!-- BOTÓN -->
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                        >
+                            <tr>
+                                <td align="center" style="padding:3px 0 26px 0;">
+
+                                    <a
+                                        href="{{ url_compromiso }}"
+                                        style="
+                                            display:inline-block;
+                                            background-color:#DA291C;
+                                            color:#FFFFFF;
+                                            text-decoration:none;
+                                            font-size:15px;
+                                            font-weight:bold;
+                                            padding:14px 28px;
+                                            border-radius:8px;
+                                        "
+                                    >
+                                        Ver compromiso en el portal &nbsp;→
+                                    </a>
+
+                                </td>
+                            </tr>
+                        </table>
+
+
+                        <!-- RECORDATORIO -->
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                            style="
+                                width:100%;
+                                background-color:#F2F7FF;
+                                border:1px solid #C9DCF7;
+                                border-radius:8px;
+                            "
+                        >
+                            <tr>
+                                <td
+                                    width="42"
+                                    valign="top"
+                                    style="
+                                        padding:16px 0 16px 18px;
+                                        font-size:20px;
+                                        color:#1967D2;
+                                    "
+                                >
+                                    ⓘ
+                                </td>
+
+                                <td style="
+                                    padding:16px 18px 16px 8px;
+                                    font-size:13px;
+                                    line-height:20px;
+                                    color:#385577;
+                                ">
+                                    <strong>Recuerda:</strong>
+                                    realiza el seguimiento del compromiso y registra
+                                    la evidencia correspondiente dentro de la fecha establecida.
+                                    Las actividades deberán completarse al 100 % para continuar
+                                    con la evaluación de eficacia.
+                                </td>
+                            </tr>
+                        </table>
+
+                    </td>
+                </tr>
+
+
+                <!-- FOOTER -->
+                <tr>
+                    <td style="
+                        padding:20px 32px;
+                        background-color:#F8FAFC;
+                        border-top:1px solid #E5EAF0;
+                    ">
+
+                        <table
+                            role="presentation"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            width="100%"
+                        >
+                            <tr>
+                                <td style="
+                                    font-size:11px;
+                                    line-height:17px;
+                                    color:#7A879A;
+                                ">
+                                    Este es un mensaje automático generado por el
+                                    Portal Claro – Gestión de No Conformidades.
+                                    <br>
+                                    Por favor, realiza la gestión directamente desde el portal.
+                                </td>
+
+                                <td
+                                    align="right"
+                                    valign="bottom"
+                                    style="
+                                        font-size:12px;
+                                        font-weight:bold;
+                                        color:#DA291C;
+                                    "
+                                >
+                                    Claro Perú
+                                </td>
+                            </tr>
+                        </table>
+
+                    </td>
+                </tr>
+
+            </table>
+
+        </td>
+    </tr>
+</table>
+
+</body>
+</html>

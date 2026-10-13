@@ -191,7 +191,7 @@ class Recorridos(TestCase):
             self.assertContains(pantalla, f'value="{codigo}"')
             self.assertContains(pantalla, etiqueta)
         self.assertContains(pantalla, '¿Enviar actividades?')
-        self.assertContains(pantalla, 'Estas actividades se enviarán a tu jefe para su revisión.')
+        self.assertContains(pantalla, 'Se notificará por correo a cada responsable y se copiará al jefe registrado en su perfil.')
         self.assertContains(pantalla, 'data-confirm-activities')
 
         incompleto = {

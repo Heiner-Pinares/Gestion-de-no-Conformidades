@@ -225,6 +225,27 @@ MICROSOFT_CLIENT_SECRET = secreto(
     default="",
 )
 MICROSOFT_REDIRECT_URI = env("MICROSOFT_REDIRECT_URI", default="")
+
+# Entrega corporativa de correos mediante sendmail en un servidor SSH.
+# Los destinatarios se toman de Usuario.email y Usuario.jefe, no del POST.
+CORREO_COMPROMISOS_ENABLED = env.bool("CORREO_COMPROMISOS_ENABLED", default=False)
+CORREO_SSH_HOST = env("CORREO_SSH_HOST", default="").strip()
+CORREO_SSH_PORT = env.int("CORREO_SSH_PORT", default=22)
+CORREO_SSH_USER = env("CORREO_SSH_USER", default="").strip()
+CORREO_SSH_PASSWORD = secreto(
+    "CORREO_SSH_PASSWORD", "CORREO_SSH_PASSWORD_FILE", default=""
+)
+CORREO_SSH_TIMEOUT = env.int("CORREO_SSH_TIMEOUT", default=10)
+CORREO_SSH_KNOWN_HOSTS = env(
+    "CORREO_SSH_KNOWN_HOSTS",
+    default=str(BASE_DIR / "work" / "correo_known_hosts"),
+)
+CORREO_REMITENTE_NOMBRE = env(
+    "CORREO_REMITENTE_NOMBRE",
+    default="Portal Claro - Gestión de No Conformidades",
+).strip()
+CORREO_REMITENTE_EMAIL = env("CORREO_REMITENTE_EMAIL", default="").strip()
+PORTAL_PUBLIC_URL = env("PORTAL_PUBLIC_URL", default="").strip()
 LOGGING = {
     "version": 1, "disable_existing_loggers": False,
     "formatters": {"standard": {"format": "{asctime} {levelname} {name}: {message}", "style": "{"}},

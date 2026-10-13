@@ -1,0 +1,317 @@
+"""Notificación de compromisos por sendmail remoto a través de SSH."""
+
+from __future__ import annotations
+
+import logging
+import shlex
+import socket
+from dataclasses import dataclass
+from email.message import EmailMessage
+from email.policy import SMTP
+from email.utils import formataddr, formatdate, getaddresses, make_msgid
+from pathlib import Path
+from urllib.parse import urljoin
+
+import paramiko
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from django.db import transaction
+from django.template.loader import render_to_string
+from django.urls import reverse
+
+from apps.hallazgos.models import Accion, HistorialHallazgo
+
+
+logger = logging.getLogger(__name__)
+
+
+class CorreoCompromisoError(Exception):
+    """Error controlado, apto para mostrarse sin revelar credenciales."""
+
+    def __init__(self, mensaje: str, *, codigo: str, incierto: bool = False):
+        super().__init__(mensaje)
+        self.codigo = codigo
+        self.incierto = incierto
+
+
+@dataclass(frozen=True)
+class ResultadoCorreo:
+    aceptado: bool
+    duplicado: bool = False
+    codigo_salida: int | None = None
+
+
+def _normalizar_direcciones(valores: list[str]) -> list[str]:
+    """Analiza, valida y elimina duplicados conservando el orden."""
+
+    resultado: list[str] = []
+    vistos: set[str] = set()
+    for _, direccion in getaddresses(valores):
+        direccion = direccion.strip()
+        try:
+            validate_email(direccion)
+        except ValidationError as error:
+            raise CorreoCompromisoError(
+                "El perfil del destinatario contiene una dirección de correo no válida.",
+                codigo="DIRECCION_INVALIDA",
+            ) from error
+        clave = direccion.casefold()
+        if clave not in vistos:
+            vistos.add(clave)
+            resultado.append(direccion)
+    return resultado
+
+
+class CorreoCompromisoService:
+    EVENTOS_NO_REPETIBLES = {
+        "CORREO_COMPROMISO_INICIADO",
+        "CORREO_COMPROMISO_ACEPTADO",
+        "CORREO_COMPROMISO_INCIERTO",
+    }
+
+    @staticmethod
+    def _configuracion() -> None:
+        if not settings.CORREO_COMPROMISOS_ENABLED:
+            raise CorreoCompromisoError(
+                "El envío de correos de compromisos está deshabilitado en la configuración del servidor.",
+                codigo="DESHABILITADO",
+            )
+        faltantes = [
+            nombre
+            for nombre, valor in (
+                ("CORREO_SSH_HOST", settings.CORREO_SSH_HOST),
+                ("CORREO_SSH_USER", settings.CORREO_SSH_USER),
+                ("CORREO_SSH_PASSWORD", settings.CORREO_SSH_PASSWORD),
+                ("CORREO_REMITENTE_EMAIL", settings.CORREO_REMITENTE_EMAIL),
+                ("PORTAL_PUBLIC_URL", settings.PORTAL_PUBLIC_URL),
+            )
+            if not str(valor).strip()
+        ]
+        if faltantes:
+            raise CorreoCompromisoError(
+                "Falta configurar el envío corporativo: " + ", ".join(faltantes) + ".",
+                codigo="CONFIGURACION_INCOMPLETA",
+            )
+
+    @classmethod
+    def construir_mensaje(cls, accion: Accion) -> tuple[EmailMessage, list[str]]:
+        cls._configuracion()
+        accion = Accion.objects.select_related(
+            "responsable__jefe", "ciclo__hallazgo"
+        ).get(pk=accion.pk)
+        responsable = accion.responsable
+        if responsable is None or not responsable.is_active:
+            raise CorreoCompromisoError(
+                "El compromiso no tiene un responsable activo.", codigo="SIN_RESPONSABLE"
+            )
+
+        if not responsable.email.strip():
+            raise CorreoCompromisoError(
+                "El responsable seleccionado no tiene un correo registrado.",
+                codigo="SIN_CORREO_RESPONSABLE",
+            )
+        para = _normalizar_direcciones([responsable.email])
+
+        copia: list[str] = []
+        jefe = responsable.jefe
+        if jefe and jefe.is_active:
+            if not jefe.email.strip():
+                raise CorreoCompromisoError(
+                    "El jefe del responsable no tiene un correo registrado.",
+                    codigo="SIN_CORREO_JEFE",
+                )
+            copia = _normalizar_direcciones([jefe.email])
+            claves_para = {direccion.casefold() for direccion in para}
+            copia = [direccion for direccion in copia if direccion.casefold() not in claves_para]
+
+        if not settings.CORREO_REMITENTE_EMAIL.strip():
+            raise CorreoCompromisoError(
+                "El remitente del portal no está configurado.", codigo="SIN_REMITENTE"
+            )
+        remitente = _normalizar_direcciones([settings.CORREO_REMITENTE_EMAIL])
+
+        hallazgo = accion.ciclo.hallazgo
+        url = urljoin(
+            settings.PORTAL_PUBLIC_URL.rstrip("/") + "/",
+            reverse("hallazgo_acciones_seguimiento", args=[hallazgo.pk]).lstrip("/"),
+        )
+        contexto = {
+            "responsable_nombre": responsable.get_full_name() or responsable.username,
+            "codigo_hallazgo": hallazgo.codigo,
+            "codigo_actividad": accion.codigo,
+            "accion": accion.descripcion,
+            "tipo_accion": accion.get_tipo_display(),
+            "fet_compromiso": accion.fecha_vigente.strftime("%d/%m/%Y"),
+            "estado": accion.get_estado_display(),
+            "url_compromiso": url,
+        }
+        html = render_to_string("correos/compromiso_asignado.html", contexto)
+        texto = (
+            f"Hola {contexto['responsable_nombre']},\n\n"
+            f"Se te asignó el compromiso {accion.codigo} del hallazgo {hallazgo.codigo}.\n"
+            f"Acción: {accion.descripcion}\n"
+            f"Tipo: {accion.get_tipo_display()}\n"
+            f"FET compromiso: {contexto['fet_compromiso']}\n"
+            f"Estado: {accion.get_estado_display()}\n\n"
+            f"Consulta el compromiso en {url}\n"
+        )
+        dominio = remitente[0].rsplit("@", 1)[-1]
+        mensaje = EmailMessage(policy=SMTP)
+        mensaje["From"] = formataddr(
+            (settings.CORREO_REMITENTE_NOMBRE, remitente[0])
+        )
+        mensaje["To"] = ", ".join(para)
+        if copia:
+            mensaje["Cc"] = ", ".join(copia)
+        mensaje["Subject"] = f"Nuevo compromiso asignado: {accion.codigo}"
+        mensaje["Date"] = formatdate(localtime=True)
+        mensaje["Message-ID"] = make_msgid(domain=dominio)
+        mensaje.set_content(texto)
+        mensaje.add_alternative(html, subtype="html")
+        return mensaje, [*para, *copia]
+
+    @staticmethod
+    def _enviar_sendmail(mensaje: EmailMessage, destinatarios: list[str]) -> int:
+        if not destinatarios:
+            raise CorreoCompromisoError(
+                "No existe ningún destinatario válido para el correo.",
+                codigo="SIN_DESTINATARIOS",
+            )
+
+        known_hosts = Path(settings.CORREO_SSH_KNOWN_HOSTS)
+        known_hosts.parent.mkdir(parents=True, exist_ok=True)
+        known_hosts.touch(mode=0o600, exist_ok=True)
+        try:
+            known_hosts.chmod(0o600)
+        except OSError:
+            # Windows controla este archivo mediante ACL, no por bits POSIX.
+            pass
+
+        cliente = paramiko.SSHClient()
+        envio_iniciado = False
+        try:
+            cliente.load_host_keys(str(known_hosts))
+            # AutoAddPolicy conserva la primera identidad en el archivo cargado.
+            # Paramiko rechaza una clave distinta cuando el host ya está guardado.
+            cliente.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            cliente.connect(
+                hostname=settings.CORREO_SSH_HOST,
+                port=settings.CORREO_SSH_PORT,
+                username=settings.CORREO_SSH_USER,
+                password=settings.CORREO_SSH_PASSWORD,
+                timeout=settings.CORREO_SSH_TIMEOUT,
+                banner_timeout=settings.CORREO_SSH_TIMEOUT,
+                auth_timeout=settings.CORREO_SSH_TIMEOUT,
+                allow_agent=False,
+                look_for_keys=False,
+            )
+            comando = "sendmail -i " + " ".join(
+                shlex.quote(direccion) for direccion in destinatarios
+            )
+            entrada, salida, errores = cliente.exec_command(
+                comando, timeout=settings.CORREO_SSH_TIMEOUT
+            )
+            envio_iniciado = True
+            entrada.write(mensaje.as_bytes())
+            entrada.flush()
+            entrada.channel.shutdown_write()
+            codigo = salida.channel.recv_exit_status()
+            if codigo != 0:
+                detalle = errores.read(500).decode("utf-8", errors="replace").strip()
+                logger.warning(
+                    "sendmail rechazó un compromiso (código=%s, detalle=%s)",
+                    codigo,
+                    detalle[:300] or "sin detalle",
+                )
+                raise CorreoCompromisoError(
+                    f"El servidor de correo rechazó el mensaje (código {codigo}).",
+                    codigo="SENDMAIL_RECHAZADO",
+                )
+            return codigo
+        except paramiko.AuthenticationException as error:
+            raise CorreoCompromisoError(
+                "El servidor de correo rechazó las credenciales SSH.",
+                codigo="SSH_AUTENTICACION",
+            ) from error
+        except paramiko.BadHostKeyException as error:
+            raise CorreoCompromisoError(
+                "La identidad SSH del servidor de correo cambió; el envío fue bloqueado.",
+                codigo="SSH_IDENTIDAD",
+            ) from error
+        except CorreoCompromisoError:
+            raise
+        except (paramiko.ssh_exception.NoValidConnectionsError, socket.timeout, TimeoutError) as error:
+            raise CorreoCompromisoError(
+                "No se pudo acceder al servidor de correo. Verifica la red corporativa o VPN.",
+                codigo="SSH_INACCESIBLE",
+                incierto=envio_iniciado,
+            ) from error
+        except (paramiko.SSHException, OSError) as error:
+            mensaje_error = (
+                "El resultado del envío es incierto; no se reenviará automáticamente."
+                if envio_iniciado
+                else "No se pudo establecer la conexión segura con el servidor de correo."
+            )
+            raise CorreoCompromisoError(
+                mensaje_error,
+                codigo="ENVIO_INCIERTO" if envio_iniciado else "SSH_CONEXION",
+                incierto=envio_iniciado,
+            ) from error
+        finally:
+            cliente.close()
+
+    @classmethod
+    def enviar_asignacion(cls, *, accion: Accion, usuario) -> ResultadoCorreo:
+        """Envía una sola vez y deja trazabilidad en la tabla de historial."""
+
+        with transaction.atomic():
+            accion = Accion.objects.select_for_update().select_related(
+                "ciclo__hallazgo"
+            ).get(pk=accion.pk)
+            hallazgo = accion.ciclo.hallazgo
+            if HistorialHallazgo.objects.filter(
+                accion_relacionada=accion,
+                accion__in=cls.EVENTOS_NO_REPETIBLES,
+            ).exists():
+                return ResultadoCorreo(aceptado=False, duplicado=True)
+            intento = HistorialHallazgo.objects.create(
+                hallazgo=hallazgo,
+                usuario=usuario,
+                accion="CORREO_COMPROMISO_INICIADO",
+                accion_relacionada=accion,
+                estado_anterior=hallazgo.estado,
+                estado_nuevo=hallazgo.estado,
+                comentario=f"Inicio del envío de asignación para {accion.codigo}.",
+                metadata_json={"accion": accion.codigo},
+            )
+
+        try:
+            mensaje, destinatarios = cls.construir_mensaje(accion)
+            codigo = cls._enviar_sendmail(mensaje, destinatarios)
+        except CorreoCompromisoError as error:
+            intento.accion = (
+                "CORREO_COMPROMISO_INCIERTO"
+                if error.incierto
+                else "CORREO_COMPROMISO_FALLIDO"
+            )
+            intento.comentario = str(error)
+            intento.metadata_json = {
+                "accion": accion.codigo,
+                "resultado": error.codigo,
+            }
+            intento.save(update_fields=["accion", "comentario", "metadata_json"])
+            raise
+
+        intento.accion = "CORREO_COMPROMISO_ACEPTADO"
+        intento.comentario = (
+            "sendmail aceptó el mensaje. Esto no confirma la entrega final en el buzón."
+        )
+        intento.metadata_json = {
+            "accion": accion.codigo,
+            "responsable_id": accion.responsable_id,
+            "jefe_id": accion.responsable.jefe_id if accion.responsable else None,
+            "codigo_salida": codigo,
+        }
+        intento.save(update_fields=["accion", "comentario", "metadata_json"])
+        return ResultadoCorreo(aceptado=True, codigo_salida=codigo)
