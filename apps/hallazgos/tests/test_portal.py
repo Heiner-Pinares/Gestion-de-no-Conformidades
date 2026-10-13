@@ -15,9 +15,9 @@ from django.utils import timezone
 from PIL import Image
 
 from apps.accounts.models import Usuario
-from apps.catalogos.models import ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
+from apps.catalogos.models import AuditoriaAdministracion, CategoriaCausa, ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
 from apps.hallazgos.forms import HallazgoForm
-from apps.hallazgos.models import Accion, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
+from apps.hallazgos.models import Accion, CicloTratamiento, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
 from apps.hallazgos.selectors import acciones_disponibles, hallazgos_visibles, timeline_hallazgo
 from apps.hallazgos.services import AccionService, CausaService, ComunicacionService, EficaciaService, EvidenciaService, HallazgoService, PBIService, WorkflowService
 from apps.hallazgos.services.hallazgo import CodigoSACService, ImpactoService, PrioridadService
@@ -1257,6 +1257,77 @@ class Recorridos(TestCase):
         for clase in ('TIPO','FUENTE','PRIORIDAD','CATEGORIA'):
             valores = list(tecnicos.filter(clase=clase).values_list('valor', flat=True))
             self.assertEqual(len(valores), len(set(valores)))
+
+    def test_repara_mojibake_del_catalogo_y_snapshot_6m(self):
+        CategoriaCausa.objects.filter(codigo="3").update(
+            nombre="Maquinaria (Sistemas InformÃ¡ticos, Herramientas)",
+        )
+        PreguntaCausa.objects.filter(pk="2.1").update(
+            texto="Â¿El personal tiene educaciÃ³n y formaciÃ³n?",
+        )
+        hallazgo = self.crear(es_critica="SI")
+        ciclo = CicloTratamiento.objects.create(
+            hallazgo=hallazgo,
+            numero=1,
+            motivo="Inicio",
+            creado_por=self.usuario,
+            checklist_snapshot=[{
+                "id": "2.1",
+                "codigo": "2.1",
+                "texto": "Â¿El personal tiene educaciÃ³n y formaciÃ³n?",
+                "es_otro": False,
+            }],
+            respuestas=[{
+                "pregunta_id": "2.1",
+                "codigo_snapshot": "2.1",
+                "texto_snapshot": "Â¿El personal tiene educaciÃ³n y formaciÃ³n?",
+                "es_otro": False,
+                "respuesta": "SI",
+                "comentario": "",
+            }],
+        )
+
+        call_command("reparar_textos_6m", stdout=StringIO())
+
+        ciclo.refresh_from_db()
+        self.assertEqual(
+            CategoriaCausa.objects.get(codigo="3").nombre,
+            "Maquinaria (Sistemas Informáticos, Herramientas)",
+        )
+        self.assertIn("¿El personal tiene el perfil", PreguntaCausa.objects.get(pk="2.1").texto)
+        self.assertIn("¿El personal tiene el perfil", ciclo.checklist_snapshot[0]["texto"])
+        self.assertIn("¿El personal tiene el perfil", ciclo.respuestas[0]["texto_snapshot"])
+
+    def test_administrador_elimina_hallazgo_completo_con_confirmacion(self):
+        hallazgo = self.crear()
+        self.inmediata(hallazgo)
+        accion_id = hallazgo.ciclo_actual.acciones.values_list("pk", flat=True).get()
+        url = reverse("hallazgo_eliminar", args=[hallazgo.pk])
+
+        self.client.force_login(self.usuario)
+        self.assertEqual(
+            self.client.post(url, {"confirmacion": hallazgo.codigo}).status_code,
+            403,
+        )
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        listado = self.client.get(reverse("hallazgo_buscar"))
+        self.assertContains(listado, "data-delete-dialog")
+        self.assertContains(listado, "data-delete-open")
+
+        respuesta = self.client.post(url, {"confirmacion": "CODIGO-INCORRECTO"})
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertTrue(Hallazgo.objects.filter(pk=hallazgo.pk).exists())
+
+        respuesta = self.client.post(url, {"confirmacion": hallazgo.codigo})
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertFalse(Hallazgo.objects.filter(pk=hallazgo.pk).exists())
+        self.assertFalse(Accion.objects.filter(pk=accion_id).exists())
+        self.assertTrue(AuditoriaAdministracion.objects.filter(
+            entidad="Hallazgo",
+            objeto=hallazgo.codigo,
+            accion="eliminar",
+        ).exists())
 
     def test_catalogo_nuevo_recibe_valor_tecnico_interno(self):
         fuente = FuenteDeteccion.objects.create(codigo='NUEVA', nombre='Fuente nueva')

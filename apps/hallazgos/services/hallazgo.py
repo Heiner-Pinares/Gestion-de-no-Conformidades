@@ -6,7 +6,7 @@ from django.db.models import Max
 from django.utils import timezone
 
 from apps.accounts.permissions import puede_validar
-from apps.catalogos.models import MatrizPrioridad
+from apps.catalogos.models import AuditoriaAdministracion, MatrizPrioridad
 from apps.hallazgos.models import CorrelativoSAC, Hallazgo
 from .common import bloquear, campos_permitidos, exigir, notificar, registrar
 
@@ -207,3 +207,54 @@ class HallazgoService:
             metadata["codigo_nuevo"] = hallazgo.codigo
         registrar(hallazgo, usuario, "ACTUALIZACION", anterior=estado_anterior, metadata=metadata)
         return hallazgo
+
+    @staticmethod
+    @transaction.atomic
+    def eliminar(*, usuario, hallazgo):
+        """Elimina un hallazgo completo y conserva una auditoría administrativa."""
+        if not usuario.is_authenticated or not usuario.has_perm("accounts.administrar_plataforma"):
+            raise PermissionDenied("Solo un administrador puede eliminar hallazgos.")
+
+        from apps.hallazgos.models import (
+            Accion, CicloTratamiento, ComunicacionHallazgo, Evidencia,
+            EvaluacionEficacia, HistorialHallazgo, Notificacion, PBI,
+        )
+
+        hallazgo = Hallazgo.objects.select_for_update().select_related(
+            "proceso", "responsable", "registrado_por",
+        ).get(pk=hallazgo.pk)
+        codigo = hallazgo.codigo
+        resumen = {
+            "codigo": codigo,
+            "titulo": hallazgo.titulo,
+            "estado": hallazgo.estado,
+            "proceso_id": hallazgo.proceso_id,
+            "proceso": hallazgo.proceso.nombre,
+            "responsable_id": hallazgo.responsable_id,
+            "registrado_por_id": hallazgo.registrado_por_id,
+        }
+        ciclos = CicloTratamiento.objects.filter(hallazgo=hallazgo)
+        acciones = Accion.objects.filter(ciclo__in=ciclos)
+        evaluaciones = EvaluacionEficacia.objects.filter(ciclo__in=ciclos)
+
+        # Las FK de negocio son PROTECT para impedir borrados accidentales. La
+        # operación administrativa elimina de hojas a raíz en una transacción.
+        Evidencia.objects.filter(hallazgo=hallazgo).delete()
+        Notificacion.objects.filter(hallazgo=hallazgo).delete()
+        HistorialHallazgo.objects.filter(hallazgo=hallazgo).delete()
+        ComunicacionHallazgo.objects.filter(ciclo__in=ciclos).delete()
+        PBI.objects.filter(ciclo__in=ciclos).delete()
+        evaluaciones.delete()
+        acciones.delete()
+        ciclos.delete()
+        hallazgo.delete()
+
+        AuditoriaAdministracion.objects.create(
+            usuario=usuario,
+            entidad="Hallazgo",
+            objeto=codigo,
+            accion="eliminar",
+            antes=resumen,
+            despues={"eliminado": True},
+        )
+        return codigo

@@ -7,6 +7,7 @@ from apps.catalogos.models import (
     Catalogo, CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad,
     PreguntaCausa, Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
 )
+from apps.catalogos.services import reparar_textos_corruptos
 
 ROLES = {
     "USUARIO": ["registrar_hallazgo"],
@@ -89,6 +90,7 @@ class Command(BaseCommand):
             obj, _ = CategoriaCausa.objects.get_or_create(codigo=categoria["codigo"], defaults={"nombre": categoria["nombre"], "orden": int(categoria["codigo"])})
             for orden, pregunta in enumerate(categoria["preguntas"], 1):
                 PreguntaCausa.objects.get_or_create(codigo=pregunta["codigo"], defaults={"categoria": obj, "texto": pregunta["texto"], "orden": orden})
+        reparar_textos_corruptos()
         self.stdout.write(self.style.SUCCESS(
             "Maestros, roles integrados, 11 procesos, 24 subprocesos por proceso "
             "y 32 preguntas 6M disponibles. Matriz de prioridad inicial: DEMO."

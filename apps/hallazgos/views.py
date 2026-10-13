@@ -280,6 +280,20 @@ def hallazgo_buscar(request):
 
 
 @login_required
+@require_POST
+def hallazgo_eliminar(request, pk):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    hallazgo = get_object_or_404(Hallazgo, pk=pk)
+    if request.POST.get("confirmacion", "").strip() != hallazgo.codigo:
+        messages.error(request, "No se eliminó el hallazgo: la confirmación no corresponde al código del caso.")
+        return redirect("hallazgo_buscar")
+    codigo = HallazgoService.eliminar(usuario=request.user, hallazgo=hallazgo)
+    messages.success(request, f"El hallazgo {codigo} y todos sus datos relacionados fueron eliminados.")
+    return redirect("hallazgo_buscar")
+
+
+@login_required
 def hallazgo_plantilla_descargar(request, pk, tipo):
     """Entrega una copia completada de las plantillas oficiales del hallazgo."""
     hallazgo = obtener_hallazgo(request.user, pk)

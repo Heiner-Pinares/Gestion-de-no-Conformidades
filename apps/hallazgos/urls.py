@@ -11,6 +11,7 @@ urlpatterns = [
     path("administracion/validaciones/", views.validaciones_admin, name="validaciones_admin"),
     path("hallazgos/<int:pk>/", views.hallazgo_detalle, name="hallazgo_detalle"),
     path("hallazgos/<int:pk>/editar/", views.hallazgo_editar, name="hallazgo_editar"),
+    path("hallazgos/<int:pk>/eliminar/", views.hallazgo_eliminar, name="hallazgo_eliminar"),
     path("hallazgos/<int:pk>/transicion/<str:accion>/", views.hallazgo_transicion, name="hallazgo_transicion"),
     path("hallazgos/<int:pk>/causa/", views.hallazgo_causa, name="hallazgo_causa"),
     path("hallazgos/<int:pk>/acciones/nueva/", views.hallazgo_accion, name="hallazgo_accion"),
