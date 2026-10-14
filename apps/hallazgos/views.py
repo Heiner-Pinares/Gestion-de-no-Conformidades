@@ -447,6 +447,13 @@ def hallazgo_detalle(request, pk):
         "acciones": actividades,
         "gestionar": gestionar and en_tratamiento, "puede_editar": (autor and (h.estado in {"BORRADOR", "DEVUELTO", "EN_ANALISIS"} or (h.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()))) or (puede_validar(request.user, h) and h.estado == "PENDIENTE_VALIDACION"),
         "puede_causa": gestionar and h.estado == "EN_ANALISIS",
+        "puede_reabrir_analisis": bool(
+            gestionar
+            and ciclo
+            and ciclo.analisis_fin is not None
+            and not actividades
+            and h.estado in {"ACCION_INMEDIATA", "PBI_EN_GESTION", "PLAN_ACCION"}
+        ),
         "puede_accion": gestionar and h.estado in {"ACCION_INMEDIATA", "REABIERTO", "PLAN_ACCION", "EN_IMPLEMENTACION"},
         "puede_pbi": gestionar and h.estado in {"PBI_EN_GESTION", "PLAN_ACCION", "EN_IMPLEMENTACION"} and h.origen_tecnologico,
         "puede_evaluar": puede_validar(request.user, h) and request.user.has_perm("accounts.evaluar_eficacia") and h.estado == "EN_VERIFICACION",

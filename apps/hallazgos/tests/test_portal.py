@@ -706,6 +706,8 @@ class Recorridos(TestCase):
         self.assertEqual(h.estado, 'PLAN_ACCION')
 
         self.client.force_login(self.usuario)
+        detalle = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
+        self.assertContains(detalle, 'Volver a editar análisis')
         paso_tres = self.client.get(reverse('hallazgo_accion', args=[h.pk]))
         self.assertContains(paso_tres, 'Volver a editar análisis')
         self.assertContains(paso_tres, 'data-reopen-analysis')
