@@ -72,6 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     plan.addEventListener("submit", (event) => {
+      if (event.submitter?.matches("[data-reopen-analysis]")) return;
       if (!validateRequiredTypes()) {
         event.preventDefault();
         return;

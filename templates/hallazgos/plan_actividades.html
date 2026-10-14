@@ -32,7 +32,10 @@
       {% include 'hallazgos/includes/activity_plan_row.html' with form=formset.empty_form only %}
     </template>
     <div class="form-actions activity-plan-actions">
-      {% if puede_volver_identificacion %}<a class="btn" href="{% url 'hallazgo_editar' hallazgo.pk %}">Volver a identificación</a>{% else %}<a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver</a>{% endif %}
+      <div class="toolbar">
+        {% if puede_volver_identificacion %}<a class="btn" href="{% url 'hallazgo_editar' hallazgo.pk %}">Volver a identificación</a>{% else %}<a class="btn" href="{% url 'hallazgo_detalle' hallazgo.pk %}">Volver</a>{% endif %}
+        {% if puede_editar_analisis %}<button class="btn" type="submit" formaction="{% url 'hallazgo_reabrir_analisis' hallazgo.pk %}" formnovalidate data-reopen-analysis onclick="return confirm('Volverás al paso 2 para completar o corregir el análisis. Las respuestas registradas se conservarán. ¿Deseas continuar?')">← Volver a editar análisis</button>{% endif %}
+      </div>
       <button class="btn primary" type="submit" data-save-activities>Guardar compromisos →</button>
     </div>
   </form>
@@ -50,4 +53,4 @@
   </div>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=3"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=4"></script>{% endblock %}

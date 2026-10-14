@@ -46,6 +46,7 @@ def preparar_historial_hallazgo(pagina, hallazgo):
         "COMUNICACION": ("evidencia", "Comunicación registrada"),
         "REGISTRO_PBI": ("evidencia", "Referencia PBI registrada"),
         "FINALIZAR_ANALISIS": ("evaluacion", "Análisis de causa finalizado"),
+        "REABRIR_ANALISIS": ("seguimiento", "Análisis de causa reabierto"),
         "GUARDAR_ANALISIS": ("seguimiento", "Análisis de causa actualizado"),
         "CREACION": ("general", "Hallazgo creado"),
         "ACTUALIZACION": ("general", "Identificación actualizada"),
@@ -522,6 +523,22 @@ def hallazgo_causa(request, pk):
 
 
 @login_required
+@require_POST
+def hallazgo_reabrir_analisis(request, pk):
+    h = obtener_hallazgo(request.user, pk)
+    try:
+        WorkflowService.reabrir_analisis(usuario=request.user, hallazgo=h)
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+        return redirect("hallazgo_accion", pk=pk)
+    messages.success(
+        request,
+        "El análisis fue reabierto. Tus respuestas anteriores se conservaron para que puedas completarlas o corregirlas.",
+    )
+    return redirect("hallazgo_causa", pk=pk)
+
+
+@login_required
 def hallazgo_accion(request, pk):
     h = obtener_hallazgo(request.user, pk)
     exigir_gestion(request.user, h)
@@ -609,6 +626,7 @@ def hallazgo_accion(request, pk):
     return render(request, "hallazgos/plan_actividades.html", {
         "hallazgo": h, "formset": formset, "timeline": timeline_hallazgo(h), "siguiente_numero": siguiente,
         "puede_volver_identificacion": acciones_existentes == 0,
+        "puede_editar_analisis": acciones_existentes == 0 and ciclo.analisis_fin is not None,
         "modo_adicional": acciones_existentes > 0,
         "requiere_accion_correctiva": h.es_critica == "SI",
         "tiene_solucion_inmediata": "INMEDIATA" in tipos_existentes,

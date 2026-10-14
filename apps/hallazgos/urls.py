@@ -14,6 +14,7 @@ urlpatterns = [
     path("hallazgos/<int:pk>/eliminar/", views.hallazgo_eliminar, name="hallazgo_eliminar"),
     path("hallazgos/<int:pk>/transicion/<str:accion>/", views.hallazgo_transicion, name="hallazgo_transicion"),
     path("hallazgos/<int:pk>/causa/", views.hallazgo_causa, name="hallazgo_causa"),
+    path("hallazgos/<int:pk>/causa/reabrir/", views.hallazgo_reabrir_analisis, name="hallazgo_reabrir_analisis"),
     path("hallazgos/<int:pk>/acciones/nueva/", views.hallazgo_accion, name="hallazgo_accion"),
     path("hallazgos/<int:pk>/acciones/guardadas/", views.hallazgo_acciones_creadas, name="hallazgo_acciones_creadas"),
     path("hallazgos/<int:pk>/acciones/seguimiento/", views.hallazgo_acciones_seguimiento, name="hallazgo_acciones_seguimiento"),

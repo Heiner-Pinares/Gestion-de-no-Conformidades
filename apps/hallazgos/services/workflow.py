@@ -81,6 +81,36 @@ class WorkflowService:
 
     @staticmethod
     @transaction.atomic
+    def reabrir_analisis(*, usuario, hallazgo):
+        """Devuelve al paso 2 mientras el plan aún no tenga compromisos."""
+        hallazgo = bloquear(hallazgo)
+        gestionar(usuario, hallazgo)
+        exigir(
+            hallazgo.estado in {"ACCION_INMEDIATA", "PBI_EN_GESTION", "PLAN_ACCION"},
+            "El análisis no se puede reabrir en el estado actual.",
+        )
+        ciclo = ciclo_vigente(hallazgo)
+        exigir(ciclo.analisis_fin is not None, "El análisis todavía no está finalizado.")
+        exigir(
+            not ciclo.acciones.exists(),
+            "El análisis no se puede reabrir porque el plan ya tiene compromisos registrados.",
+        )
+        ciclo.analisis_fin = None
+        ciclo.save(update_fields=["analisis_fin"])
+        anterior = hallazgo.estado
+        hallazgo.estado = "EN_ANALISIS"
+        registrar(
+            hallazgo,
+            usuario,
+            "REABRIR_ANALISIS",
+            "Análisis reabierto para completar o corregir información antes de registrar compromisos.",
+            anterior=anterior,
+            metadata={"ciclo": ciclo.numero},
+        )
+        return hallazgo
+
+    @staticmethod
+    @transaction.atomic
     def ejecutar(*, usuario, hallazgo, accion, comentario="", version=None):
         hallazgo = bloquear(hallazgo, version)
         exigir(accion in TRANSICIONES, "La transición solicitada no existe.")

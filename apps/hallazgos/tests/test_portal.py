@@ -683,6 +683,58 @@ class Recorridos(TestCase):
         h.refresh_from_db()
         self.assertFalse(any(r['pregunta_id'] == '1.6' for r in h.ciclo_actual.respuestas))
 
+    def test_paso_tres_permite_reabrir_analisis_antes_de_crear_compromisos(self):
+        h = self.crear(es_critica='SI')
+        WorkflowService.continuar_identificacion(usuario=self.usuario, hallazgo=h)
+        h.refresh_from_db()
+        preguntas = [
+            pregunta for pregunta in PreguntaCausa.objects.all()
+            if pregunta.texto.strip().rstrip(':').casefold() != 'otro'
+        ]
+        respuestas = [
+            dict(pregunta=pregunta, respuesta='NO', comentario='Respuesta inicial')
+            for pregunta in preguntas
+        ]
+        CausaService.guardar(
+            usuario=self.usuario,
+            hallazgo=h,
+            datos=dict(causa_raiz='Causa inicial', respuestas=respuestas, control={}),
+            finalizar=True,
+        )
+        WorkflowService.completar_analisis(usuario=self.usuario, hallazgo=h)
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'PLAN_ACCION')
+
+        self.client.force_login(self.usuario)
+        paso_tres = self.client.get(reverse('hallazgo_accion', args=[h.pk]))
+        self.assertContains(paso_tres, 'Volver a editar análisis')
+        self.assertContains(paso_tres, 'data-reopen-analysis')
+        reapertura = self.client.post(reverse('hallazgo_reabrir_analisis', args=[h.pk]))
+        self.assertRedirects(reapertura, reverse('hallazgo_causa', args=[h.pk]))
+
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'EN_ANALISIS')
+        self.assertIsNone(h.ciclo_actual.analisis_fin)
+        self.assertEqual(len(h.ciclo_actual.respuestas), len(respuestas))
+        self.assertTrue(h.historial.filter(accion='REABRIR_ANALISIS').exists())
+        formulario = self.client.get(reverse('hallazgo_causa', args=[h.pk]))
+        self.assertContains(formulario, 'Respuesta inicial')
+
+        CausaService.guardar(
+            usuario=self.usuario,
+            hallazgo=h,
+            datos=dict(causa_raiz='Causa corregida', respuestas=respuestas, control={}),
+            finalizar=True,
+        )
+        WorkflowService.completar_analisis(usuario=self.usuario, hallazgo=h)
+        h.refresh_from_db()
+        self.accion(h)
+        with self.assertRaisesMessage(
+            ValidationError,
+            'El análisis no se puede reabrir porque el plan ya tiene compromisos registrados.',
+        ):
+            WorkflowService.reabrir_analisis(usuario=self.usuario, hallazgo=h)
+
     def test_archivos_y_descarga_privada(self):
         h=self.crear();buf=BytesIO();Image.new('RGB',(2,2)).save(buf,format='PNG')
         with TemporaryDirectory() as carpeta, override_settings(MEDIA_ROOT=carpeta):
