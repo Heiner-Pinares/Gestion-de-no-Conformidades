@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{% if modo_adicional %}Agregar compromisos{% else %}Solución inmediata y acciones correctivas{% endif %}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=4">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=5">{% endblock %}
 {% block content %}
 <div class="shell activity-page">
   <div class="crumb"><a href="{% url 'inicio' %}">Panel principal</a> / Registro / {{ hallazgo.codigo }}</div>
@@ -53,4 +53,4 @@
   </div>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=4"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/actividades.js' %}?v=5"></script>{% endblock %}

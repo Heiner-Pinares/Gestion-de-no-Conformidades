@@ -11,6 +11,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const hasExistingCorrective = plan.dataset.hasCorrective === "true";
 
     const visibleRows = () => [...rows.querySelectorAll("[data-activity-row]")].filter((row) => !row.hidden);
+    const updateRemoveButtons = () => {
+      const currentRows = visibleRows();
+      const isLastRow = currentRows.length === 1;
+      currentRows.forEach((row) => {
+        const button = row.querySelector("[data-remove-activity]");
+        button.disabled = isLastRow;
+        button.title = isLastRow ? "Debe quedar al menos un compromiso." : "Quitar este compromiso.";
+      });
+    };
     const validateRequiredTypes = () => {
       const selectedTypes = new Set(
         visibleRows().map((row) => row.querySelector('select[name$="-tipo"]')?.value).filter(Boolean)
@@ -42,11 +51,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const deleteInput = row.querySelector('input[name$="-DELETE"]');
         if (deleteInput) deleteInput.checked = true;
         row.hidden = true;
+        row.style.display = "none";
         updateCodes();
+        updateRemoveButtons();
       });
     };
 
     visibleRows().forEach(bindRemove);
+    updateRemoveButtons();
     plan.querySelector("[data-add-activity]").addEventListener("click", () => {
       const index = Number(total.value);
       const fragment = template.content.cloneNode(true);
@@ -56,6 +68,7 @@ document.addEventListener("DOMContentLoaded", () => {
       total.value = String(index + 1);
       bindRemove(rows.lastElementChild);
       updateCodes();
+      updateRemoveButtons();
     });
     updateCodes();
 
