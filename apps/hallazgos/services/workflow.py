@@ -101,7 +101,7 @@ class WorkflowService:
         if accion in {"devolver", "cancelar", "cerrar", "reabrir"}:
             exigir(bool(comentario.strip()), "Es obligatorio registrar el motivo u observación.")
         if accion in {"enviar", "validar"}:
-            validar_datos(hallazgo, completo=True, fecha_cambiada=(accion == "enviar"))
+            validar_datos(hallazgo, completo=True)
             hallazgo.save()
         elif accion == "iniciar_inmediata":
             if not hallazgo.ciclo_actual:

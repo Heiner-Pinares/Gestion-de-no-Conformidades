@@ -579,7 +579,8 @@ class Recorridos(TestCase):
         with override_settings(SAC_SEQUENCE_SCOPE='YEAR'), self.assertRaises(ValidationError): self.crear()
 
     def test_fecha_impacto_prioridad_y_na(self):
-        with self.assertRaises(ValidationError): self.crear(fecha_solucion=timezone.localdate()-timedelta(days=1))
+        fecha_anterior = timezone.localdate() - timedelta(days=1)
+        self.assertEqual(self.crear(fecha_solucion=fecha_anterior).fecha_solucion, fecha_anterior)
         self.assertEqual(ImpactoService.calcular(clientes=1,tiempo=3,soles=2),3)
         for v in [0,4,True]:
             with self.assertRaises(ValidationError): ImpactoService.calcular(clientes=v,tiempo=2,soles=1)
@@ -831,6 +832,8 @@ class Recorridos(TestCase):
         self.assertIn('name="origen_tecnologico"', html)
         self.assertLess(html.index('Fecha de registro'), html.index('Fecha de detección'))
         self.assertLess(html.index('Fecha de detección'), html.index('Fecha de solución'))
+        self.assertNotIn('No se permiten fechas anteriores a la fecha actual.', html)
+        self.assertNotIn('min', HallazgoForm(usuario=self.usuario).fields['fecha_solucion'].widget.attrs)
         self.assertLess(html.index('id_proceso'), html.rindex('1. Identificación'))
         self.assertIn('data-proceso=', html)
         self.assertIn('filtrarSubprocesos', html)

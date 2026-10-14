@@ -127,7 +127,6 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
                 choices=[(1, "Bajo"), (2, "Medio"), (3, "Alto")],
                 coerce=int, empty_value=None, required=False, widget=forms.RadioSelect,
             )
-        self.fields["fecha_solucion"].widget.attrs["min"] = timezone.localdate().isoformat()
         self.fields["tipo_registro"].help_text = "El tipo define el prefijo del código SAC automático."
         self.fields["es_critica"].help_text = "Antes de continuar debe definir Sí o No."
         puede_corregir = instance and instance.pk and (
@@ -154,9 +153,6 @@ class HallazgoForm(EstiloForm, forms.ModelForm):
         previa = self.instance.fecha_deteccion if self.instance.pk else None
         if deteccion and previa and timezone.localdate(deteccion) == timezone.localdate(previa):
             datos["fecha_deteccion"] = previa
-        fecha = datos.get("fecha_solucion")
-        if fecha and fecha < timezone.localdate() and (not self.instance.pk or fecha != self.instance.fecha_solucion):
-            self.add_error("fecha_solucion", "La fecha de solución no puede ser anterior a la fecha actual.")
         sub, proceso = datos.get("subproceso"), datos.get("proceso")
         if sub and proceso and sub.proceso_id != proceso.pk:
             self.add_error("subproceso", "El subproceso debe pertenecer al proceso seleccionado.")

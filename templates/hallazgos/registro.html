@@ -50,7 +50,7 @@
       <div class="identificacion-columna">
         <div class="pair"><div class="lab"><label for="fechaRegistro">Fecha de registro</label></div><div class="val"><input id="fechaRegistro" class="input readonly-strong" type="date" value="{% if hallazgo %}{{ hallazgo.fecha_registro|date:'Y-m-d' }}{% else %}{% now 'Y-m-d' %}{% endif %}" readonly><div class="helper">Se completa automáticamente con la fecha actual y no puede modificarse.</div></div></div>
         {% include 'includes/identificacion_campo.html' with field=form.fecha_deteccion etiqueta='Fecha de detección' %}
-        {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución estimada' ayuda='No se permiten fechas anteriores a la fecha actual.' %}
+        {% include 'includes/identificacion_campo.html' with field=form.fecha_solucion etiqueta='Fecha de solución estimada' %}
         <div class="pair">
           <div class="lab"><label for="impactoResumen">Impacto</label></div>
           <div class="val">

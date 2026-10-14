@@ -86,9 +86,7 @@ class PrioridadService:
         return matriz.prioridad
 
 
-def validar_datos(hallazgo, *, completo=False, fecha_cambiada=True, actualizar_snapshot_impacto=False, actualizar_snapshot_urgencia=False):
-    if fecha_cambiada and hallazgo.fecha_solucion:
-        exigir(hallazgo.fecha_solucion >= timezone.localdate(), "La fecha de solución no puede ser anterior a la fecha actual.")
+def validar_datos(hallazgo, *, completo=False, actualizar_snapshot_impacto=False, actualizar_snapshot_urgencia=False):
     if hallazgo.fecha_deteccion:
         exigir(hallazgo.fecha_deteccion <= timezone.now(), "La fecha de detección no puede estar en el futuro.")
     if hallazgo.subproceso_id:
@@ -196,7 +194,6 @@ class HallazgoService:
         urgencia_cambiada = "urgencia" in datos and datos["urgencia"] != hallazgo.urgencia
         if cambio_tipo:
             hallazgo.codigo = CodigoSACService.generar(tipo=tipo_nuevo)
-        fecha_cambiada = datos.get("fecha_solucion", hallazgo.fecha_solucion) != hallazgo.fecha_solucion
         for campo, valor in datos.items():
             setattr(hallazgo, campo, valor)
         if hallazgo.estado in {"EN_ANALISIS", "ACCION_INMEDIATA"} and ciclo is not None and not ciclo.acciones.exists():
@@ -204,7 +201,6 @@ class HallazgoService:
         validar_datos(
             hallazgo,
             completo=completo,
-            fecha_cambiada=fecha_cambiada,
             actualizar_snapshot_impacto=impacto_cambiado,
             actualizar_snapshot_urgencia=urgencia_cambiada,
         )
