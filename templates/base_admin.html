@@ -6,7 +6,7 @@
   <title>{% block title %}Administración{% endblock %} · Portal Claro</title>
   <link rel="stylesheet" href="{% static 'css/portal-v8.css' %}">
   <link rel="stylesheet" href="{% static 'css/portal.css' %}?v=impacto-configurable-1">
-  <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=admin-dashboard-6">
+  <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=admin-dashboard-7">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="admin-body {% block body_class %}{% endblock %}">
@@ -43,7 +43,7 @@
     <aside class="admin-sidebar" aria-label="Administración">
       <nav>
         <a href="{% url 'inicio' %}"{% if request.resolver_match.url_name == 'inicio' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='home' %}</b><span class="admin-nav-label">Inicio</span></a>
-        <a href="{% url 'hallazgo_buscar' %}"{% if request.resolver_match.url_name == 'hallazgo_buscar' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='document' %}</b><span class="admin-nav-label">Hallazgos</span></a>
+        <a href="{% url 'hallazgo_buscar' %}"{% if request.resolver_match.url_name == 'hallazgo_buscar' or request.resolver_match.url_name == 'hallazgo_carga_masiva' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='document' %}</b><span class="admin-nav-label">Hallazgos</span></a>
         <a href="{% url 'validaciones_admin' %}"{% if request.resolver_match.url_name == 'validaciones_admin' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='check' %}</b><span class="admin-nav-label">Validaciones</span></a>
         <a href="{% url 'usuarios' %}"{% if request.resolver_match.url_name == 'usuarios' or request.resolver_match.url_name == 'usuario_crear' or request.resolver_match.url_name == 'usuario_editar' or request.resolver_match.url_name == 'usuario_password' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='users' %}</b><span class="admin-nav-label">Usuarios</span></a>
         <a href="{% url 'reportes' %}"{% if request.resolver_match.url_name == 'reportes' %} aria-current="page"{% endif %}><b>{% include 'includes/admin_icon.html' with icon='chart' %}</b><span class="admin-nav-label">Indicadores</span></a>

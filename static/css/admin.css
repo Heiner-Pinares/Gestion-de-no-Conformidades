@@ -197,3 +197,6 @@ html{max-width:100%;overflow-x:hidden}
 .urgency-active{display:flex;align-items:center;gap:7px;margin-top:10px;color:#263a59;font-weight:700;font-size:12px}.urgency-active input{width:18px;height:18px;accent-color:var(--admin-red)}
 @media(max-width:1150px){.urgency-admin-row{grid-template-columns:1fr repeat(3,minmax(0,1fr))}}
 @media(max-width:760px){.urgency-admin-row{grid-template-columns:1fr}}
+
+/* Carga masiva de expedientes */
+.admin-import-panel{padding:24px}.admin-import-notice{margin-bottom:22px;padding:16px 18px;border:1px solid #bfd9f5;border-radius:12px;background:#eef6ff;color:#16365f}.admin-import-notice p{margin:6px 0 0}.admin-import-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}.admin-import-errors{margin-top:20px;padding:20px 24px;border-left:5px solid #e60012}.admin-import-errors h2{margin-top:0;color:#b00010}.admin-import-errors ol{max-height:360px;overflow:auto;padding-left:24px}.admin-import-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:20px}.admin-import-summary div{display:grid;gap:4px;padding:16px;border-radius:10px;background:#f4f7fb}.admin-import-summary strong{color:#10234a;font-size:1.65rem}.admin-import-summary span{color:#5f708c}

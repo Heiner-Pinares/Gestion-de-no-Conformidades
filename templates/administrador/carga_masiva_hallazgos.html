@@ -1,0 +1,50 @@
+{% extends 'base_admin.html' %}
+{% block title %}Carga masiva de hallazgos{% endblock %}
+{% block content %}
+<div class="admin-page-head">
+  <div class="admin-page-title"><span class="admin-page-icon">⇧</span><div><h1>Carga masiva de hallazgos</h1><p>Importa expedientes terminados y en curso con sus planes, compromisos y trazabilidad.</p></div></div>
+  <div class="toolbar"><a class="btn" href="{% url 'hallazgo_buscar' %}">← Hallazgos</a><a class="admin-primary" href="{% url 'hallazgo_carga_masiva_plantilla' %}">↓ Descargar plantilla</a></div>
+</div>
+
+<section class="admin-panel admin-import-panel">
+  <div class="admin-import-notice">
+    <strong>La importación es atómica y solo crea registros nuevos.</strong>
+    <p>Valida el archivo antes de guardarlo. Si encuentra un error, no inserta ninguna fila. Los códigos existentes se rechazan para evitar reemplazos accidentales.</p>
+  </div>
+  <form method="post" enctype="multipart/form-data" class="admin-form">
+    {% csrf_token %}
+    <div class="field">{{ form.archivo.label_tag }}{{ form.archivo }}<small>{{ form.archivo.help_text }}</small>{{ form.archivo.errors }}</div>
+    <div class="admin-import-actions">
+      <button class="btn" type="submit" name="accion" value="validar">Validar sin guardar</button>
+      <button class="admin-primary" type="submit" name="accion" value="importar" data-confirm-import>Importar a la base de datos</button>
+    </div>
+  </form>
+</section>
+
+{% if errores_carga %}
+<section class="admin-panel admin-import-errors" role="alert">
+  <h2>No se cargó ningún dato</h2>
+  <p>Corrija estos puntos en la plantilla y vuelva a validarla.</p>
+  <ol>{% for error in errores_carga %}<li>{{ error }}</li>{% endfor %}</ol>
+</section>
+{% endif %}
+
+{% if resultado %}
+<section class="admin-panel">
+  <h2>Resumen del archivo</h2>
+  <div class="admin-import-summary">
+    {% for nombre, total in resultado.items %}<div><strong>{{ total }}</strong><span>{{ nombre|capfirst }}</span></div>{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const button = document.querySelector('[data-confirm-import]');
+  if (button) button.addEventListener('click', function (event) {
+    if (!window.confirm('¿Importar todos los registros del archivo? Esta operación creará expedientes en la base de datos.')) event.preventDefault();
+  });
+});
+</script>
+{% endblock %}

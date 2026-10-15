@@ -1,7 +1,9 @@
 """Adaptadores HTTP. Las reglas y transacciones pertenecen a services."""
 import io
+from pathlib import Path
 from datetime import timedelta
 from django import forms
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -18,6 +20,7 @@ from .forms import (
     AccionForm, ActividadPlanForm, AnalisisCausaForm, BuscarHallazgoForm, ComunicacionForm,
     EvaluacionEficaciaForm, EvidenciaForm, HallazgoForm, PBIForm,
     ReprogramacionForm, SeguimientoForm, SeguimientoLineaForm, TransicionForm,
+    CargaMasivaHallazgosForm,
 )
 from .models import Accion, ArchivoEvidencia, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
 from .selectors import acciones_disponibles, hallazgos_visibles, indicadores, timeline_hallazgo
@@ -27,6 +30,7 @@ from .services import (
     EvidenciaService, HallazgoService, PBIService, WorkflowService,
 )
 from .services.plantillas import generar_plantilla
+from .importacion_masiva import ErrorCargaMasiva, procesar_carga
 
 
 def obtener_hallazgo(usuario, pk):
@@ -279,6 +283,50 @@ def hallazgo_buscar(request):
         "page_obj": Paginator(qs, 10 if es_admin else 25).get_page(request.GET.get("page")),
         "filtros": filtros.urlencode(),
     })
+
+
+@login_required
+def hallazgo_carga_masiva(request):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    form = CargaMasivaHallazgosForm(request.POST or None, request.FILES or None)
+    resultado = None
+    errores_carga = []
+    if request.method == "POST" and form.is_valid():
+        guardar = request.POST.get("accion") == "importar"
+        try:
+            resultado = procesar_carga(
+                form.cleaned_data["archivo"],
+                ejecutado_por=request.user,
+                guardar=guardar,
+            )
+        except ErrorCargaMasiva as exc:
+            errores_carga = exc.errores
+        else:
+            if guardar:
+                messages.success(request, f"Carga completada: {resultado['hallazgos']} hallazgos y {resultado['compromisos']} compromisos creados.")
+            else:
+                messages.success(request, "Validación correcta. No se guardó ningún dato; ya puede ejecutar Importar.")
+    return render(request, "administrador/carga_masiva_hallazgos.html", {
+        "form": form,
+        "resultado": resultado,
+        "errores_carga": errores_carga,
+    })
+
+
+@login_required
+def hallazgo_carga_masiva_plantilla(request):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    ruta = Path(settings.BASE_DIR) / "resources" / "plantillas" / "plantilla_carga_masiva_hallazgos.xlsx"
+    if not ruta.is_file():
+        raise Http404("La plantilla de carga masiva no está instalada.")
+    return FileResponse(
+        ruta.open("rb"),
+        as_attachment=True,
+        filename="plantilla_carga_masiva_hallazgos.xlsx",
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @login_required

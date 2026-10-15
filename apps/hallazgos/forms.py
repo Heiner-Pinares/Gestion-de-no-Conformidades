@@ -665,3 +665,19 @@ class BuscarHallazgoForm(EstiloForm, forms.Form):
         if desde and hasta and desde > hasta:
             self.add_error("fecha_hasta", "La fecha final debe ser igual o posterior a la inicial.")
         return datos
+
+
+class CargaMasivaHallazgosForm(forms.Form):
+    archivo = forms.FileField(
+        label="Plantilla completada",
+        help_text="Suba el XLSX, o un ZIP con el XLSX y la carpeta de evidencias. Máximo 80 MB.",
+        widget=forms.ClearableFileInput(attrs={"accept": ".xlsx,.zip"}),
+    )
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data["archivo"]
+        if not archivo.name.lower().endswith((".xlsx", ".zip")):
+            raise forms.ValidationError("Seleccione un archivo XLSX o ZIP.")
+        if archivo.size > 80 * 1024 * 1024:
+            raise forms.ValidationError("El archivo supera 80 MB.")
+        return archivo
