@@ -20,6 +20,7 @@ from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
 
+from apps.catalogos.services import TIPO_COPIA, TIPO_PARA, destinatarios_adicionales
 from apps.hallazgos.models import Accion, HistorialHallazgo
 
 
@@ -111,7 +112,11 @@ class CorreoCompromisoService:
                 "El responsable seleccionado no tiene un correo registrado.",
                 codigo="SIN_CORREO_RESPONSABLE",
             )
-        para = _normalizar_direcciones([responsable.email])
+        adicionales = destinatarios_adicionales()
+        para = _normalizar_direcciones([
+            responsable.email,
+            *adicionales[TIPO_PARA],
+        ])
 
         copia: list[str] = []
         jefe = responsable.jefe
@@ -121,9 +126,13 @@ class CorreoCompromisoService:
                     "El jefe del responsable no tiene un correo registrado.",
                     codigo="SIN_CORREO_JEFE",
                 )
-            copia = _normalizar_direcciones([jefe.email])
-            claves_para = {direccion.casefold() for direccion in para}
-            copia = [direccion for direccion in copia if direccion.casefold() not in claves_para]
+            copia.append(jefe.email)
+        copia = _normalizar_direcciones([
+            *copia,
+            *adicionales[TIPO_COPIA],
+        ])
+        claves_para = {direccion.casefold() for direccion in para}
+        copia = [direccion for direccion in copia if direccion.casefold() not in claves_para]
 
         if not settings.CORREO_REMITENTE_EMAIL.strip():
             raise CorreoCompromisoError(

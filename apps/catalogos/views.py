@@ -17,12 +17,18 @@ from django.utils import timezone
 from apps.accounts.forms import UsuarioCreacionForm, UsuarioEdicionForm
 from apps.accounts.models import Usuario, UsuarioRol
 from apps.accounts.permissions import es_administrador, es_validador
-from .forms import CATALOGOS, ConfiguracionImpactoForm, ConfiguracionUrgenciaForm, formulario_catalogo
+from .forms import (
+    CATALOGOS, ConfiguracionImpactoForm, ConfiguracionUrgenciaForm,
+    CorreoCompromisoCatalogoForm, formulario_catalogo,
+)
 from .models import (
     AuditoriaAdministracion, Catalogo, ConfiguracionImpacto, ConfiguracionUrgencia,
     Proceso, ProcesoValidador,
 )
-from .services import actividades_queryset, detalle_actividad
+from .services import (
+    TIPO_COPIA, TIPO_PARA, correos_queryset, detalle_actividad,
+    guardar_correo, tipo_correo, actividades_queryset,
+)
 
 
 TIPO_ACTIVIDADES = "actividades"
@@ -196,6 +202,7 @@ def catalogos(request):
         return render(request, "administrador/catalogos.html", {
             "tipos": tipos_catalogo(),
             "resumen_catalogos": resumen_catalogos,
+            "correos_total": correos_queryset().filter(activo=True).count(),
         })
     if tipo not in CATALOGOS and tipo != TIPO_ACTIVIDADES:
         raise Http404
@@ -237,6 +244,70 @@ def catalogos(request):
         "pagina": pagina, "q": q, "estado": estado,
         "filtros": urlencode({k: v for k, v in {"tipo": tipo, "q": q, "estado": estado}.items() if v}),
         "puede_crear": tipo not in ("tipos", "impactos", "urgencias", "categorias"),
+    })
+
+
+@solo_admin
+def catalogos_correos(request):
+    """Administra To/CC adicionales sin alterar responsable ni jefe."""
+    form = CorreoCompromisoCatalogoForm(
+        request.POST if request.method == "POST" and request.POST.get("accion") == "agregar" else None
+    )
+    if request.method == "POST":
+        accion = request.POST.get("accion")
+        if accion == "agregar" and form.is_valid():
+            with transaction.atomic():
+                registro, creado = guardar_correo(
+                    tipo=form.cleaned_data["tipo"],
+                    correo=form.cleaned_data["correo"],
+                )
+                registrar_auditoria(
+                    request.user,
+                    "CorreoCompromisoCatalogo",
+                    registro.pk,
+                    "crear" if creado else "reactivar",
+                    {},
+                    {
+                        "tipo": tipo_correo(registro),
+                        "correo": registro.nombre,
+                        "activo": str(registro.activo),
+                    },
+                )
+            messages.success(
+                request,
+                "Correo agregado." if creado else "El correo ya existía y quedó activo nuevamente.",
+            )
+            return redirect("catalogos_correos")
+        if accion == "cambiar_estado":
+            registro = get_object_or_404(correos_queryset(), pk=request.POST.get("registro_id"))
+            activo = request.POST.get("activo") == "1"
+            with transaction.atomic():
+                actual = Catalogo.objects.select_for_update().get(pk=registro.pk)
+                anterior = actual.activo
+                actual.activo = activo
+                actual.save(update_fields=["activo"])
+                registrar_auditoria(
+                    request.user,
+                    "CorreoCompromisoCatalogo",
+                    actual.pk,
+                    "activar" if activo else "quitar",
+                    {"activo": str(anterior)},
+                    {
+                        "tipo": tipo_correo(actual),
+                        "correo": actual.nombre,
+                        "activo": str(actual.activo),
+                    },
+                )
+            messages.success(
+                request,
+                "Correo habilitado nuevamente." if activo else "Correo quitado de los próximos envíos.",
+            )
+            return redirect("catalogos_correos")
+
+    return render(request, "administrador/correos_compromisos.html", {
+        "form": form,
+        "correos_para": correos_queryset(TIPO_PARA).order_by("-activo", "nombre"),
+        "correos_copia": correos_queryset(TIPO_COPIA).order_by("-activo", "nombre"),
     })
 
 

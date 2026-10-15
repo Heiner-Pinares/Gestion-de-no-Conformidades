@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Usuario
 from apps.catalogos.models import (
+    Catalogo,
     FuenteDeteccion,
     Proceso,
     TipoRegistro,
@@ -173,6 +174,50 @@ class CorreoCompromisoTests(TestCase):
                 accion="CORREO_COMPROMISO_ACEPTADO",
             ).exists()
         )
+
+    def test_agrega_destinatarios_configurados_sin_reemplazar_responsable_y_jefe(self):
+        Catalogo.objects.create(
+            clase="CATEGORIA",
+            codigo="CFG_MAIL_TO_000000000000000001",
+            nombre="calidad@claro.com.pe",
+            activo=True,
+        )
+        Catalogo.objects.create(
+            clase="CATEGORIA",
+            codigo="CFG_MAIL_CC_000000000000000001",
+            nombre="auditoria@claro.com.pe",
+            activo=True,
+        )
+        Catalogo.objects.create(
+            clase="CATEGORIA",
+            codigo="CFG_MAIL_CC_000000000000000002",
+            nombre="inactivo@claro.com.pe",
+            activo=False,
+        )
+        # Si un correo está en To y CC, To tiene precedencia y no se duplica.
+        Catalogo.objects.create(
+            clase="CATEGORIA",
+            codigo="CFG_MAIL_CC_000000000000000003",
+            nombre="calidad@claro.com.pe",
+            activo=True,
+        )
+
+        mensaje, destinatarios = CorreoCompromisoService.construir_mensaje(self.accion)
+
+        self.assertEqual(
+            mensaje["To"],
+            "ana.responsable@claro.com.pe, calidad@claro.com.pe",
+        )
+        self.assertEqual(
+            mensaje["Cc"],
+            "rosa.jefa@claro.com.pe, auditoria@claro.com.pe",
+        )
+        self.assertEqual(destinatarios, [
+            "ana.responsable@claro.com.pe",
+            "calidad@claro.com.pe",
+            "rosa.jefa@claro.com.pe",
+            "auditoria@claro.com.pe",
+        ])
 
     def test_no_repite_un_correo_ya_aceptado(self):
         cliente, _, _ = self.cliente_ssh()

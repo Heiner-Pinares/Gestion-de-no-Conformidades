@@ -2,9 +2,14 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 
-from apps.catalogos.models import Proceso, Subproceso
-from apps.catalogos.services import actividades_para, sincronizar_catalogo_identificacion
+from apps.accounts.models import Usuario
+from apps.catalogos.models import Catalogo, CategoriaCausa, Proceso, Subproceso
+from apps.catalogos.services import (
+    TIPO_COPIA, TIPO_PARA, actividades_para, correos_queryset,
+    destinatarios_adicionales, sincronizar_catalogo_identificacion,
+)
 from config.oracle_backend.base import DatabaseWrapper
 
 
@@ -67,3 +72,78 @@ class CatalogoIdentificacionTests(TestCase):
         self.assertEqual(segunda["subprocesos_inactivados"], 0)
         self.assertEqual(segunda["actividades_creadas"], 0)
         self.assertEqual(segunda["actividades"], 18)
+
+
+class CorreosCompromisosCatalogoTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = Usuario.objects.create_user(
+            "admin.correos",
+            password="ClaveSoloParaTests-2026!",
+            email="admin.correos@claro.com.pe",
+        )
+        cls.admin.add_role("ADMINISTRADOR")
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_admin_agrega_quita_y_restaura_destinatarios(self):
+        inicio = self.client.get(reverse("catalogos"))
+        self.assertContains(inicio, "Correos de compromisos")
+
+        agregado = self.client.post(reverse("catalogos_correos"), {
+            "accion": "agregar",
+            "tipo": TIPO_PARA,
+            "correo": "calidad.adicional@claro.com.pe",
+        })
+        self.assertRedirects(agregado, reverse("catalogos_correos"))
+        registro = correos_queryset(TIPO_PARA).get(
+            nombre="calidad.adicional@claro.com.pe"
+        )
+        self.assertTrue(registro.activo)
+        self.assertTrue(registro.codigo.startswith("CFG_MAIL_TO_"))
+
+        quitado = self.client.post(reverse("catalogos_correos"), {
+            "accion": "cambiar_estado",
+            "registro_id": registro.pk,
+            "activo": "0",
+        })
+        self.assertRedirects(quitado, reverse("catalogos_correos"))
+        registro.refresh_from_db()
+        self.assertFalse(registro.activo)
+
+        restaurado = self.client.post(reverse("catalogos_correos"), {
+            "accion": "agregar",
+            "tipo": TIPO_PARA,
+            "correo": "CALIDAD.ADICIONAL@claro.com.pe",
+        })
+        self.assertRedirects(restaurado, reverse("catalogos_correos"))
+        registro.refresh_from_db()
+        self.assertTrue(registro.activo)
+        self.assertEqual(correos_queryset(TIPO_PARA).count(), 1)
+
+    def test_valida_email_y_oculta_configuracion_del_analisis_6m(self):
+        respuesta = self.client.post(reverse("catalogos_correos"), {
+            "accion": "agregar",
+            "tipo": TIPO_COPIA,
+            "correo": "correo-invalido",
+        })
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Introduzca una dirección de correo electrónico válida")
+        self.assertFalse(correos_queryset().exists())
+
+        self.client.post(reverse("catalogos_correos"), {
+            "accion": "agregar",
+            "tipo": TIPO_COPIA,
+            "correo": "auditoria@claro.com.pe",
+        })
+        self.assertEqual(
+            destinatarios_adicionales()[TIPO_COPIA],
+            ["auditoria@claro.com.pe"],
+        )
+        self.assertFalse(
+            CategoriaCausa.objects.filter(nombre="auditoria@claro.com.pe").exists()
+        )
+        self.assertTrue(
+            Catalogo.objects.filter(nombre="auditoria@claro.com.pe").exists()
+        )

@@ -1,0 +1,39 @@
+{% extends 'base_admin.html' %}
+{% block title %}Correos de compromisos{% endblock %}
+{% block content %}
+<div class="admin-page-head">
+  <div><h1>Correos de compromisos</h1><p>Administra destinatarios adicionales para los nuevos compromisos.</p></div>
+  <a class="btn" href="{% url 'catalogos' %}">← Catálogos</a>
+</div>
+
+<div class="alert">
+  El Responsable AC seguirá recibiendo el correo en <strong>Para</strong> y su jefe seguirá recibiéndolo en <strong>CC</strong>. Los correos configurados aquí se agregarán a esa lógica actual.
+</div>
+
+<section class="admin-panel admin-mail-panel">
+  <header class="admin-panel-head"><div><h2>Agregar correo</h2><p>Selecciona si debe recibir el mensaje como destinatario o en copia.</p></div></header>
+  <form method="post" class="admin-mail-form">
+    {% csrf_token %}<input type="hidden" name="accion" value="agregar">
+    {{ form.non_field_errors }}
+    {% for field in form %}{% include 'includes/field.html' %}{% endfor %}
+    <button class="admin-primary" type="submit">＋ Agregar correo</button>
+  </form>
+</section>
+
+<div class="admin-mail-grid">
+  <section class="admin-panel">
+    <header class="admin-panel-head"><div><h2>Destinatarios adicionales (Para)</h2><p>Se agregan junto al Responsable AC.</p></div></header>
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>Correo</th><th>Estado</th><th>Acción</th></tr></thead>
+      <tbody>{% for obj in correos_para %}<tr><td>{{ obj.nombre }}</td><td><span class="admin-state {% if obj.activo %}active{% else %}inactive{% endif %}">{{ obj.activo|yesno:'Activo,Inactivo' }}</span></td><td>{% include 'administrador/includes/correo_estado_form.html' with obj=obj %}</td></tr>{% empty %}<tr><td colspan="3" class="admin-empty">No hay destinatarios adicionales.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+  <section class="admin-panel">
+    <header class="admin-panel-head"><div><h2>Copias adicionales (CC)</h2><p>Se agregan junto al jefe del responsable.</p></div></header>
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>Correo</th><th>Estado</th><th>Acción</th></tr></thead>
+      <tbody>{% for obj in correos_copia %}<tr><td>{{ obj.nombre }}</td><td><span class="admin-state {% if obj.activo %}active{% else %}inactive{% endif %}">{{ obj.activo|yesno:'Activo,Inactivo' }}</span></td><td>{% include 'administrador/includes/correo_estado_form.html' with obj=obj %}</td></tr>{% empty %}<tr><td colspan="3" class="admin-empty">No hay copias adicionales.</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endblock %}

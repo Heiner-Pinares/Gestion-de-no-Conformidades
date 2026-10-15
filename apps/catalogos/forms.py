@@ -4,7 +4,7 @@ from .models import (
     CategoriaCausa, ConfiguracionImpacto, ConfiguracionUrgencia, FuenteDeteccion, Impacto, MatrizPrioridad, PreguntaCausa,
     Prioridad, Proceso, Subproceso, TipoRegistro, Urgencia,
 )
-from .services import actividades_queryset, detalle_actividad, guardar_actividad
+from .services import TIPOS_CORREO, actividades_queryset, detalle_actividad, guardar_actividad
 
 
 class ConfiguracionImpactoForm(forms.ModelForm):
@@ -118,6 +118,29 @@ class ActividadCatalogoForm(forms.Form):
             activo=self.cleaned_data["activo"],
             actividad=self.instance,
         )
+
+
+class CorreoCompromisoCatalogoForm(forms.Form):
+    tipo = forms.ChoiceField(
+        label="Ubicación en el correo",
+        choices=TIPOS_CORREO,
+    )
+    correo = forms.EmailField(
+        label="Correo electrónico",
+        max_length=180,
+        widget=forms.EmailInput(attrs={
+            "class": "input",
+            "placeholder": "persona@claro.com.pe",
+            "autocomplete": "email",
+        }),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["tipo"].widget.attrs.setdefault("class", "input")
+
+    def clean_correo(self):
+        return self.cleaned_data["correo"].strip()
 
 
 # Lista explícita: nunca aceptar un nombre de modelo enviado por el navegador.

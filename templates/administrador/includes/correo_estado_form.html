@@ -1,0 +1,7 @@
+<form method="post" class="admin-inline-form">
+  {% csrf_token %}
+  <input type="hidden" name="accion" value="cambiar_estado">
+  <input type="hidden" name="registro_id" value="{{ obj.pk }}">
+  <input type="hidden" name="activo" value="{% if obj.activo %}0{% else %}1{% endif %}">
+  <button class="admin-action-link {% if obj.activo %}danger{% endif %}" type="submit">{% if obj.activo %}Quitar{% else %}Restaurar{% endif %}</button>
+</form>
