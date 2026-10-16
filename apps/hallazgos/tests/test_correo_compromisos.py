@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
 import paramiko
+from django.contrib.messages import get_messages
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -234,6 +235,117 @@ class CorreoCompromisoTests(TestCase):
         self.assertTrue(primero.aceptado)
         self.assertTrue(segundo.duplicado)
         self.assertEqual(cliente.exec_command.call_count, 1)
+
+    def test_reprogramacion_notifica_al_aprobador_con_el_html_solicitado(self):
+        propuesta = timezone.localdate() + timedelta(days=5)
+        solicitud = AccionService.solicitar_reprogramacion(
+            usuario=self.responsable,
+            accion=self.accion,
+            nueva_fecha=propuesta,
+            motivo="Se requiere tiempo adicional para completar la validación.",
+            aprobador=self.jefe,
+        )
+        cliente, entrada, _ = self.cliente_ssh()
+        with patch(
+            "apps.hallazgos.services.correo_compromisos.paramiko.SSHClient",
+            return_value=cliente,
+        ):
+            resultado = CorreoCompromisoService.enviar_reprogramacion(
+                solicitud=solicitud,
+                usuario=self.responsable,
+            )
+
+        self.assertTrue(resultado.aceptado)
+        self.assertEqual(
+            cliente.exec_command.call_args.args[0],
+            "sendmail -i rosa.jefa@claro.com.pe",
+        )
+        mensaje = BytesParser(policy=policy.default).parsebytes(
+            entrada.write.call_args.args[0]
+        )
+        self.assertEqual(mensaje["To"], "rosa.jefa@claro.com.pe")
+        self.assertIsNone(mensaje["Cc"])
+        self.assertEqual(
+            mensaje["Subject"],
+            f"Reprogramación pendiente de aprobación: {self.accion.codigo}",
+        )
+        html = mensaje.get_body(("html",)).get_content()
+        self.assertIn("Recordatorio de reprogramación", html)
+        self.assertIn("Rosa Jefa", html)
+        self.assertIn(self.hallazgo.codigo, html)
+        self.assertIn(self.accion.codigo, html)
+        self.assertIn(propuesta.strftime("%d/%m/%Y"), html)
+        self.assertIn("Se requiere tiempo adicional", html)
+        self.assertIn("http://portal.example:8000", html)
+        self.assertTrue(
+            HistorialHallazgo.objects.filter(
+                accion_relacionada=self.accion,
+                accion="CORREO_REPROGRAMACION_ACEPTADO",
+                metadata_json__solicitud_id=solicitud.pk,
+            ).exists()
+        )
+
+    def test_reprogramacion_aceptada_no_se_envia_dos_veces(self):
+        solicitud = AccionService.solicitar_reprogramacion(
+            usuario=self.responsable,
+            accion=self.accion,
+            nueva_fecha=timezone.localdate() + timedelta(days=5),
+            motivo="Reprogramación controlada.",
+            aprobador=self.jefe,
+        )
+        cliente, _, _ = self.cliente_ssh()
+        with patch(
+            "apps.hallazgos.services.correo_compromisos.paramiko.SSHClient",
+            return_value=cliente,
+        ):
+            primero = CorreoCompromisoService.enviar_reprogramacion(
+                solicitud=solicitud, usuario=self.responsable
+            )
+            segundo = CorreoCompromisoService.enviar_reprogramacion(
+                solicitud=solicitud, usuario=self.responsable
+            )
+
+        self.assertTrue(primero.aceptado)
+        self.assertTrue(segundo.duplicado)
+        self.assertEqual(cliente.exec_command.call_count, 1)
+
+    def test_solicitud_se_conserva_si_el_correo_al_jefe_falla(self):
+        self.client.force_login(self.responsable)
+        with patch(
+            "apps.hallazgos.views.CorreoCompromisoService.enviar_reprogramacion",
+            side_effect=CorreoCompromisoError(
+                "No se pudo acceder al servidor de correo.",
+                codigo="SSH_INACCESIBLE",
+            ),
+        ) as enviar:
+            respuesta = self.client.post(
+                reverse("accion_reprogramar", args=[self.accion.pk]),
+                {
+                    "nueva_fecha": (
+                        timezone.localdate() + timedelta(days=5)
+                    ).isoformat(),
+                    "motivo": "Se requiere ampliar el plazo de validación.",
+                    "aprobador": self.jefe.pk,
+                },
+            )
+
+        self.assertRedirects(
+            respuesta,
+            reverse("hallazgo_detalle", args=[self.hallazgo.pk]),
+            fetch_redirect_response=False,
+        )
+        solicitud = HistorialHallazgo.objects.get(
+            accion_relacionada=self.accion,
+            accion="SOLICITUD_REPROGRAMACION",
+        )
+        self.assertEqual(solicitud.metadata_json["estado"], "PENDIENTE")
+        self.assertEqual(solicitud.metadata_json["aprobador_id"], self.jefe.pk)
+        enviar.assert_called_once_with(
+            solicitud=solicitud,
+            usuario=self.responsable,
+        )
+        mensajes = [str(mensaje) for mensaje in get_messages(respuesta.wsgi_request)]
+        self.assertTrue(any("quedó registrada" in mensaje for mensaje in mensajes))
 
     def test_registra_credenciales_ssh_rechazadas_sin_exponerlas(self):
         cliente, _, _ = self.cliente_ssh()

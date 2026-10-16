@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="supported-color-schemes" content="light dark">
+  <title>Recordatorio de aprobación de reprogramación</title>
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+    @media (prefers-color-scheme: dark) {
+      .adapt-text { color: #f0f3fa !important; }
+      .adapt-muted { color: #bec7d6 !important; }
+      .adapt-line { border-color: #727985 !important; }
+    }
+    @media (prefers-color-scheme: light) {
+      .adapt-text { color: #263047 !important; }
+      .adapt-muted { color: #5e6b81 !important; }
+      .adapt-line { border-color: #cbd2dd !important; }
+    }
+    @media only screen and (max-width: 600px) {
+      .mobile-pad { padding-left: 20px !important; padding-right: 20px !important; }
+      .mobile-title { font-size: 26px !important; line-height: 32px !important; }
+      .stack { display: block !important; width: 100% !important; box-sizing: border-box !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:transparent;font-family:Arial,Helvetica,sans-serif;">
+  <!-- Sin background-color fijo: se respeta el fondo del tema donde el cliente lo permita. -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;border-collapse:collapse;background:transparent;">
+    <tr><td align="center" style="padding:26px 12px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="640" style="width:100%;max-width:640px;border-collapse:separate;border-spacing:0;border:1px solid #a4acba;border-radius:14px;background:transparent;">
+        <tr><td style="height:7px;font-size:0;line-height:7px;background-color:#da291c;border-radius:13px 13px 0 0;">&nbsp;</td></tr>
+        <tr><td class="mobile-pad" style="padding:32px 34px 20px 34px;background:transparent;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:transparent;"><tr>
+            <td valign="middle" style="font-size:13px;font-weight:bold;color:#e34b3d;letter-spacing:1.5px;line-height:20px;">GESTIÓN DE NO CONFORMIDADES</td>
+            <td valign="middle" align="right" style="font-size:26px;line-height:30px;font-weight:800;color:#da291c;">Claro</td>
+          </tr></table>
+          <h1 class="mobile-title adapt-text" style="margin:14px 0 9px;font-size:30px;line-height:37px;font-weight:700;">Recordatorio de reprogramación</h1>
+          <p class="adapt-muted" style="margin:0;font-size:15px;line-height:23px;">Solicitud pendiente de evaluación y aprobación</p>
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:0 34px;"><div class="adapt-line" style="border-top:1px solid #b7bec9;font-size:0;line-height:0;">&nbsp;</div></td></tr>
+        <tr><td class="mobile-pad adapt-text" style="padding:26px 34px 14px;font-size:16px;line-height:26px;">
+          Hola <strong>{{ nombre_aprobador }}</strong>,<br><br>
+          Te recordamos que tienes una <strong>solicitud de reprogramación pendiente de aprobación</strong> para la actividad vinculada a la No Conformidad <strong style="color:#da291c;">{{ codigo_no_conformidad }}</strong>.
+          Revisa la nueva fecha propuesta y el motivo para registrar tu decisión.
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:8px 34px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;border:1px solid #a4acba;border-radius:10px;background:transparent;">
+            <tr><td style="padding:18px 22px;">
+              <div class="adapt-muted" style="font-size:12px;font-weight:bold;letter-spacing:1px;">CÓDIGO DE ACTIVIDAD</div>
+              <div class="adapt-text" style="margin-top:8px;font-weight:bold;font-size:22px;line-height:28px;overflow-wrap:anywhere;">{{ codigo_accion }}</div>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:0 34px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #a4acba;background:transparent;">
+            <tr><td class="adapt-muted" width="36%" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;">Acción</td><td class="adapt-text" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;line-height:20px;">{{ accion }}</td></tr>
+            <tr><td class="adapt-muted" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;">Responsable</td><td class="adapt-text" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;line-height:20px;">{{ responsable }}</td></tr>
+            <tr><td class="adapt-muted" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;">Fecha vigente</td><td class="adapt-text" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;">{{ fecha_vigente }}</td></tr>
+            <tr><td class="adapt-muted" style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;">Nueva fecha propuesta</td><td style="border-bottom:1px solid #a4acba;padding:13px 16px;font-size:14px;font-weight:bold;color:#e34b3d;">{{ nueva_fecha }}</td></tr>
+            <tr><td class="adapt-muted" style="padding:13px 16px;font-size:14px;font-weight:bold;">Estado</td><td style="padding:13px 16px;font-size:14px;font-weight:bold;color:#d78a00;">● Pendiente de aprobación</td></tr>
+          </table>
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:0 34px 18px;">
+          <p class="adapt-text" style="margin:0 0 9px;font-weight:bold;font-size:15px;">Motivo de la reprogramación</p>
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;background:transparent;border:1px solid #a4acba;">
+            <tr><td class="adapt-text" style="padding:15px 17px;font-size:14px;line-height:23px;white-space:normal;overflow-wrap:anywhere;">{{ motivo_reprogramacion|linebreaksbr }}</td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" class="mobile-pad" style="padding:10px 34px 25px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td bgcolor="#da291c" style="background:#da291c;border-radius:8px;text-align:center;">
+              <a href="{{ url_solicitud }}" style="display:inline-block;padding:16px 25px;color:#ffffff;font-size:15px;font-weight:bold;line-height:20px;text-decoration:none;">Revisar solicitud en el portal &rarr;</a>
+            </td>
+          </tr></table>
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:0 34px 30px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;border:1px solid #a4acba;background:transparent;">
+            <tr><td class="adapt-muted" style="padding:15px 16px;font-size:13px;line-height:21px;"><strong>Importante:</strong> La reprogramación deberá ser aprobada por el responsable de la jefatura correspondiente antes de hacerse efectiva. Hasta entonces, se mantiene la fecha vigente.</td></tr>
+          </table>
+        </td></tr>
+        <tr><td class="mobile-pad" style="padding:18px 34px 24px;border-top:1px solid #a4acba;background:transparent;">
+          <table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr>
+            <td class="adapt-muted" style="font-size:12px;line-height:19px;">Mensaje automático generado por el Portal Claro – Gestión de No Conformidades.<br>Por favor, realiza la gestión directamente desde el portal.</td>
+            <td align="right" valign="bottom" style="font-size:13px;font-weight:bold;color:#da291c;white-space:nowrap;">Claro Perú</td>
+          </tr></table>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

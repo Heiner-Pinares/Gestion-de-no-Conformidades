@@ -848,6 +848,17 @@ def accion_reprogramar(request, pk):
             errores(form, error)
         else:
             messages.success(request, f"La solicitud para reprogramar {a.codigo} fue enviada a aprobación.")
+            try:
+                CorreoCompromisoService.enviar_reprogramacion(
+                    solicitud=solicitud,
+                    usuario=request.user,
+                )
+            except CorreoCompromisoError as error:
+                messages.warning(
+                    request,
+                    "La solicitud quedó registrada, pero no se pudo enviar el correo "
+                    f"al responsable de jefatura: {error}",
+                )
             return redirect("hallazgo_detalle", pk=a.hallazgo.pk)
     return render(request, "hallazgos/reprogramacion_accion.html", {
         "form": form, "hallazgo": a.hallazgo, "accion": a,

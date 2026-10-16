@@ -6,6 +6,7 @@ import logging
 import shlex
 import socket
 from dataclasses import dataclass
+from datetime import date
 from email.message import EmailMessage
 from email.policy import SMTP
 from email.utils import formataddr, formatdate, getaddresses, make_msgid
@@ -14,6 +15,7 @@ from urllib.parse import urljoin
 
 import paramiko
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
@@ -69,6 +71,11 @@ class CorreoCompromisoService:
         "CORREO_COMPROMISO_INICIADO",
         "CORREO_COMPROMISO_ACEPTADO",
         "CORREO_COMPROMISO_INCIERTO",
+    }
+    EVENTOS_REPROGRAMACION_NO_REPETIBLES = {
+        "CORREO_REPROGRAMACION_INICIADO",
+        "CORREO_REPROGRAMACION_ACEPTADO",
+        "CORREO_REPROGRAMACION_INCIERTO",
     }
 
     @staticmethod
@@ -179,6 +186,95 @@ class CorreoCompromisoService:
         mensaje.set_content(texto)
         mensaje.add_alternative(html, subtype="html")
         return mensaje, [*para, *copia]
+
+    @classmethod
+    def construir_mensaje_reprogramacion(
+        cls, solicitud: HistorialHallazgo
+    ) -> tuple[EmailMessage, list[str]]:
+        """Construye el aviso dirigido al aprobador elegido en la solicitud."""
+
+        cls._configuracion()
+        solicitud = HistorialHallazgo.objects.select_related(
+            "accion_relacionada__responsable",
+            "accion_relacionada__ciclo__hallazgo",
+        ).get(pk=solicitud.pk, accion="SOLICITUD_REPROGRAMACION")
+        accion = solicitud.accion_relacionada
+        if accion is None:
+            raise CorreoCompromisoError(
+                "La solicitud no está vinculada a una actividad.",
+                codigo="SIN_ACTIVIDAD",
+            )
+
+        metadata = dict(solicitud.metadata_json or {})
+        aprobador_id = metadata.get("aprobador_id")
+        aprobador = get_user_model().objects.filter(
+            pk=aprobador_id, is_active=True
+        ).first()
+        if aprobador is None:
+            raise CorreoCompromisoError(
+                "El responsable de jefatura seleccionado ya no está activo.",
+                codigo="SIN_APROBADOR",
+            )
+        if not aprobador.email.strip():
+            raise CorreoCompromisoError(
+                "El responsable de jefatura seleccionado no tiene un correo registrado.",
+                codigo="SIN_CORREO_APROBADOR",
+            )
+
+        para = _normalizar_direcciones([aprobador.email])
+        remitente = _normalizar_direcciones([settings.CORREO_REMITENTE_EMAIL])
+        hallazgo = accion.ciclo.hallazgo
+        url = urljoin(
+            settings.PORTAL_PUBLIC_URL.rstrip("/") + "/",
+            reverse("hallazgo_detalle", args=[hallazgo.pk]).lstrip("/"),
+        )
+
+        def fecha_legible(valor: str) -> str:
+            try:
+                return date.fromisoformat(valor).strftime("%d/%m/%Y")
+            except (TypeError, ValueError):
+                return valor or "—"
+
+        responsable = accion.responsable
+        contexto = {
+            "nombre_aprobador": aprobador.get_full_name() or aprobador.username,
+            "codigo_no_conformidad": hallazgo.codigo,
+            "codigo_accion": accion.codigo,
+            "accion": accion.descripcion,
+            "responsable": (
+                responsable.get_full_name() or responsable.username
+                if responsable
+                else "Sin responsable"
+            ),
+            "fecha_vigente": fecha_legible(metadata.get("fecha_anterior", "")),
+            "nueva_fecha": fecha_legible(metadata.get("nueva_fecha", "")),
+            "motivo_reprogramacion": solicitud.comentario,
+            "url_solicitud": url,
+        }
+        html = render_to_string("correos/reprogramacion_pendiente.html", contexto)
+        texto = (
+            f"Hola {contexto['nombre_aprobador']},\n\n"
+            f"Tienes una solicitud de reprogramación pendiente para "
+            f"{accion.codigo}, vinculada a {hallazgo.codigo}.\n"
+            f"Acción: {accion.descripcion}\n"
+            f"Responsable: {contexto['responsable']}\n"
+            f"Fecha vigente: {contexto['fecha_vigente']}\n"
+            f"Nueva fecha propuesta: {contexto['nueva_fecha']}\n"
+            f"Motivo: {solicitud.comentario}\n\n"
+            f"Revisa la solicitud en {url}\n"
+        )
+        dominio = remitente[0].rsplit("@", 1)[-1]
+        mensaje = EmailMessage(policy=SMTP)
+        mensaje["From"] = formataddr(
+            (settings.CORREO_REMITENTE_NOMBRE, remitente[0])
+        )
+        mensaje["To"] = ", ".join(para)
+        mensaje["Subject"] = f"Reprogramación pendiente de aprobación: {accion.codigo}"
+        mensaje["Date"] = formatdate(localtime=True)
+        mensaje["Message-ID"] = make_msgid(domain=dominio)
+        mensaje.set_content(texto)
+        mensaje.add_alternative(html, subtype="html")
+        return mensaje, para
 
     @staticmethod
     def _enviar_sendmail(mensaje: EmailMessage, destinatarios: list[str]) -> int:
@@ -320,6 +416,76 @@ class CorreoCompromisoService:
             "accion": accion.codigo,
             "responsable_id": accion.responsable_id,
             "jefe_id": accion.responsable.jefe_id if accion.responsable else None,
+            "codigo_salida": codigo,
+        }
+        intento.save(update_fields=["accion", "comentario", "metadata_json"])
+        return ResultadoCorreo(aceptado=True, codigo_salida=codigo)
+
+    @classmethod
+    def enviar_reprogramacion(
+        cls, *, solicitud: HistorialHallazgo, usuario
+    ) -> ResultadoCorreo:
+        """Notifica una sola vez al aprobador sin afectar la solicitud guardada."""
+
+        with transaction.atomic():
+            solicitud = HistorialHallazgo.objects.select_for_update().select_related(
+                "accion_relacionada__ciclo__hallazgo"
+            ).get(pk=solicitud.pk, accion="SOLICITUD_REPROGRAMACION")
+            accion = solicitud.accion_relacionada
+            if accion is None:
+                raise CorreoCompromisoError(
+                    "La solicitud no está vinculada a una actividad.",
+                    codigo="SIN_ACTIVIDAD",
+                )
+            hallazgo = accion.ciclo.hallazgo
+            if HistorialHallazgo.objects.filter(
+                accion_relacionada=accion,
+                accion__in=cls.EVENTOS_REPROGRAMACION_NO_REPETIBLES,
+                metadata_json__solicitud_id=solicitud.pk,
+            ).exists():
+                return ResultadoCorreo(aceptado=False, duplicado=True)
+            intento = HistorialHallazgo.objects.create(
+                hallazgo=hallazgo,
+                usuario=usuario,
+                accion="CORREO_REPROGRAMACION_INICIADO",
+                accion_relacionada=accion,
+                estado_anterior=hallazgo.estado,
+                estado_nuevo=hallazgo.estado,
+                comentario=f"Inicio del aviso de reprogramación para {accion.codigo}.",
+                metadata_json={
+                    "accion": accion.codigo,
+                    "solicitud_id": solicitud.pk,
+                },
+            )
+
+        try:
+            mensaje, destinatarios = cls.construir_mensaje_reprogramacion(solicitud)
+            codigo = cls._enviar_sendmail(mensaje, destinatarios)
+        except CorreoCompromisoError as error:
+            intento.accion = (
+                "CORREO_REPROGRAMACION_INCIERTO"
+                if error.incierto
+                else "CORREO_REPROGRAMACION_FALLIDO"
+            )
+            intento.comentario = str(error)
+            intento.metadata_json = {
+                "accion": accion.codigo,
+                "solicitud_id": solicitud.pk,
+                "resultado": error.codigo,
+            }
+            intento.save(update_fields=["accion", "comentario", "metadata_json"])
+            raise
+
+        metadata = dict(solicitud.metadata_json or {})
+        intento.accion = "CORREO_REPROGRAMACION_ACEPTADO"
+        intento.comentario = (
+            "sendmail aceptó el aviso de reprogramación. Esto no confirma la "
+            "entrega final en el buzón."
+        )
+        intento.metadata_json = {
+            "accion": accion.codigo,
+            "solicitud_id": solicitud.pk,
+            "aprobador_id": metadata.get("aprobador_id"),
             "codigo_salida": codigo,
         }
         intento.save(update_fields=["accion", "comentario", "metadata_json"])
