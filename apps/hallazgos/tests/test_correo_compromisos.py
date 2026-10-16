@@ -258,13 +258,13 @@ class CorreoCompromisoTests(TestCase):
         self.assertTrue(resultado.aceptado)
         self.assertEqual(
             cliente.exec_command.call_args.args[0],
-            "sendmail -i rosa.jefa@claro.com.pe",
+            "sendmail -i rosa.jefa@claro.com.pe ana.responsable@claro.com.pe",
         )
         mensaje = BytesParser(policy=policy.default).parsebytes(
             entrada.write.call_args.args[0]
         )
         self.assertEqual(mensaje["To"], "rosa.jefa@claro.com.pe")
-        self.assertIsNone(mensaje["Cc"])
+        self.assertEqual(mensaje["Cc"], "ana.responsable@claro.com.pe")
         self.assertEqual(
             mensaje["Subject"],
             f"Reprogramación pendiente de aprobación: {self.accion.codigo}",

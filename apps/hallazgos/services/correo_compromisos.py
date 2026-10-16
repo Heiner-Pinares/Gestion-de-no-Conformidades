@@ -195,6 +195,7 @@ class CorreoCompromisoService:
 
         cls._configuracion()
         solicitud = HistorialHallazgo.objects.select_related(
+            "usuario",
             "accion_relacionada__responsable",
             "accion_relacionada__ciclo__hallazgo",
         ).get(pk=solicitud.pk, accion="SOLICITUD_REPROGRAMACION")
@@ -222,6 +223,19 @@ class CorreoCompromisoService:
             )
 
         para = _normalizar_direcciones([aprobador.email])
+        solicitante = solicitud.usuario
+        if not solicitante.email.strip():
+            raise CorreoCompromisoError(
+                "El usuario que solicitó la reprogramación no tiene un correo registrado.",
+                codigo="SIN_CORREO_SOLICITANTE",
+            )
+        copia = _normalizar_direcciones([solicitante.email])
+        claves_para = {direccion.casefold() for direccion in para}
+        copia = [
+            direccion
+            for direccion in copia
+            if direccion.casefold() not in claves_para
+        ]
         remitente = _normalizar_direcciones([settings.CORREO_REMITENTE_EMAIL])
         hallazgo = accion.ciclo.hallazgo
         url = urljoin(
@@ -269,12 +283,14 @@ class CorreoCompromisoService:
             (settings.CORREO_REMITENTE_NOMBRE, remitente[0])
         )
         mensaje["To"] = ", ".join(para)
+        if copia:
+            mensaje["Cc"] = ", ".join(copia)
         mensaje["Subject"] = f"Reprogramación pendiente de aprobación: {accion.codigo}"
         mensaje["Date"] = formatdate(localtime=True)
         mensaje["Message-ID"] = make_msgid(domain=dominio)
         mensaje.set_content(texto)
         mensaje.add_alternative(html, subtype="html")
-        return mensaje, para
+        return mensaje, [*para, *copia]
 
     @staticmethod
     def _enviar_sendmail(mensaje: EmailMessage, destinatarios: list[str]) -> int:
