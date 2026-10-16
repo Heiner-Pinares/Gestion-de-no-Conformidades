@@ -24,7 +24,7 @@
           <div><span>F. compromiso</span><strong data-follow-fet></strong></div>
         </div></section>
         <section class="follow-block follow-register"><h3>Registro de seguimiento</h3>
-          <div class="follow-fields-row"><label><span>Nuevo avance (%)</span><div class="follow-progress-control"><input class="input" type="number" name="porcentaje_avance" min="0" max="100" required data-follow-number><input type="range" min="0" max="100" data-follow-range></div></label><label><span>Fecha de seguimiento</span><input class="input" type="datetime-local" data-follow-date disabled></label></div>
+          <div class="follow-fields-row"><label><span>Nuevo estado</span><select class="input" name="estado" required data-follow-state><option value="PENDIENTE">Pendiente</option><option value="EN_PROCESO">En proceso</option><option value="COMPLETADA">Terminado</option><option value="CANCELADA">Cancelado</option></select></label><label><span>Nuevo avance (%)</span><div class="follow-progress-control"><input class="input" type="number" name="porcentaje_avance" min="0" max="100" required data-follow-number><input type="range" min="0" max="100" data-follow-range></div></label><label><span>Fecha de seguimiento</span><input class="input" type="datetime-local" data-follow-date disabled></label></div>
           <label class="follow-comment"><span>Comentario de seguimiento <b>*</b></span><textarea class="input" name="comentario" maxlength="500" required data-follow-comment></textarea><small><b data-follow-count>0</b>/500</small></label>
           <div><span class="follow-label">Adjuntar evidencia <em>(opcional)</em></span><label class="follow-drop" data-follow-drop><input type="file" name="archivo" accept=".pdf,.png,.jpg,.jpeg" data-follow-file><span class="follow-upload-icon">↥</span><span>Arrastra y suelta un archivo aquí, o haz clic para seleccionar<small>PDF, PNG o JPG. Tamaño máximo: 10 MB.</small></span></label><div class="follow-file" data-follow-file-row hidden><span class="follow-file-icon">DOC</span><span><b data-follow-file-name></b><small data-follow-file-size></small></span><button type="button" data-follow-file-remove aria-label="Quitar archivo">×</button></div></div>
         </section>
@@ -59,4 +59,4 @@
     <footer class="follow-actions history-detail-actions"><button class="btn primary" type="button" data-history-close>Cerrar</button></footer>
   </section>
 </div>
-{% endblock %}{% block extra_js %}<script src="{% static 'js/seguimiento.js' %}?v=4"></script>{% endblock %}
+{% endblock %}{% block extra_js %}<script src="{% static 'js/seguimiento.js' %}?v=5"></script>{% endblock %}

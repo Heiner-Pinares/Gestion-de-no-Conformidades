@@ -23,6 +23,7 @@
         </div></section>
         <section class="follow-block follow-register"><h2>Registro de seguimiento</h2>
           <div class="follow-fields-row">
+            <label><span>{{ form.estado.label }}</span>{{ form.estado }}{{ form.estado.errors }}</label>
             <label><span>{{ form.porcentaje_avance.label }}</span><div class="follow-progress-control">{{ form.porcentaje_avance }}<input type="range" min="{{ accion.porcentaje_avance }}" max="100" value="{{ form.porcentaje_avance.value|default:accion.porcentaje_avance }}" data-follow-range></div>{{ form.porcentaje_avance.errors }}</label>
             <label><span>{{ form.fecha_seguimiento.label }}</span>{{ form.fecha_seguimiento }}{{ form.fecha_seguimiento.errors }}</label>
           </div>
@@ -35,4 +36,4 @@
   </section>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'js/seguimiento.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'js/seguimiento.js' %}?v=2"></script>{% endblock %}

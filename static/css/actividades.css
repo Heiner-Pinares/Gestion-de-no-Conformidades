@@ -17,6 +17,7 @@
 .activity-row .input,.activity-row select,.activity-row input[type=date]{width:100%;height:54px;min-height:54px;border:1px solid #cbd6e4;border-radius:8px;padding:9px 12px 9px 48px;background:#fff;color:#17233b;font-size:15px}
 .activity-row select{padding-right:34px}
 .activity-control--plain select{padding-left:16px}
+.activity-control--plain .activity-fixed-status{padding-left:16px;background:#f2f5f8;color:#42516a;font-weight:800}
 .activity-field--code .activity-code{background:#f2f5f8;color:#42516a;font-weight:800;letter-spacing:.01em}
 .activity-row .input:focus,.activity-row select:focus,.activity-row input[type=date]:focus{border-color:var(--red);outline:3px solid rgba(227,6,19,.12)}
 .activity-delete{display:none}

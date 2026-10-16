@@ -610,11 +610,10 @@ def hallazgo_accion(request, pk):
         inicial = [{
             "tipo": "CORRECTIVA",
             "descripcion": "Definir acción correctiva" if requiere_correctiva else "",
-            "estado": "PENDIENTE",
             "fet_inicial": timezone.localdate(),
         }]
     else:
-        inicial = [{"tipo": "INMEDIATA", "descripcion": "Registrar solución inmediata", "estado": "PENDIENTE", "fet_inicial": timezone.localdate()}]
+        inicial = [{"tipo": "INMEDIATA", "descripcion": "Registrar solución inmediata", "fet_inicial": timezone.localdate()}]
     formset = ActividadFormSet(
         request.POST or None,
         initial=inicial if request.method == "GET" else None,

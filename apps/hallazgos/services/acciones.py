@@ -42,15 +42,10 @@ class AccionService:
         exigir(datos.get("fecha_inicio"), "Indique la fecha de inicio.")
         exigir(datos.get("fet_inicial"), "Indique la fecha de compromiso.")
         exigir(datos["fet_inicial"] >= timezone.localdate(), "La fecha compromiso inicial no puede ser anterior a hoy.")
-        estado = datos.get("estado", "PENDIENTE")
-        exigir(estado in dict(Accion.ESTADOS), "Estado de acción no válido.")
-        datos = {**datos, "estado": estado}
-        if estado == "COMPLETADA":
-            datos.update(porcentaje_avance=100, fecha_real=timezone.localdate())
-        elif estado == "EN_PROCESO":
-            datos.update(porcentaje_avance=50, fecha_real=None)
-        else:
-            datos.update(porcentaje_avance=0, fecha_real=None)
+        # Todo compromiso nuevo empieza pendiente. Se conserva ``estado`` entre
+        # los campos aceptados para compatibilidad, pero nunca se utiliza como
+        # estado inicial; las transiciones se registran únicamente en seguimiento.
+        datos = {**datos, "estado": "PENDIENTE", "porcentaje_avance": 0, "fecha_real": None}
         numero = Accion.objects.filter(ciclo__hallazgo=hallazgo).count() + 1
         accion = Accion(ciclo=ciclo, codigo=f"{hallazgo.codigo}-A{numero:02d}", fecha_vigente=datos["fet_inicial"], **datos)
         accion.full_clean()
@@ -68,6 +63,14 @@ class AccionService:
         estado = datos.get("estado")
         avance = datos.get("porcentaje_avance")
         exigir(estado in dict(Accion.ESTADOS), "Estado de acción no válido.")
+        transiciones = {
+            "PENDIENTE": {"PENDIENTE", "EN_PROCESO", "COMPLETADA", "CANCELADA"},
+            "EN_PROCESO": {"EN_PROCESO", "COMPLETADA", "CANCELADA"},
+        }
+        exigir(
+            estado in transiciones.get(accion.estado, set()),
+            "La transición de estado solicitada no está permitida.",
+        )
         exigir(isinstance(avance, int) and 0 <= avance <= 100, "El avance debe estar entre 0 y 100.")
         fecha_real = datos.get("fecha_real")
         if estado == "COMPLETADA":

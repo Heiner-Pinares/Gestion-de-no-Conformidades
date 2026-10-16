@@ -168,7 +168,7 @@ class Recorridos(TestCase):
         self.paso(h,'cerrar',self.admin)
         self.assertEqual(h.estado,'CERRADO')
 
-    def test_plan_incluye_accion_inmediata_estados_y_confirmacion(self):
+    def test_plan_crea_compromisos_pendientes_y_confirma(self):
         h = self.crear()
         self.paso(h, 'enviar')
         self.paso(h, 'validar', self.calidad)
@@ -186,11 +186,12 @@ class Recorridos(TestCase):
         self.assertContains(pantalla, 'FET compromiso')
         self.assertContains(pantalla, 'activity-section-heading')
         self.assertContains(pantalla, 'activity-field--code')
-        for nombre in ('descripcion', 'tipo', 'responsable', 'fet_inicial', 'estado'):
+        for nombre in ('descripcion', 'tipo', 'responsable', 'fet_inicial'):
             self.assertTrue(pantalla.context['formset'].forms[0].fields[nombre].required)
-        for codigo, etiqueta in Accion.ESTADOS:
-            self.assertContains(pantalla, f'value="{codigo}"')
-            self.assertContains(pantalla, etiqueta)
+        self.assertNotIn('estado', pantalla.context['formset'].forms[0].fields)
+        self.assertNotContains(pantalla, 'name="actividades-0-estado"')
+        self.assertContains(pantalla, 'Estado inicial')
+        self.assertContains(pantalla, 'value="Pendiente"')
         self.assertContains(pantalla, '¿Enviar actividades?')
         self.assertContains(pantalla, 'Se notificará por correo a cada responsable y se copiará al jefe registrado en su perfil.')
         self.assertContains(pantalla, 'data-confirm-activities')
@@ -201,11 +202,10 @@ class Recorridos(TestCase):
             'actividades-0-tipo': 'INMEDIATA',
             'actividades-0-descripcion': '',
             'actividades-0-responsable': '', 'actividades-0-fet_inicial': '',
-            'actividades-0-estado': '',
         }
         respuesta_incompleta = self.client.post(reverse('hallazgo_accion', args=[h.pk]), incompleto)
         self.assertEqual(respuesta_incompleta.status_code, 200)
-        self.assertContains(respuesta_incompleta, 'Este campo es obligatorio.', count=4)
+        self.assertContains(respuesta_incompleta, 'Este campo es obligatorio.', count=3)
         self.assertFalse(h.ciclo_actual.acciones.exists())
 
         plan = {
@@ -226,7 +226,8 @@ class Recorridos(TestCase):
         self.assertEqual(respuesta.url, reverse('hallazgo_acciones_creadas', args=[h.pk]))
         adicional = h.ciclo_actual.acciones.get(tipo='CORRECTIVA')
         self.assertEqual((adicional.get_tipo_display(), adicional.estado, adicional.porcentaje_avance),
-                         ('Acción correctiva', 'EN_PROCESO', 50))
+                         ('Acción correctiva', 'PENDIENTE', 0))
+        self.assertFalse(h.ciclo_actual.acciones.exclude(estado='PENDIENTE', porcentaje_avance=0).exists())
 
     def test_puede_agregar_compromisos_durante_la_implementacion(self):
         h = self.crear(es_critica='SI')
@@ -318,12 +319,14 @@ class Recorridos(TestCase):
         solucion = self.accion(h)
         adicional = self.accion(h, 'ACCION_INMEDIATA')
         self.completar(solucion)
-        AccionService.seguir(
-            usuario=self.usuario,
-            accion=adicional,
-            datos=dict(estado='CANCELADA', porcentaje_avance=0, fecha_real=None,
-                       comentario='La actividad dejó de ser necesaria.'),
-        )
+        self.client.force_login(self.usuario)
+        cancelacion = self.client.post(reverse('accion_seguimiento', args=[adicional.pk]), {
+            'estado': 'CANCELADA', 'porcentaje_avance': '0',
+            'comentario': 'La actividad dejó de ser necesaria.',
+        })
+        self.assertEqual(cancelacion.status_code, 302)
+        adicional.refresh_from_db()
+        self.assertEqual((adicional.estado, adicional.porcentaje_avance), ('CANCELADA', 0))
         self.paso(h, 'enviar_verificacion')
         self.assertEqual(h.estado, 'EN_VERIFICACION')
         with self.assertRaisesRegex(ValidationError, 'terminada o cancelada'):
@@ -334,7 +337,6 @@ class Recorridos(TestCase):
                 motivo='No debe permitirse',
             )
 
-        self.client.force_login(self.usuario)
         seguimiento = self.client.get(reverse('hallazgo_acciones_seguimiento', args=[h.pk]))
         self.assertContains(seguimiento, 'data-activity-scrollbar')
         self.assertContains(seguimiento, 'data-activity-scroll')
@@ -352,6 +354,9 @@ class Recorridos(TestCase):
         self.assertContains(detalle, 'data-follow-modal')
         self.assertContains(detalle, 'data-follow-open')
         self.assertContains(detalle, 'Seguimiento de la acción')
+        self.assertContains(detalle, 'name="estado"')
+        self.assertContains(detalle, 'value="COMPLETADA"')
+        self.assertContains(detalle, 'value="CANCELADA"')
         self.assertContains(detalle, 'Adjuntar evidencia')
         self.assertContains(detalle, 'Sin asignar', count=0)
         self.assertContains(detalle, 'Compromisos · Plan 1')
@@ -367,6 +372,7 @@ class Recorridos(TestCase):
         self.assertNotContains(detalle, 'Tratamiento · Ciclo 1')
 
         respuesta = self.client.post(reverse('accion_seguimiento', args=[actividad.pk]), {
+            'estado': 'EN_PROCESO',
             'porcentaje_avance': '70',
             'comentario': 'Se implementaron los controles preventivos y se inició la validación.',
         })
@@ -391,6 +397,7 @@ class Recorridos(TestCase):
         pdf = SimpleUploadedFile('control_procesos.pdf', b'%PDF-1.4\ncontenido\n%%EOF', content_type='application/pdf')
         with TemporaryDirectory() as carpeta, override_settings(MEDIA_ROOT=carpeta):
             respuesta = self.client.post(reverse('accion_seguimiento', args=[actividad.pk]), {
+                'estado': 'COMPLETADA',
                 'porcentaje_avance': '100',
                 'comentario': 'Actividad terminada y comprobada con evidencia.',
                 'archivo': pdf,
@@ -427,7 +434,7 @@ class Recorridos(TestCase):
         })
         self.client.force_login(self.usuario)
         respuesta = self.client.post(reverse('accion_seguimiento', args=[actividad.pk]), {
-            'porcentaje_avance': '40', 'comentario': 'Intento de reducción.',
+            'estado': 'EN_PROCESO', 'porcentaje_avance': '40', 'comentario': 'Intento de reducción.',
         })
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, 'El nuevo avance no puede ser menor que el avance actual.')

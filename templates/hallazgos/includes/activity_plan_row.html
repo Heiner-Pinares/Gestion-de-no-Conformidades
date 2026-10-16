@@ -39,9 +39,10 @@
     {{ form.fet_inicial.errors }}
   </div>
   <div class="activity-field activity-field--status">
-    <label class="activity-field-label" for="{{ form.estado.id_for_label }}">Estado <span aria-hidden="true">*</span></label>
-    <div class="activity-control activity-control--plain">{{ form.estado }}</div>
-    {{ form.estado.errors }}
+    <span class="activity-field-label">Estado inicial</span>
+    <div class="activity-control activity-control--plain">
+      <input class="input activity-fixed-status" type="text" value="Pendiente" readonly aria-label="Estado inicial: Pendiente">
+    </div>
   </div>
   <div class="activity-remove-wrap">
     <span class="activity-field-label" aria-hidden="true">&nbsp;</span>

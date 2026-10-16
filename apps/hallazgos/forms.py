@@ -419,7 +419,6 @@ class ActividadPlanForm(EstiloForm, forms.Form):
     descripcion = forms.CharField(widget=forms.TextInput(attrs={"placeholder": "Describe la actividad"}))
     responsable = forms.ModelChoiceField(queryset=get_user_model().objects.none(), empty_label="Responsable AC")
     fet_inicial = forms.DateField(label="FET inicial", widget=FECHA)
-    estado = forms.ChoiceField(choices=Accion.ESTADOS)
 
     def __init__(self, *args, es_critica=True, **kwargs):
         super().__init__(*args, **kwargs)
@@ -441,7 +440,6 @@ class ActividadPlanForm(EstiloForm, forms.Form):
             "responsable": self.cleaned_data.get("responsable"),
             "fecha_inicio": timezone.localdate(),
             "fet_inicial": self.cleaned_data.get("fet_inicial"),
-            "estado": self.cleaned_data["estado"],
             "resultado_esperado": descripcion,
             "comentario": "",
         }
@@ -454,6 +452,10 @@ class SeguimientoLineaForm(forms.Form):
     def __init__(self, *args, accion=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.accion = accion
+        if accion and accion.estado == "EN_PROCESO":
+            self.fields["estado"].choices = [
+                opcion for opcion in Accion.ESTADOS if opcion[0] != "PENDIENTE"
+            ]
         self.fields["fecha_real"].widget.attrs["max"] = timezone.localdate().isoformat()
 
     def clean(self):
@@ -469,6 +471,7 @@ class SeguimientoLineaForm(forms.Form):
 
 
 class SeguimientoForm(EstiloForm, forms.Form):
+    estado = forms.ChoiceField(label="Nuevo estado", choices=Accion.ESTADOS)
     porcentaje_avance = forms.IntegerField(
         label="Nuevo avance (%)", min_value=0, max_value=100,
         widget=forms.NumberInput(attrs={"inputmode": "numeric"}),
@@ -489,16 +492,38 @@ class SeguimientoForm(EstiloForm, forms.Form):
     def __init__(self, *args, accion=None, **kwargs):
         self.accion = accion
         super().__init__(*args, **kwargs)
-        self.fields["porcentaje_avance"].widget.attrs.update({"data-follow-progress": "", "class": "input"})
+        if accion:
+            if accion.estado == "EN_PROCESO":
+                self.fields["estado"].choices = [
+                    opcion for opcion in Accion.ESTADOS if opcion[0] != "PENDIENTE"
+                ]
+            self.fields["estado"].initial = accion.estado
+        self.fields["estado"].widget.attrs.update({"data-follow-state": "", "class": "input"})
+        self.fields["porcentaje_avance"].widget.attrs.update({
+            "data-follow-progress": "",
+            "data-current-progress": str(accion.porcentaje_avance if accion else 0),
+            "min": str(accion.porcentaje_avance if accion else 0),
+            "class": "input",
+        })
         self.fields["comentario"].widget.attrs.update({"data-follow-comment": ""})
         self.fields["archivo"].widget.attrs.update({"accept": ".pdf,.png,.jpg,.jpeg", "data-follow-file": ""})
         self.estilizar()
 
-    def clean_porcentaje_avance(self):
-        avance = self.cleaned_data["porcentaje_avance"]
-        if self.accion and avance < self.accion.porcentaje_avance:
-            raise ValidationError("El nuevo avance no puede ser menor que el avance actual.")
-        return avance
+    def clean(self):
+        datos = super().clean()
+        estado = datos.get("estado")
+        avance = datos.get("porcentaje_avance")
+        if avance is None or not estado:
+            return datos
+        if self.accion and estado != "CANCELADA" and avance < self.accion.porcentaje_avance:
+            self.add_error("porcentaje_avance", "El nuevo avance no puede ser menor que el avance actual.")
+        if estado in {"PENDIENTE", "CANCELADA"} and avance != 0:
+            self.add_error("porcentaje_avance", "Una actividad pendiente o cancelada debe registrar 0 %.")
+        elif estado == "EN_PROCESO" and not 1 <= avance <= 99:
+            self.add_error("porcentaje_avance", "Una actividad en proceso debe registrar un avance entre 1 % y 99 %.")
+        elif estado == "COMPLETADA" and avance != 100:
+            self.add_error("porcentaje_avance", "Una actividad terminada debe registrar 100 %.")
+        return datos
 
     def clean_archivo(self):
         archivo = self.cleaned_data.get("archivo")
@@ -508,12 +533,8 @@ class SeguimientoForm(EstiloForm, forms.Form):
 
     def datos_servicio(self):
         avance = self.cleaned_data["porcentaje_avance"]
-        if avance == 0:
-            estado, fecha_real = "PENDIENTE", None
-        elif avance == 100:
-            estado, fecha_real = "COMPLETADA", timezone.localdate()
-        else:
-            estado, fecha_real = "EN_PROCESO", None
+        estado = self.cleaned_data["estado"]
+        fecha_real = timezone.localdate() if estado == "COMPLETADA" else None
         return {
             "estado": estado,
             "porcentaje_avance": avance,

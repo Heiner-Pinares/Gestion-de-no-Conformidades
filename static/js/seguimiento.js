@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const number = form.querySelector('[name="porcentaje_avance"]');
   const range = form.querySelector("[data-follow-range]");
+  const state = form.querySelector('[name="estado"]');
   const comment = form.querySelector('[name="comentario"]');
   const count = form.querySelector("[data-follow-count]");
   const file = form.querySelector('[name="archivo"]');
@@ -20,11 +21,39 @@ document.addEventListener("DOMContentLoaded", () => {
     return now.toISOString().slice(0, 16);
   };
   const updateCount = () => { if (count) count.textContent = String((comment?.value || "").length); };
+  const setProgress = (value) => {
+    if (!number || !range) return;
+    const normalized = Math.max(Number(number.min || 0), Math.min(100, Number(value || 0)));
+    number.value = String(normalized);
+    range.value = String(normalized);
+  };
   const syncFromNumber = () => {
     if (!number || !range) return;
-    const value = Math.max(Number(number.min || 0), Math.min(100, Number(number.value || 0)));
-    number.value = String(value);
-    range.value = String(value);
+    setProgress(number.value);
+    const value = Number(number.value);
+    if (!state) return;
+    if (value === 100) state.value = "COMPLETADA";
+    else if (value > 0) state.value = "EN_PROCESO";
+    else if (state.value !== "CANCELADA") state.value = "PENDIENTE";
+  };
+  const syncFromState = () => {
+    if (!state || !number || !range) return;
+    const current = Number(number.dataset.currentProgress || 0);
+    if (state.value === "CANCELADA" || state.value === "PENDIENTE") {
+      number.min = "0";
+      range.min = "0";
+      setProgress(0);
+    } else if (state.value === "COMPLETADA") {
+      number.min = String(current);
+      range.min = String(current);
+      setProgress(100);
+    } else {
+      const minimum = Math.max(1, current);
+      number.min = String(minimum);
+      range.min = String(minimum);
+      const value = Number(number.value);
+      setProgress(value > 0 && value < 100 ? value : minimum);
+    }
   };
   const showFile = () => {
     const selected = file?.files?.[0];
@@ -37,7 +66,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const clearFile = () => { if (file) file.value = ""; showFile(); };
 
   number?.addEventListener("input", syncFromNumber);
-  range?.addEventListener("input", () => { number.value = range.value; });
+  range?.addEventListener("input", () => { number.value = range.value; syncFromNumber(); });
+  state?.addEventListener("change", syncFromState);
   comment?.addEventListener("input", updateCount);
   file?.addEventListener("change", showFile);
   form.querySelector("[data-follow-file-remove]")?.addEventListener("click", clearFile);
@@ -68,6 +98,12 @@ document.addEventListener("DOMContentLoaded", () => {
     form.querySelector("[data-follow-current]").textContent = data.avance;
     form.querySelector("[data-follow-current-bar]").value = Number(data.avance);
     form.querySelector("[data-follow-fet]").textContent = data.fet;
+    if (state) {
+      const pending = state.querySelector('option[value="PENDIENTE"]');
+      if (pending) pending.disabled = data.state !== "PENDIENTE";
+      state.value = data.state;
+    }
+    number.dataset.currentProgress = data.avance;
     number.min = data.avance;
     number.value = data.avance;
     range.min = data.avance;
@@ -83,7 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     fill(button);
     modal.hidden = false;
     document.body.classList.add("follow-modal-open");
-    number.focus();
+    (state || number).focus();
   }));
   form.querySelectorAll("[data-follow-close]").forEach((button) => button.addEventListener("click", close));
   modal?.addEventListener("click", (event) => { if (event.target === modal) close(); });

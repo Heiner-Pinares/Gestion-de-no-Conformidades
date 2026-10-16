@@ -61,7 +61,7 @@
           <td class="commitment-management">
             {% if a.puede_actualizar %}
             <div class="commitment-buttons">
-              <button class="btn slim" type="button" data-follow-open data-action-url="{% url 'accion_seguimiento' a.pk %}" data-code="{{ a.codigo|escape }}" data-responsable="{{ a.responsable|default:'Sin asignar'|escape }}" data-estado="{{ a.get_estado_display|escape }}" data-avance="{{ a.porcentaje_avance }}" data-fet="{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}">☷ Seguimiento</button>
+              <button class="btn slim" type="button" data-follow-open data-action-url="{% url 'accion_seguimiento' a.pk %}" data-code="{{ a.codigo|escape }}" data-responsable="{{ a.responsable|default:'Sin asignar'|escape }}" data-estado="{{ a.get_estado_display|escape }}" data-state="{{ a.estado }}" data-avance="{{ a.porcentaje_avance }}" data-fet="{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}">☷ Seguimiento</button>
               {% if not a.solicitud_reprogramacion %}<a class="btn slim" href="{% url 'accion_reprogramar' a.pk %}" data-reprogram-open data-action-url="{% url 'accion_reprogramar' a.pk %}" data-code="{{ a.codigo|escape }}" data-description="{{ a.descripcion|escape }}" data-owner="{{ a.responsable|default:'Sin asignar'|escape }}" data-current="{{ a.fecha_vigente|date:'d/m/Y'|default:'—' }}">▣ Reprogramar</a>{% endif %}
             </div>
             {% else %}<span class="commitment-readonly">Consulta</span>{% endif %}

@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{% if modo_adicional %}Agregar compromisos{% else %}Solución inmediata y acciones correctivas{% endif %}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=5">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=6">{% endblock %}
 {% block content %}
 <div class="shell activity-page">
   <div class="crumb"><a href="{% url 'inicio' %}">Panel principal</a> / Registro / {{ hallazgo.codigo }}</div>
@@ -9,7 +9,7 @@
   <p class="page-sub">Cada compromiso se registra como una actividad vinculada al código de la No Conformidad.</p>
   {% include 'includes/stepper.html' %}
 
-  <div class="info activity-info"><div class="i">i</div><div><b>Relación de códigos:</b> una No Conformidad puede tener varias actividades. El sistema genera códigos relacionados como <strong class="case-code">{{ hallazgo.codigo }}-A01, A02, A03</strong>, etc. El estado puede ser Pendiente, En proceso, Terminado o Cancelado. Todas las actividades vigentes deberán estar Terminadas al 100 % para habilitar el paso 4.</div></div>
+  <div class="info activity-info"><div class="i">i</div><div><b>Relación de códigos:</b> una No Conformidad puede tener varias actividades. El sistema genera códigos relacionados como <strong class="case-code">{{ hallazgo.codigo }}-A01, A02, A03</strong>, etc. Todo compromiso nuevo se registra en estado <b>Pendiente</b>. Luego podrá pasar a En proceso, Terminado o Cancelado desde Seguimiento. Todas las actividades vigentes deberán estar Terminadas al 100 % para habilitar el paso 4.</div></div>
 
   <form method="post" class="card activity-plan" data-activity-plan data-next-number="{{ siguiente_numero }}" data-codigo="{{ hallazgo.codigo }}" data-requires-corrective="{{ requiere_accion_correctiva|yesno:'true,false' }}" data-has-immediate="{{ tiene_solucion_inmediata|yesno:'true,false' }}" data-has-corrective="{{ tiene_accion_correctiva|yesno:'true,false' }}">
     {% csrf_token %}
