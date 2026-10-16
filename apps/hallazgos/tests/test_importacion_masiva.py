@@ -69,5 +69,48 @@ class ImportacionMasivaTests(TestCase):
         contenido = b"".join(respuesta.streaming_content)
         self.assertTrue(contenido.startswith(b"PK"))
         hojas = _leer_xlsx(contenido)
-        for nombre in ("Hallazgos", "Ciclos", "Compromisos", "Seguimientos", "Evaluaciones", "Evidencias"):
-            self.assertIn(nombre, hojas)
+        self.assertEqual(set(hojas), {"Carga masiva"})
+
+    def test_importa_plantilla_de_una_sola_hoja(self):
+        ahora = timezone.now().replace(microsecond=0)
+        hoy = timezone.localdate()
+        hojas = {
+            "Carga masiva": [{
+                "__fila__": 2,
+                "Código hallazgo *": "SAC-NOC-2025-0200",
+                "Título *": "Hallazgo cerrado desde hoja única",
+                "Tipo (código) *": "NOC",
+                "Proceso *": "Facturacion",
+                "Responsable hallazgo *": self.usuario.username,
+                "Fecha registro *": (ahora - timedelta(days=30)).isoformat(),
+                "Estado hallazgo *": "CERRADO",
+                "Aplica impacto *": "NO",
+                "Justificación sin impacto": "Expediente histórico",
+                "Es crítica": "NO",
+                "Código compromiso": "SAC-NOC-2025-0200-A01",
+                "Tipo compromiso": "INMEDIATA",
+                "Descripción compromiso": "Corregir el registro",
+                "Responsable compromiso": self.usuario.username,
+                "Inicio compromiso": hoy - timedelta(days=25),
+                "Fecha límite original": hoy - timedelta(days=10),
+                "Fecha límite vigente": hoy - timedelta(days=10),
+                "Estado compromiso": "COMPLETADA",
+                "Avance %": 100,
+                "Fecha real": hoy - timedelta(days=11),
+                "Resultado esperado": "Registro corregido",
+                "Comentario compromiso": "Completado",
+                "Resultado eficacia": "EFICAZ",
+                "Evaluador": self.calidad.username,
+                "Fecha evaluación": hoy - timedelta(days=2),
+                "Comentario evaluación": "Resultado conforme",
+                "Fecha cierre": ahora - timedelta(days=1),
+                "Responsable cierre": self.calidad.username,
+                "Comentario cierre": "Cierre conforme",
+            }]
+        }
+        resumen = ImportadorMasivo(hojas=hojas, ejecutado_por=self.admin).preparar().guardar()
+        self.assertEqual(resumen["hallazgos"], 1)
+        hallazgo = Hallazgo.objects.get(codigo="SAC-NOC-2025-0200")
+        self.assertEqual(hallazgo.estado, "CERRADO")
+        self.assertEqual(hallazgo.ciclos.get().acciones.get().porcentaje_avance, 100)
+        self.assertEqual(hallazgo.ciclos.get().evaluaciones.get().resultado, "EFICAZ")

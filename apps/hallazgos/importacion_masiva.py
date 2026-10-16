@@ -53,6 +53,66 @@ REQUERIDAS = {
     "Evidencias": {"hallazgo_codigo", "contexto", "archivo_ruta", "subido_por_usuario", "fecha_carga"},
 }
 
+HOJA_UNICA = "Carga masiva"
+COLUMNAS_HOJA_UNICA = {
+    "Código hallazgo *": "hallazgo_codigo",
+    "Título *": "titulo",
+    "Descripción hallazgo": "descripcion",
+    "Tipo (código) *": "tipo_codigo",
+    "Fuente (código)": "fuente_codigo",
+    "Proceso *": "proceso",
+    "Subproceso": "subproceso",
+    "Actividad": "actividad",
+    "Responsable hallazgo *": "responsable_usuario",
+    "Registrado por": "registrado_por_usuario",
+    "Fecha registro *": "fecha_registro",
+    "Fecha detección": "fecha_deteccion",
+    "Fecha solución estimada": "fecha_solucion",
+    "Estado hallazgo *": "estado",
+    "Aplica impacto *": "aplica_impacto",
+    "Impacto (1-3)": "impacto",
+    "Urgencia (1-3)": "urgencia_valor",
+    "Es crítica": "es_critica",
+    "Origen tecnológico": "origen_tecnologico",
+    "Ticket Remedy": "ticket_remedy",
+    "Justificación sin impacto": "justificacion_no_impacto",
+    "Causa raíz": "causa_raiz",
+    "Responsable análisis": "analisis_responsable_usuario",
+    "Inicio análisis": "analisis_inicio",
+    "Fin análisis": "analisis_fin",
+    "Código compromiso": "accion_codigo",
+    "Tipo compromiso": "accion_tipo",
+    "Descripción compromiso": "accion_descripcion",
+    "Responsable compromiso": "accion_responsable",
+    "Inicio compromiso": "accion_fecha_inicio",
+    "Fecha límite original": "accion_fet_inicial",
+    "Fecha límite vigente": "accion_fecha_vigente",
+    "Estado compromiso": "accion_estado",
+    "Avance %": "accion_avance",
+    "Fecha real": "accion_fecha_real",
+    "Resultado esperado": "accion_resultado",
+    "Comentario compromiso": "accion_comentario",
+    "Fecha reprogramación": "reprogramacion_fecha",
+    "Motivo reprogramación": "reprogramacion_motivo",
+    "Resultado eficacia": "eficacia_resultado",
+    "Evaluador": "eficacia_evaluador",
+    "Fecha evaluación": "eficacia_fecha",
+    "Comentario evaluación": "eficacia_comentario",
+    "Fecha cierre": "fecha_cierre",
+    "Responsable cierre": "cierre_responsable",
+    "Comentario cierre": "comentario_cierre",
+    "Número PBI": "pbi_numero",
+    "Sistema PBI": "pbi_sistema",
+    "Responsable TI": "pbi_responsable",
+    "Estado PBI": "pbi_estado",
+    "Fecha creación PBI": "pbi_fecha_creacion",
+    "Fecha cierre PBI": "pbi_fecha_cierre",
+    "Evidencias (rutas separadas por ;)": "evidencias_rutas",
+    "Descripción evidencias": "evidencias_descripcion",
+    "Subido por": "evidencias_usuario",
+    "Fecha evidencias": "evidencias_fecha",
+}
+
 
 class ErrorCargaMasiva(ValidationError):
     def __init__(self, errores):
@@ -246,9 +306,166 @@ def _si_no(valor, etiqueta, *, permite_na=False, predeterminado=None):
     return normal
 
 
+def _valor_grupo(filas, campo):
+    for fila in filas:
+        if not _vacio(fila.get(campo)):
+            return fila.get(campo)
+    return ""
+
+
+def convertir_hoja_unica(hojas):
+    """Convierte la plantilla plana en las colecciones internas detalladas.
+
+    Una fila representa un compromiso. Las filas con el mismo código se
+    agrupan como un solo hallazgo. El formato histórico de varias hojas se
+    mantiene disponible para lotes que ya fueron preparados anteriormente.
+    """
+    if "Hallazgos" in hojas or HOJA_UNICA not in hojas:
+        return {nombre: list(filas) for nombre, filas in hojas.items()}
+    filas_originales = hojas[HOJA_UNICA]
+    if not filas_originales:
+        return {"Hallazgos": [], **{nombre: [] for nombre in REQUERIDAS if nombre != "Hallazgos"}}
+    presentes = set(filas_originales[0])
+    obligatorias = {"Código hallazgo *", "Título *", "Tipo (código) *", "Proceso *", "Responsable hallazgo *", "Fecha registro *", "Estado hallazgo *", "Aplica impacto *"}
+    faltan = obligatorias - presentes
+    if faltan:
+        raise ErrorCargaMasiva([f"{HOJA_UNICA}: faltan columnas: {', '.join(sorted(faltan))}."])
+
+    filas = []
+    for original in filas_originales:
+        fila = {tecnico: original.get(etiqueta, "") for etiqueta, tecnico in COLUMNAS_HOJA_UNICA.items()}
+        fila["__fila__"] = original.get("__fila__", "?")
+        filas.append(fila)
+    grupos = defaultdict(list)
+    orden = []
+    for fila in filas:
+        codigo = _cadena(fila.get("hallazgo_codigo"))
+        if not codigo:
+            raise ErrorCargaMasiva([f"{HOJA_UNICA}, fila {fila['__fila__']}: Código hallazgo es obligatorio."])
+        clave = codigo.casefold()
+        if clave not in grupos:
+            orden.append(clave)
+        grupos[clave].append(fila)
+
+    resultado = {nombre: [] for nombre in REQUERIDAS}
+    for clave in orden:
+        grupo = grupos[clave]
+        principal = grupo[0]
+        responsable = principal.get("responsable_usuario")
+        registrado = principal.get("registrado_por_usuario") or responsable
+        impacto = principal.get("impacto")
+        hallazgo = {
+            "__fila__": principal["__fila__"],
+            "hallazgo_codigo": principal.get("hallazgo_codigo"),
+            "titulo": principal.get("titulo"),
+            "descripcion": principal.get("descripcion"),
+            "tipo_codigo": principal.get("tipo_codigo"),
+            "fuente_codigo": principal.get("fuente_codigo"),
+            "proceso": principal.get("proceso"),
+            "subproceso": principal.get("subproceso"),
+            "actividad": principal.get("actividad"),
+            "responsable_usuario": responsable,
+            "registrado_por_usuario": registrado,
+            "actualizado_por_usuario": registrado,
+            "fecha_registro": principal.get("fecha_registro"),
+            "fecha_deteccion": principal.get("fecha_deteccion"),
+            "fecha_solucion": principal.get("fecha_solucion"),
+            "estado": principal.get("estado"),
+            "aplica_impacto": principal.get("aplica_impacto"),
+            "impacto_clientes": impacto,
+            "impacto_tiempo": impacto,
+            "impacto_soles": impacto,
+            "urgencia_valor": principal.get("urgencia_valor"),
+            "es_critica": principal.get("es_critica"),
+            "origen_tecnologico": principal.get("origen_tecnologico"),
+            "ticket_remedy": principal.get("ticket_remedy"),
+            "justificacion_no_impacto": principal.get("justificacion_no_impacto"),
+        }
+        resultado["Hallazgos"].append(hallazgo)
+
+        campos_tratamiento = (
+            "causa_raiz", "analisis_responsable_usuario", "analisis_inicio", "analisis_fin",
+            "accion_codigo", "eficacia_resultado", "pbi_numero", "fecha_cierre",
+        )
+        requiere_ciclo = _cadena(principal.get("estado")).upper() not in {
+            "BORRADOR", "PENDIENTE_VALIDACION", "DEVUELTO", "VALIDADO", "CANCELADO"
+        } or any(not _vacio(_valor_grupo(grupo, campo)) for campo in campos_tratamiento)
+        if requiere_ciclo:
+            fecha_cierre = _valor_grupo(grupo, "fecha_cierre")
+            resultado_eficacia = _cadena(_valor_grupo(grupo, "eficacia_resultado")).upper()
+            resultado["Ciclos"].append({
+                "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"],
+                "ciclo_numero": 1, "motivo": "Tratamiento importado desde plantilla única",
+                "creado_por_usuario": registrado, "fecha_inicio": principal.get("fecha_registro"),
+                "fecha_fin": fecha_cierre, "analisis_responsable_usuario": _valor_grupo(grupo, "analisis_responsable_usuario") or responsable,
+                "analisis_inicio": _valor_grupo(grupo, "analisis_inicio"), "analisis_fin": _valor_grupo(grupo, "analisis_fin"),
+                "causa_raiz": _valor_grupo(grupo, "causa_raiz"),
+                "cierre_responsable_usuario": _valor_grupo(grupo, "cierre_responsable") or _valor_grupo(grupo, "eficacia_evaluador"),
+                "fecha_cierre": fecha_cierre, "comentarios_cierre": _valor_grupo(grupo, "comentario_cierre"),
+                "resultado_cierre": resultado_eficacia if fecha_cierre else "",
+            })
+
+        for fila in grupo:
+            if _vacio(fila.get("accion_codigo")):
+                continue
+            resultado["Compromisos"].append({
+                "__fila__": fila["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
+                "accion_codigo": fila.get("accion_codigo"), "tipo": fila.get("accion_tipo"),
+                "descripcion": fila.get("accion_descripcion"), "responsable_usuario": fila.get("accion_responsable") or responsable,
+                "fecha_inicio": fila.get("accion_fecha_inicio"), "fet_inicial": fila.get("accion_fet_inicial"),
+                "fecha_vigente": fila.get("accion_fecha_vigente") or fila.get("accion_fet_inicial"),
+                "fecha_real": fila.get("accion_fecha_real"), "estado": fila.get("accion_estado"),
+                "porcentaje_avance": fila.get("accion_avance"), "resultado_esperado": fila.get("accion_resultado"),
+                "comentario": fila.get("accion_comentario"),
+            })
+            fecha_evento = fila.get("accion_fecha_real") or fila.get("accion_fecha_inicio")
+            resultado["Seguimientos"].append({
+                "__fila__": fila["__fila__"], "accion_codigo": fila.get("accion_codigo"), "seguimiento_numero": 1,
+                "usuario": fila.get("accion_responsable") or responsable, "fecha_hora": fecha_evento,
+                "estado": fila.get("accion_estado"), "porcentaje_avance": fila.get("accion_avance"),
+                "fecha_real": fila.get("accion_fecha_real"), "comentario": fila.get("accion_comentario"),
+            })
+            if not _vacio(fila.get("reprogramacion_fecha")) or not _vacio(fila.get("reprogramacion_motivo")):
+                resultado["Reprogramaciones"].append({
+                    "__fila__": fila["__fila__"], "accion_codigo": fila.get("accion_codigo"), "reprogramacion_numero": 1,
+                    "usuario": fila.get("accion_responsable") or responsable, "fecha_hora": fila.get("reprogramacion_fecha"),
+                    "fecha_anterior": fila.get("accion_fet_inicial"), "nueva_fecha": fila.get("accion_fecha_vigente"),
+                    "motivo": fila.get("reprogramacion_motivo"),
+                })
+
+        eficacia = _valor_grupo(grupo, "eficacia_resultado")
+        if not _vacio(eficacia):
+            fecha_evaluacion = _valor_grupo(grupo, "eficacia_fecha")
+            resultado["Evaluaciones"].append({
+                "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
+                "evaluacion_numero": 1, "evaluador_usuario": _valor_grupo(grupo, "eficacia_evaluador"),
+                "fecha_evaluacion": fecha_evaluacion, "resultado": eficacia,
+                "comentario": _valor_grupo(grupo, "eficacia_comentario"), "fecha_registro": fecha_evaluacion,
+            })
+
+        numero_pbi = _valor_grupo(grupo, "pbi_numero")
+        if not _vacio(numero_pbi):
+            resultado["PBI"].append({
+                "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
+                "numero_pbi": numero_pbi, "sistema": _valor_grupo(grupo, "pbi_sistema"),
+                "responsable_ti_usuario": _valor_grupo(grupo, "pbi_responsable"), "estado": _valor_grupo(grupo, "pbi_estado"),
+                "fecha_creacion": _valor_grupo(grupo, "pbi_fecha_creacion"), "fecha_cierre": _valor_grupo(grupo, "pbi_fecha_cierre"),
+            })
+
+        rutas = [ruta.strip().replace("\\", "/") for ruta in _cadena(_valor_grupo(grupo, "evidencias_rutas")).split(";") if ruta.strip()]
+        for ruta in rutas:
+            resultado["Evidencias"].append({
+                "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "contexto": "HALLAZGO",
+                "archivo_ruta": ruta, "descripcion": _valor_grupo(grupo, "evidencias_descripcion"),
+                "subido_por_usuario": _valor_grupo(grupo, "evidencias_usuario") or responsable,
+                "fecha_carga": _valor_grupo(grupo, "evidencias_fecha") or principal.get("fecha_registro"),
+            })
+    return resultado
+
+
 class ImportadorMasivo:
     def __init__(self, *, hojas, archivos=None, ejecutado_por):
-        self.hojas = {nombre: list(filas) for nombre, filas in hojas.items()}
+        self.hojas = convertir_hoja_unica(hojas)
         self.archivos = archivos or {}
         self.ejecutado_por = ejecutado_por
         self.errores = []

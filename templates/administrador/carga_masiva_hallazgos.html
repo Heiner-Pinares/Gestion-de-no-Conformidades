@@ -2,14 +2,14 @@
 {% block title %}Carga masiva de hallazgos{% endblock %}
 {% block content %}
 <div class="admin-page-head">
-  <div class="admin-page-title"><span class="admin-page-icon">⇧</span><div><h1>Carga masiva de hallazgos</h1><p>Importa expedientes terminados y en curso con sus planes, compromisos y trazabilidad.</p></div></div>
+  <div class="admin-page-title"><span class="admin-page-icon">⇧</span><div><h1>Carga masiva de hallazgos</h1><p>Importa hallazgos terminados y en curso desde una sola hoja de Excel.</p></div></div>
   <div class="toolbar"><a class="btn" href="{% url 'hallazgo_buscar' %}">← Hallazgos</a><a class="admin-primary" href="{% url 'hallazgo_carga_masiva_plantilla' %}">↓ Descargar plantilla</a></div>
 </div>
 
 <section class="admin-panel admin-import-panel">
   <div class="admin-import-notice">
-    <strong>La importación es atómica y solo crea registros nuevos.</strong>
-    <p>Valida el archivo antes de guardarlo. Si encuentra un error, no inserta ninguna fila. Los códigos existentes se rechazan para evitar reemplazos accidentales.</p>
+    <strong>Una fila representa un compromiso.</strong>
+    <p>Si un hallazgo tiene varios compromisos, repita su código en varias filas. Complete los datos generales en la primera fila. Valide el archivo antes de importarlo: si encuentra un error, no guardará ninguna fila.</p>
   </div>
   <form method="post" enctype="multipart/form-data" class="admin-form">
     {% csrf_token %}

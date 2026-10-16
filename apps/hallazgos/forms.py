@@ -670,7 +670,7 @@ class BuscarHallazgoForm(EstiloForm, forms.Form):
 class CargaMasivaHallazgosForm(forms.Form):
     archivo = forms.FileField(
         label="Plantilla completada",
-        help_text="Suba el XLSX, o un ZIP con el XLSX y la carpeta de evidencias. Máximo 80 MB.",
+        help_text="Suba la plantilla de una sola hoja, o un ZIP con el XLSX y sus evidencias. Máximo 80 MB.",
         widget=forms.ClearableFileInput(attrs={"accept": ".xlsx,.zip"}),
     )
 
