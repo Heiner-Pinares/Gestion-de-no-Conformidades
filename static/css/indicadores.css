@@ -45,18 +45,21 @@
 .indicator-horizontal-row b{color:#0c193f;font-size:12px}
 .indicator-empty{display:grid;place-items:center;min-height:190px;margin:0;color:#6a7f9e;text-align:center}
 .indicator-source-note{margin:12px 0 0;color:#6780a5;font-size:11px;text-align:right}
-@media(max-width:1300px){
-  .indicator-head{align-items:flex-start}.indicator-head h1{font-size:30px}
+/* El ancho disponible descuenta la barra lateral administrativa. */
+@media(max-width:1650px){
+  .admin-indicators-page .admin-content{padding:20px 20px 12px}
+  .indicator-head{align-items:flex-start;flex-wrap:wrap}.indicator-head h1{font-size:30px}
+  .indicator-filters{margin-left:auto}
   .indicator-layout{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}
   .indicator-summary-column{grid-column:1/-1;grid-row:auto;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:1fr}
   .indicator-month-card,.indicator-activity-state-card{grid-column:1}.indicator-by-area-card,.indicator-activity-area-card{grid-column:2}
 }
-@media(max-width:920px){
-  .indicator-head{display:grid}.indicator-filters{grid-template-columns:1fr 1fr auto;width:100%}
+@media(max-width:1100px){
+  .indicator-head{display:grid}.indicator-filters{grid-template-columns:1fr 1fr auto;width:100%;margin-left:0}
   .indicator-layout{grid-template-columns:1fr}.indicator-summary-column{grid-column:1;grid-template-columns:1fr 1fr}.indicator-total-card{grid-column:1/-1}
   .indicator-month-card,.indicator-activity-state-card,.indicator-by-area-card,.indicator-activity-area-card{grid-column:1}
 }
-@media(max-width:620px){
+@media(max-width:700px){
   .admin-indicators-page .admin-content{padding:16px 12px}.indicator-head h1{font-size:27px}.indicator-head p{font-size:15px}
   .indicator-filters{grid-template-columns:1fr 1fr}.indicator-filters .admin-primary{grid-column:1/-1;width:100%}
   .indicator-summary-column{grid-template-columns:1fr}.indicator-total-card{grid-column:auto}.indicator-card{padding:16px}

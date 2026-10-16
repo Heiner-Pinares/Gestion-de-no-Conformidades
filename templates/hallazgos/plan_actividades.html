@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% block title %}{% if modo_adicional %}Agregar compromisos{% else %}Solución inmediata y acciones correctivas{% endif %}{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=6">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/actividades.css' %}?v=7">{% endblock %}
 {% block content %}
 <div class="shell activity-page">
   <div class="crumb"><a href="{% url 'inicio' %}">Panel principal</a> / Registro / {{ hallazgo.codigo }}</div>

@@ -76,13 +76,41 @@
 .activity-summary{margin:10px 22px 24px;padding:20px;border:1px solid #dce4ee;border-radius:12px;background:#f8fafc}
 .activity-summary h2{margin:0 0 12px;font-size:20px}
 .activity-summary p{margin:0;color:#64748b;font-size:16px}
-@media(max-width:1450px){
-  .activity-row{grid-template-columns:repeat(3,minmax(0,1fr))}
-  .activity-field--code,.activity-field--action{grid-column:auto}
-  .activity-remove-wrap{align-self:end}
+/*
+ * La fila completa necesita casi 1 500 px útiles. En laptops y pantallas con
+ * escalado de Windows se distribuye en varias líneas antes de que los campos
+ * queden comprimidos o sea necesario reducir el zoom del navegador.
+ */
+@media(max-width:1800px){
+  .activity-row{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    grid-template-areas:
+      "code action action type"
+      "owner date status remove";
+  }
+  .activity-field--code{grid-area:code}.activity-field--action{grid-area:action}
+  .activity-field--type{grid-area:type}.activity-field--owner{grid-area:owner}
+  .activity-field--date{grid-area:date}.activity-field--status{grid-area:status}
+  .activity-remove-wrap{grid-area:remove;align-self:end}
 }
-@media(max-width:1100px){
-  .activity-row{grid-template-columns:1fr 1fr}
+@media(max-width:1450px){
+  .activity-row{
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    grid-template-areas:
+      "code action action"
+      "type owner date"
+      "status remove .";
+  }
+}
+@media(max-width:1120px){
+  .activity-row{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-areas:
+      "code type"
+      "action action"
+      "owner date"
+      "status remove";
+  }
   .efficacy-grid{grid-template-columns:1fr}
 }
 @media(max-width:700px){
@@ -90,7 +118,10 @@
   .activity-section-heading{font-size:20px}
   .activity-add{width:100%;min-width:0}
   .activity-rows{padding:18px 14px 24px}
-  .activity-row{grid-template-columns:1fr}
+  .activity-row{
+    grid-template-columns:1fr;
+    grid-template-areas:"code" "action" "type" "owner" "date" "status" "remove";
+  }
   .activity-row+.activity-row{padding-top:20px;border-top:1px solid #e2e8f0}
   .activity-follow-head,.activity-page-actions,.activity-follow-actions{flex-direction:column}
   .activity-follow-head .btn,.activity-page-actions .btn{width:100%;min-width:0}
