@@ -84,33 +84,48 @@ class ImportacionMasivaTests(TestCase):
                 "Responsable hallazgo *": self.usuario.username,
                 "Fecha registro *": (ahora - timedelta(days=30)).isoformat(),
                 "Estado hallazgo *": "CERRADO",
-                "Aplica impacto *": "NO",
-                "Justificación sin impacto": "Expediente histórico",
-                "Es crítica": "NO",
-                "Código compromiso": "SAC-NOC-2025-0200-A01",
                 "Tipo compromiso": "INMEDIATA",
                 "Descripción compromiso": "Corregir el registro",
-                "Responsable compromiso": self.usuario.username,
-                "Inicio compromiso": hoy - timedelta(days=25),
-                "Fecha límite original": hoy - timedelta(days=10),
-                "Fecha límite vigente": hoy - timedelta(days=10),
+                "Fecha límite compromiso": hoy - timedelta(days=10),
                 "Estado compromiso": "COMPLETADA",
-                "Avance %": 100,
                 "Fecha real": hoy - timedelta(days=11),
-                "Resultado esperado": "Registro corregido",
-                "Comentario compromiso": "Completado",
-                "Resultado eficacia": "EFICAZ",
-                "Evaluador": self.calidad.username,
+                "Evaluador cierre": self.calidad.username,
                 "Fecha evaluación": hoy - timedelta(days=2),
-                "Comentario evaluación": "Resultado conforme",
                 "Fecha cierre": ahora - timedelta(days=1),
-                "Responsable cierre": self.calidad.username,
-                "Comentario cierre": "Cierre conforme",
             }]
         }
         resumen = ImportadorMasivo(hojas=hojas, ejecutado_por=self.admin).preparar().guardar()
         self.assertEqual(resumen["hallazgos"], 1)
         hallazgo = Hallazgo.objects.get(codigo="SAC-NOC-2025-0200")
         self.assertEqual(hallazgo.estado, "CERRADO")
-        self.assertEqual(hallazgo.ciclos.get().acciones.get().porcentaje_avance, 100)
+        accion = hallazgo.ciclos.get().acciones.get()
+        self.assertEqual(accion.codigo, "SAC-NOC-2025-0200-A01")
+        self.assertEqual(accion.responsable, self.usuario)
+        self.assertEqual(accion.porcentaje_avance, 100)
+        self.assertEqual(accion.resultado_esperado, "Corregir el registro")
         self.assertEqual(hallazgo.ciclos.get().evaluaciones.get().resultado, "EFICAZ")
+
+    def test_importa_borrador_con_solo_las_siete_columnas_obligatorias(self):
+        hojas = {
+            "Carga masiva": [{
+                "__fila__": 2,
+                "Código hallazgo *": "SAC-NOC-2025-0201",
+                "Título *": "Hallazgo pendiente desde plantilla reducida",
+                "Tipo (código) *": "NOC",
+                "Proceso *": "Facturacion",
+                "Responsable hallazgo *": self.usuario.username,
+                "Fecha registro *": timezone.now().replace(microsecond=0).isoformat(),
+                "Estado hallazgo *": "BORRADOR",
+            }]
+        }
+
+        resumen = ImportadorMasivo(
+            hojas=hojas, ejecutado_por=self.admin
+        ).preparar().guardar()
+
+        self.assertEqual(resumen["hallazgos"], 1)
+        hallazgo = Hallazgo.objects.get(codigo="SAC-NOC-2025-0201")
+        self.assertFalse(hallazgo.aplica_impacto)
+        self.assertEqual(hallazgo.responsable, self.usuario)
+        self.assertEqual(hallazgo.registrado_por, self.usuario)
+        self.assertFalse(hallazgo.ciclos.exists())

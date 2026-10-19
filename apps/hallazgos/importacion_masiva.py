@@ -86,6 +86,7 @@ COLUMNAS_HOJA_UNICA = {
     "Responsable compromiso": "accion_responsable",
     "Inicio compromiso": "accion_fecha_inicio",
     "Fecha límite original": "accion_fet_inicial",
+    "Fecha límite compromiso": "accion_fet_inicial",
     "Fecha límite vigente": "accion_fecha_vigente",
     "Estado compromiso": "accion_estado",
     "Avance %": "accion_avance",
@@ -96,6 +97,7 @@ COLUMNAS_HOJA_UNICA = {
     "Motivo reprogramación": "reprogramacion_motivo",
     "Resultado eficacia": "eficacia_resultado",
     "Evaluador": "eficacia_evaluador",
+    "Evaluador cierre": "eficacia_evaluador",
     "Fecha evaluación": "eficacia_fecha",
     "Comentario evaluación": "eficacia_comentario",
     "Fecha cierre": "fecha_cierre",
@@ -326,14 +328,21 @@ def convertir_hoja_unica(hojas):
     if not filas_originales:
         return {"Hallazgos": [], **{nombre: [] for nombre in REQUERIDAS if nombre != "Hallazgos"}}
     presentes = set(filas_originales[0])
-    obligatorias = {"Código hallazgo *", "Título *", "Tipo (código) *", "Proceso *", "Responsable hallazgo *", "Fecha registro *", "Estado hallazgo *", "Aplica impacto *"}
+    obligatorias = {
+        "Código hallazgo *", "Título *", "Tipo (código) *", "Proceso *",
+        "Responsable hallazgo *", "Fecha registro *", "Estado hallazgo *",
+    }
     faltan = obligatorias - presentes
     if faltan:
         raise ErrorCargaMasiva([f"{HOJA_UNICA}: faltan columnas: {', '.join(sorted(faltan))}."])
 
     filas = []
     for original in filas_originales:
-        fila = {tecnico: original.get(etiqueta, "") for etiqueta, tecnico in COLUMNAS_HOJA_UNICA.items()}
+        fila = {}
+        for etiqueta, tecnico in COLUMNAS_HOJA_UNICA.items():
+            valor = original.get(etiqueta, "")
+            if tecnico not in fila or not _vacio(valor):
+                fila[tecnico] = valor
         fila["__fila__"] = original.get("__fila__", "?")
         filas.append(fila)
     grupos = defaultdict(list)
@@ -354,6 +363,13 @@ def convertir_hoja_unica(hojas):
         responsable = principal.get("responsable_usuario")
         registrado = principal.get("registrado_por_usuario") or responsable
         impacto = principal.get("impacto")
+        aplica_impacto = principal.get("aplica_impacto")
+        if _vacio(aplica_impacto):
+            aplica_impacto = (
+                "SI"
+                if not _vacio(impacto) or not _vacio(principal.get("urgencia_valor"))
+                else "NO"
+            )
         hallazgo = {
             "__fila__": principal["__fila__"],
             "hallazgo_codigo": principal.get("hallazgo_codigo"),
@@ -371,7 +387,7 @@ def convertir_hoja_unica(hojas):
             "fecha_deteccion": principal.get("fecha_deteccion"),
             "fecha_solucion": principal.get("fecha_solucion"),
             "estado": principal.get("estado"),
-            "aplica_impacto": principal.get("aplica_impacto"),
+            "aplica_impacto": aplica_impacto,
             "impacto_clientes": impacto,
             "impacto_tiempo": impacto,
             "impacto_soles": impacto,
@@ -393,6 +409,8 @@ def convertir_hoja_unica(hojas):
         if requiere_ciclo:
             fecha_cierre = _valor_grupo(grupo, "fecha_cierre")
             resultado_eficacia = _cadena(_valor_grupo(grupo, "eficacia_resultado")).upper()
+            if not resultado_eficacia and _cadena(principal.get("estado")).upper() == "CERRADO":
+                resultado_eficacia = "EFICAZ"
             resultado["Ciclos"].append({
                 "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"],
                 "ciclo_numero": 1, "motivo": "Tratamiento importado desde plantilla única",
@@ -405,24 +423,43 @@ def convertir_hoja_unica(hojas):
                 "resultado_cierre": resultado_eficacia if fecha_cierre else "",
             })
 
+        numero_accion = 0
         for fila in grupo:
-            if _vacio(fila.get("accion_codigo")):
+            tiene_compromiso = any(
+                not _vacio(fila.get(campo))
+                for campo in (
+                    "accion_codigo", "accion_tipo", "accion_descripcion",
+                    "accion_fet_inicial", "accion_estado", "accion_avance",
+                    "accion_fecha_real",
+                )
+            )
+            if not tiene_compromiso:
                 continue
+            numero_accion += 1
+            accion_codigo = fila.get("accion_codigo") or (
+                f"{principal['hallazgo_codigo']}-A{numero_accion:02d}"
+            )
+            accion_descripcion = fila.get("accion_descripcion")
+            accion_estado = _cadena(fila.get("accion_estado")).upper() or "PENDIENTE"
+            accion_avance = fila.get("accion_avance")
+            if _vacio(accion_avance):
+                accion_avance = 100 if accion_estado == "COMPLETADA" else 1 if accion_estado == "EN_PROCESO" else 0
+            accion_inicio = fila.get("accion_fecha_inicio") or principal.get("fecha_registro")
             resultado["Compromisos"].append({
                 "__fila__": fila["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
-                "accion_codigo": fila.get("accion_codigo"), "tipo": fila.get("accion_tipo"),
-                "descripcion": fila.get("accion_descripcion"), "responsable_usuario": fila.get("accion_responsable") or responsable,
-                "fecha_inicio": fila.get("accion_fecha_inicio"), "fet_inicial": fila.get("accion_fet_inicial"),
+                "accion_codigo": accion_codigo, "tipo": fila.get("accion_tipo"),
+                "descripcion": accion_descripcion, "responsable_usuario": fila.get("accion_responsable") or responsable,
+                "fecha_inicio": accion_inicio, "fet_inicial": fila.get("accion_fet_inicial"),
                 "fecha_vigente": fila.get("accion_fecha_vigente") or fila.get("accion_fet_inicial"),
-                "fecha_real": fila.get("accion_fecha_real"), "estado": fila.get("accion_estado"),
-                "porcentaje_avance": fila.get("accion_avance"), "resultado_esperado": fila.get("accion_resultado"),
+                "fecha_real": fila.get("accion_fecha_real"), "estado": accion_estado,
+                "porcentaje_avance": accion_avance, "resultado_esperado": fila.get("accion_resultado") or accion_descripcion,
                 "comentario": fila.get("accion_comentario"),
             })
-            fecha_evento = fila.get("accion_fecha_real") or fila.get("accion_fecha_inicio")
+            fecha_evento = fila.get("accion_fecha_real") or accion_inicio
             resultado["Seguimientos"].append({
-                "__fila__": fila["__fila__"], "accion_codigo": fila.get("accion_codigo"), "seguimiento_numero": 1,
+                "__fila__": fila["__fila__"], "accion_codigo": accion_codigo, "seguimiento_numero": 1,
                 "usuario": fila.get("accion_responsable") or responsable, "fecha_hora": fecha_evento,
-                "estado": fila.get("accion_estado"), "porcentaje_avance": fila.get("accion_avance"),
+                "estado": accion_estado, "porcentaje_avance": accion_avance,
                 "fecha_real": fila.get("accion_fecha_real"), "comentario": fila.get("accion_comentario"),
             })
             if not _vacio(fila.get("reprogramacion_fecha")) or not _vacio(fila.get("reprogramacion_motivo")):
@@ -434,13 +471,16 @@ def convertir_hoja_unica(hojas):
                 })
 
         eficacia = _valor_grupo(grupo, "eficacia_resultado")
+        if _vacio(eficacia) and _cadena(principal.get("estado")).upper() == "CERRADO":
+            eficacia = "EFICAZ"
         if not _vacio(eficacia):
             fecha_evaluacion = _valor_grupo(grupo, "eficacia_fecha")
             resultado["Evaluaciones"].append({
                 "__fila__": principal["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
                 "evaluacion_numero": 1, "evaluador_usuario": _valor_grupo(grupo, "eficacia_evaluador"),
                 "fecha_evaluacion": fecha_evaluacion, "resultado": eficacia,
-                "comentario": _valor_grupo(grupo, "eficacia_comentario"), "fecha_registro": fecha_evaluacion,
+                "comentario": _valor_grupo(grupo, "eficacia_comentario") or "Evaluación eficaz importada desde la carga masiva.",
+                "fecha_registro": fecha_evaluacion,
             })
 
         numero_pbi = _valor_grupo(grupo, "pbi_numero")

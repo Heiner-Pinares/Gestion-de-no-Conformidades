@@ -9,7 +9,8 @@
 <section class="admin-panel admin-import-panel">
   <div class="admin-import-notice">
     <strong>Una fila representa un compromiso.</strong>
-    <p>Si un hallazgo tiene varios compromisos, repita su código en varias filas. Complete los datos generales en la primera fila. Valide el archivo antes de importarlo: si encuentra un error, no guardará ninguna fila.</p>
+    <p>La plantilla contiene solo 18 columnas. Complete siempre las 7 columnas rojas. Las columnas amarillas son opcionales para impacto; las azules se usan cuando existe un compromiso y las verdes únicamente para hallazgos cerrados.</p>
+    <p>El portal genera el código del compromiso y completa responsable, fecha de inicio, fecha vigente y resultado esperado. Si un hallazgo tiene varios compromisos, repita su código y agregue uno por fila. Valide antes de importar: si encuentra un error, no guardará ninguna fila.</p>
   </div>
   <form method="post" enctype="multipart/form-data" class="admin-form">
     {% csrf_token %}
