@@ -14,7 +14,14 @@ $EnvPath = Join-Path $ProjectRoot ".env"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
 
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
-$LogPath = Join-Path $LogDirectory ("portal-{0}.log" -f (Get-Date -Format "yyyyMMdd"))
+$LogName = "portal-{0}-{1}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"), $PID
+$LogPath = Join-Path $LogDirectory $LogName
+
+# Cada proceso usa un archivo propio. Asi, un log antiguo con permisos o un
+# identificador de seguridad obsoleto nunca impide el siguiente arranque.
+Get-ChildItem $LogDirectory -Filter "portal-*.log" -ErrorAction SilentlyContinue |
+    Where-Object LastWriteTime -lt (Get-Date).AddDays(-30) |
+    Remove-Item -Force -ErrorAction SilentlyContinue
 
 function Write-PortalLog {
     param([string]$Message)
