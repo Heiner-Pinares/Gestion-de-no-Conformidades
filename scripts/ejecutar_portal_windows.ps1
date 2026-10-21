@@ -38,7 +38,13 @@ try {
 
     Set-Location $ProjectRoot
     Write-PortalLog "Inicio solicitado en ${BindHost}:${Port} con ${Threads} hilos."
-    & $Python -u "run.py" "start" *>> $LogPath
+    # Escribir cada linea abriendo y cerrando el archivo permite consultar el
+    # log mientras Waitress sigue activo. La redireccion *>> mantiene el archivo
+    # bloqueado durante toda la vida del proceso en Windows PowerShell 5.1.
+    & $Python -u "run.py" "start" 2>&1 | ForEach-Object {
+        $OutputLine = [string]$_
+        [IO.File]::AppendAllText($LogPath, "$OutputLine`r`n", [Text.UTF8Encoding]::new($false))
+    }
     $ExitCode = $LASTEXITCODE
     Write-PortalLog "El proceso termino con codigo $ExitCode."
     exit $ExitCode

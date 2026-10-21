@@ -260,7 +260,7 @@ elseif ($CurrentRule) {
 }
 
 Start-ScheduledTask -TaskName $TaskName
-$Deadline = (Get-Date).AddSeconds(90)
+$Deadline = (Get-Date).AddSeconds(180)
 do {
     Start-Sleep -Seconds 2
     $Task = Get-ScheduledTask -TaskName $TaskName
@@ -270,13 +270,19 @@ do {
 
 $Task = Get-ScheduledTask -TaskName $TaskName
 if ($Task.State -ne "Running" -or -not (Test-TcpPort -HostName "127.0.0.1" -TargetPort $Port)) {
+    $TaskInfo = Get-ScheduledTaskInfo -TaskName $TaskName
     $LatestLog = Get-ChildItem $LogDirectory -Filter "portal-*.log" -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ($LatestLog) {
         Write-Host "Ultimas lineas de $($LatestLog.FullName):"
-        Get-Content $LatestLog.FullName -Tail 30
+        try {
+            Get-Content $LatestLog.FullName -Tail 30 -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "No se pudo leer el log durante el diagnostico: $($_.Exception.Message)"
+        }
     }
-    throw "La tarea se registro, pero el portal no abrio el puerto $Port. Revise el log."
+    throw "La tarea se registro, pero el portal no abrio el puerto $Port. Estado: $($Task.State). Resultado: $($TaskInfo.LastTaskResult). Revise el log."
 }
 
 Write-Host ""
