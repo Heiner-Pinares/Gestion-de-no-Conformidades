@@ -161,7 +161,69 @@ Equivale a:
 
 Primero valida Oracle y Django, luego ejecuta `collectstatic` y finalmente inicia Waitress. En Windows los estáticos se guardan, por defecto, en `%LOCALAPPDATA%\PortalNC\staticfiles` de la cuenta que inicia el proceso. Esto evita que una instalación realizada por un administrador deje `staticfiles.json` bloqueado para la cuenta de servicio. La ruta puede fijarse con `STATIC_ROOT`, pero esa cuenta debe tener permisos de modificación sobre toda la carpeta. Si la configuración, permisos o esquema no coinciden, el proceso termina antes de abrir el puerto. Para producción, ejecute este comando con una cuenta de servicio y publique HTTPS mediante el proxy inverso aprobado (por ejemplo IIS ARR).
 
-## 8. Habilitar correos de compromisos
+## 8. Publicar e iniciar automáticamente sin instalar otro programa
+
+Windows Server ya incluye PowerShell, Firewall y el Programador de tareas. El
+script de publicación usa esos componentes para mantener Waitress en ejecución:
+
+- arranca el portal al encender el servidor, aunque nadie inicie sesión;
+- reinicia el proceso un minuto después de una falla;
+- impide dos instancias simultáneas;
+- guarda los logs y los estáticos en `C:\ProgramData\PortalNC`;
+- ejecuta primero `run.py check` y no registra la tarea si Oracle o Django fallan;
+- no instala NSSM, IIS, Apache, Nginx ni paquetes de Python adicionales.
+
+Durante la publicación solicita una sola vez la contraseña Windows de la
+cuenta indicada. La entrada permanece oculta, el script no la escribe en
+archivos y Windows la protege dentro del Programador de tareas. Este tipo de
+inicio permite que Oracle y el envío de correos sigan teniendo acceso de red.
+Si la contraseña de la cuenta cambia, vuelva a ejecutar el mismo comando de
+publicación para actualizar la tarea.
+
+Abra **PowerShell como administrador**, sitúese en el repositorio y ejecute:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8000" -AllowInternalHttp
+```
+
+El modo HTTP crea una regla de firewall de perfil `Domain` limitada por defecto
+a `LocalSubnet`. Si los usuarios están en otras subredes corporativas,
+Infraestructura debe entregar los rangos autorizados; se pueden indicar sin
+abrir el puerto a Internet:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8000" -AllowInternalHttp -AllowedRemoteAddress "172.19.0.0/16","10.20.0.0/16"
+```
+
+HTTP interno restringe quién llega al puerto, pero no cifra usuarios,
+contraseñas ni contenido. La publicación final segura requiere un certificado
+confiable y el proxy HTTPS corporativo. Cuando esos dos elementos ya existan,
+el mismo script deja Waitress accesible únicamente desde el servidor y activa
+las protecciones HTTPS de Django:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "https://portal-nc.claro.pe" -BehindHttpsProxy
+```
+
+En ese modo el proxy debe enviar las solicitudes a `127.0.0.1:8000`, reemplazar
+cualquier `X-Forwarded-Proto` recibido del cliente y establecerlo en `https`.
+El script no crea certificados autofirmados porque generarían advertencias en
+los navegadores y no sustituyen un certificado corporativo.
+
+La operación diaria se puede hacer con comandos cortos:
+
+```bat
+scripts\portal.cmd status
+scripts\portal.cmd start
+scripts\portal.cmd stop
+scripts\portal.cmd restart
+scripts\portal.cmd logs
+```
+
+Los usuarios no instalan nada: abren la `PublicUrl` en Chrome o Edge. Deben
+estar dentro de la red o VPN autorizada por el firewall.
+
+## 9. Habilitar correos de compromisos
 
 Al guardar una actividad en el paso 3, el portal toma el correo del responsable desde `tbl_usuario_nc.email` y copia al usuario relacionado mediante `tbl_usuario_nc.jefe_id`. El navegador solo envía el identificador del responsable; no puede definir direcciones arbitrarias. El mensaje se construye en texto plano y HTML, y se entrega ejecutando `sendmail` en el servidor corporativo a través de SSH.
 
