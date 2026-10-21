@@ -67,7 +67,7 @@ Edite `.env` y complete valores no secretos:
 ```env
 DEBUG=False
 ALLOWED_HOSTS=172.19.194.219,127.0.0.1,localhost
-CSRF_TRUSTED_ORIGINS=http://172.19.194.219:8000
+CSRF_TRUSTED_ORIGINS=http://172.19.194.219:8001
 SECURE_SSL_REDIRECT=False
 SESSION_COOKIE_SECURE=False
 CSRF_COOKIE_SECURE=False
@@ -86,13 +86,13 @@ ORACLE_CLIENT_LIB_DIR=C:/oracle/instantclient_19
 
 SECRET_KEY_FILE=secrets/django_secret_key.txt
 PORTAL_BIND_HOST=0.0.0.0
-PORTAL_PORT=8000
+PORTAL_PORT=8001
 PORTAL_THREADS=8
 ```
 
 `DB_DSN` usa `host:puerto/SERVICE_NAME`. Si el DBA entrega un descriptor TNS completo, colóquelo completo en `DB_DSN`. No use un SID como si fuera `SERVICE_NAME`.
 
-La configuración entregada publica inicialmente por HTTP en `172.19.194.219:8000`. Al habilitar HTTPS en IIS o en el proxy aprobado, cambie `CSRF_TRUSTED_ORIGINS` al origen `https://`, y establezca `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE` y `CSRF_COOKIE_SECURE` en `True`. Active `TRUST_X_FORWARDED_PROTO=True` únicamente cuando el proxy elimine cualquier encabezado entrante y establezca por sí mismo `X-Forwarded-Proto`. Active `SECURE_HSTS_PRELOAD=True` solo después de aprobar la inclusión permanente del dominio y sus subdominios en la lista preload de los navegadores.
+La configuración entregada publica inicialmente por HTTP en `172.19.194.219:8001`. Al habilitar HTTPS en IIS o en el proxy aprobado, cambie `CSRF_TRUSTED_ORIGINS` al origen `https://`, y establezca `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE` y `CSRF_COOKIE_SECURE` en `True`. Active `TRUST_X_FORWARDED_PROTO=True` únicamente cuando el proxy elimine cualquier encabezado entrante y establezca por sí mismo `X-Forwarded-Proto`. Active `SECURE_HSTS_PRELOAD=True` solo después de aprobar la inclusión permanente del dominio y sus subdominios en la lista preload de los navegadores.
 
 Cree los secretos sin mostrarlos en pantalla:
 
@@ -183,7 +183,7 @@ publicación para actualizar la tarea.
 Abra **PowerShell como administrador**, sitúese en el repositorio y ejecute:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8000" -AllowInternalHttp
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8001" -Port 8001 -AllowInternalHttp
 ```
 
 El modo HTTP crea una regla de firewall de perfil `Domain` limitada por defecto
@@ -192,7 +192,7 @@ Infraestructura debe entregar los rangos autorizados; se pueden indicar sin
 abrir el puerto a Internet:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8000" -AllowInternalHttp -AllowedRemoteAddress "172.19.0.0/16","10.20.0.0/16"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "http://172.19.194.219:8001" -Port 8001 -AllowInternalHttp -AllowedRemoteAddress "172.19.0.0/16","10.20.0.0/16"
 ```
 
 HTTP interno restringe quién llega al puerto, pero no cifra usuarios,
@@ -205,7 +205,7 @@ las protecciones HTTPS de Django:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\publicar_portal_windows.ps1" -ServiceAccount "claro\c27826" -PublicUrl "https://portal-nc.claro.pe" -BehindHttpsProxy
 ```
 
-En ese modo el proxy debe enviar las solicitudes a `127.0.0.1:8000`, reemplazar
+En ese modo el proxy debe enviar las solicitudes a `127.0.0.1:8001`, reemplazar
 cualquier `X-Forwarded-Proto` recibido del cliente y establecerlo en `https`.
 El script no crea certificados autofirmados porque generarían advertencias en
 los navegadores y no sustituyen un certificado corporativo.
@@ -218,6 +218,7 @@ scripts\portal.cmd start
 scripts\portal.cmd stop
 scripts\portal.cmd restart
 scripts\portal.cmd logs
+# También se acepta: scripts\portal.cmd log
 ```
 
 Los usuarios no instalan nada: abren la `PublicUrl` en Chrome o Edge. Deben
@@ -239,7 +240,7 @@ CORREO_SSH_TIMEOUT=10
 CORREO_SSH_KNOWN_HOSTS=work/correo_known_hosts
 CORREO_REMITENTE_NOMBRE=Portal Claro - Gestión de No Conformidades
 CORREO_REMITENTE_EMAIL=portal-no-conformidades@claro.com.pe
-PORTAL_PUBLIC_URL=http://172.19.194.219:8000
+PORTAL_PUBLIC_URL=http://172.19.194.219:8001
 ```
 
 Confirme con Infraestructura el remitente autorizado antes de usar el valor del ejemplo. Cree el secreto sin mostrarlo ni escribirlo en Git:

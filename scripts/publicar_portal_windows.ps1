@@ -1,9 +1,9 @@
 param(
     [string]$ServiceAccount = "$env:USERDOMAIN\$env:USERNAME",
-    [string]$PublicUrl = "http://172.19.194.219:8000",
+    [string]$PublicUrl = "http://172.19.194.219:8001",
     [string]$TaskName = "PortalNC",
     [ValidateRange(1, 65535)]
-    [int]$Port = 8000,
+    [int]$Port = 8001,
     [ValidateRange(4, 128)]
     [int]$Threads = 8,
     [string[]]$AllowedRemoteAddress = @("LocalSubnet"),

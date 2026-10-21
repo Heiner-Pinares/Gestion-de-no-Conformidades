@@ -90,7 +90,7 @@ def iniciar() -> None:
 
     print(f"OK ESTÁTICOS: CSS, imagen de acceso y WhiteNoise preparados en {raiz_estaticos}.")
     host = os.environ.get("PORTAL_BIND_HOST", "0.0.0.0").strip()
-    puerto = int(os.environ.get("PORTAL_PORT", "8000"))
+    puerto = int(os.environ.get("PORTAL_PORT", "8001"))
     hilos = int(os.environ.get("PORTAL_THREADS", "8"))
     if not (1 <= puerto <= 65535):
         raise RuntimeError("PORTAL_PORT debe estar entre 1 y 65535.")

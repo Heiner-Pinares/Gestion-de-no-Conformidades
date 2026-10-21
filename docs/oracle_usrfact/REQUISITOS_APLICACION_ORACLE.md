@@ -17,7 +17,7 @@ La plantilla `.env.oracle.example` ya contiene la configuración no secreta reci
 - SCAN `scan-dwo.tim.com.pe`, puerto `1521` y `SERVICE_NAME=DWO`;
 - descriptor TNS completo para conexión dedicada;
 - usuario DML de la aplicación (`USRFACSOP`) y esquema propietario (`USRFACT`);
-- servidor web `172.19.194.219`, inicialmente en el puerto `8000`;
+- servidor web `172.19.194.219`, inicialmente en el puerto `8001`;
 - contraseña en `secrets/oracle_password.txt` mediante `DB_PASSWORD_FILE`, nunca dentro del repositorio ni del `.env`;
 - `SECRET_KEY` en `secrets/django_secret_key.txt`.
 - `ORACLE_THICK_MODE=True` y `ORACLE_CLIENT_LIB_DIR=C:/oracle/instantclient_19`.

@@ -1,7 +1,7 @@
 param(
     [string]$BindHost = "0.0.0.0",
     [ValidateRange(1, 65535)]
-    [int]$Port = 8000,
+    [int]$Port = 8001,
     [ValidateRange(4, 128)]
     [int]$Threads = 8,
     [string]$RuntimeRoot = "$env:ProgramData\PortalNC"

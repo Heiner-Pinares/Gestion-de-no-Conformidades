@@ -1,14 +1,15 @@
 param(
-    [ValidateSet("start", "stop", "restart", "status", "logs")]
+    [ValidateSet("start", "stop", "restart", "status", "log", "logs")]
     [string]$Action = "status",
     [string]$TaskName = "PortalNC",
     [ValidateRange(1, 65535)]
-    [int]$Port = 8000,
+    [int]$Port = 8001,
     [string]$RuntimeRoot = "$env:ProgramData\PortalNC"
 )
 
 $ErrorActionPreference = "Stop"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
+if ($Action -eq "log") { $Action = "logs" }
 
 function Get-PortalTask {
     $Task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -25,6 +26,18 @@ function Wait-PortalStopped {
         $State = (Get-ScheduledTask -TaskName $TaskName).State
     } while ($State -eq "Running" -and (Get-Date) -lt $Deadline)
     if ($State -eq "Running") { throw "La tarea no se detuvo dentro de 20 segundos." }
+}
+
+function Test-PortalPort {
+    $Client = [Net.Sockets.TcpClient]::new()
+    try {
+        $Result = $Client.BeginConnect("127.0.0.1", $Port, $null, $null)
+        if (-not $Result.AsyncWaitHandle.WaitOne(1000)) { return $false }
+        $Client.EndConnect($Result)
+        return $true
+    }
+    catch { return $false }
+    finally { $Client.Dispose() }
 }
 
 switch ($Action) {
@@ -53,11 +66,17 @@ switch ($Action) {
     "status" {
         $Task = Get-PortalTask
         $Info = Get-ScheduledTaskInfo -TaskName $TaskName
+        $ResultDescription = switch ($Info.LastTaskResult) {
+            0 { "0 (ultima ejecucion finalizo correctamente)" }
+            267009 { "267009 (la tarea continua en ejecucion)" }
+            default { "$($Info.LastTaskResult) (revise el log si la tarea no esta en ejecucion)" }
+        }
+        $PortState = if (Test-PortalPort) { "abierto" } else { "cerrado" }
         Write-Host "Tarea: $TaskName"
         Write-Host "Estado: $($Task.State)"
         Write-Host "Ultimo inicio: $($Info.LastRunTime)"
-        Write-Host "Ultimo resultado: $($Info.LastTaskResult)"
-        Write-Host "Puerto local: $Port"
+        Write-Host "Ultimo resultado: $ResultDescription"
+        Write-Host "Puerto local: $Port ($PortState)"
         Write-Host "Logs: $LogDirectory"
     }
     "logs" {
