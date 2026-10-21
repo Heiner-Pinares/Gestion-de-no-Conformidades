@@ -276,7 +276,7 @@ if ($Task.State -ne "Running" -or -not (Test-TcpPort -HostName "127.0.0.1" -Targ
     if ($LatestLog) {
         Write-Host "Ultimas lineas de $($LatestLog.FullName):"
         try {
-            Get-Content $LatestLog.FullName -Tail 30 -ErrorAction Stop
+            Get-Content $LatestLog.FullName -Tail 30 -Encoding UTF8 -ErrorAction Stop
         }
         catch {
             Write-Warning "No se pudo leer el log durante el diagnostico: $($_.Exception.Message)"

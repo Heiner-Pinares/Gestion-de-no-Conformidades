@@ -42,17 +42,29 @@ try {
     $env:PORTAL_PORT = [string]$Port
     $env:PORTAL_THREADS = [string]$Threads
     $env:PYTHONUNBUFFERED = "1"
+    $env:PYTHONUTF8 = "1"
+    $env:PYTHONIOENCODING = "utf-8"
 
     Set-Location $ProjectRoot
     Write-PortalLog "Inicio solicitado en ${BindHost}:${Port} con ${Threads} hilos."
     # Escribir cada linea abriendo y cerrando el archivo permite consultar el
     # log mientras Waitress sigue activo. La redireccion *>> mantiene el archivo
     # bloqueado durante toda la vida del proceso en Windows PowerShell 5.1.
-    & $Python -u "run.py" "start" 2>&1 | ForEach-Object {
-        $OutputLine = [string]$_
-        [IO.File]::AppendAllText($LogPath, "$OutputLine`r`n", [Text.UTF8Encoding]::new($false))
+    # Django escribe las advertencias de check --deploy por stderr. En Windows
+    # PowerShell 5.1, ErrorActionPreference=Stop convertiria esas advertencias
+    # de un programa nativo en una excepcion y cerraria el portal.
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Python -u "run.py" "start" 2>&1 | ForEach-Object {
+            $OutputLine = [string]$_
+            [IO.File]::AppendAllText($LogPath, "$OutputLine`r`n", [Text.UTF8Encoding]::new($false))
+        }
+        $ExitCode = $LASTEXITCODE
     }
-    $ExitCode = $LASTEXITCODE
+    finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
     Write-PortalLog "El proceso termino con codigo $ExitCode."
     exit $ExitCode
 }

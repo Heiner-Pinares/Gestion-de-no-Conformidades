@@ -85,6 +85,6 @@ switch ($Action) {
             Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if (-not $LatestLog) { throw "Todavia no existe un log en $LogDirectory." }
         Write-Host "Log: $($LatestLog.FullName)"
-        Get-Content $LatestLog.FullName -Tail 100
+        Get-Content $LatestLog.FullName -Tail 100 -Encoding UTF8
     }
 }
