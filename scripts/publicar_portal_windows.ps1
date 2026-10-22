@@ -210,12 +210,15 @@ Write-Host "Preparando archivos estaticos antes de iniciar la tarea..."
 if ($LASTEXITCODE -ne 0) {
     throw "No se pudieron preparar los archivos estaticos. No se registro la tarea automatica."
 }
-$StaticAcl = @(
-    "${ServiceAccount}:(OI)(CI)M",
-    "SYSTEM:(OI)(CI)F",
-    "BUILTIN\Administrators:(OI)(CI)F"
-)
-Set-ExplicitAcl -Path $StaticRoot -AccessEntries $StaticAcl -Recursive
+# No vuelva a reemplazar las ACL archivo por archivo. Los recursos se crean
+# dentro de work y heredan el permiso de modificacion concedido arriba a la
+# cuenta de servicio. Reescribir las ACL despues de collectstatic dejaba el
+# manifiesto sin acceso efectivo en algunas sesiones del Programador de tareas.
+$StaticAccess = "${ServiceAccount}:(OI)(CI)F"
+& icacls $StaticRoot /grant $StaticAccess /T /C | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Los estaticos se generaron, pero no se pudo conceder acceso a $ServiceAccount."
+}
 
 $PowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $Arguments = @(
