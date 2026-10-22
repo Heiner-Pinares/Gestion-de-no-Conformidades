@@ -19,7 +19,7 @@ $Runner = Join-Path $PSScriptRoot "ejecutar_portal_windows.ps1"
 $SecretsDirectory = Join-Path $ProjectRoot "secrets"
 $WorkDirectory = Join-Path $ProjectRoot "work"
 $RuntimeRoot = Join-Path $env:ProgramData "PortalNC"
-$StaticRoot = Join-Path $RuntimeRoot "staticfiles"
+$StaticRoot = Join-Path $WorkDirectory "staticfiles"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
 $KnownHostsPath = Join-Path $SecretsDirectory "correo_known_hosts"
 $FirewallRule = "Portal NC - acceso interno"
@@ -110,6 +110,9 @@ try {
 }
 catch {
     throw "PublicUrl no es una URL valida. Use http://host:puerto o https://dominio."
+}
+if ($PublicUrl -match '[\[\]\(\)]') {
+    throw "PublicUrl contiene formato Markdown. Use la URL directa, por ejemplo http://172.19.194.219:8001"
 }
 if ($Uri.Scheme -notin @("http", "https") -or [string]::IsNullOrWhiteSpace($Uri.Host)) {
     throw "PublicUrl debe comenzar con http:// o https:// y contener un host."
