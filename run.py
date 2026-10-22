@@ -15,6 +15,11 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
+ARCHIVOS_ESTATICOS_REQUERIDOS = (
+    "css/portal-v8.css",
+    "css/portal.css",
+    "images/login-background-claro.png",
+)
 sys.path.insert(0, str(BASE_DIR))
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
@@ -68,8 +73,22 @@ def verificar_correo() -> None:
             raise FileNotFoundError(str(known_hosts))
         claves = paramiko.HostKeys(str(known_hosts))
     except (OSError, paramiko.SSHException) as error:
+        if not known_hosts.exists():
+            detalle = "el archivo no existe"
+        elif not known_hosts.is_file():
+            detalle = "la ruta no es un archivo"
+        else:
+            try:
+                detalle = (
+                    "el archivo está vacío"
+                    if known_hosts.stat().st_size == 0
+                    else "el archivo no puede leerse o no tiene formato known_hosts"
+                )
+            except OSError:
+                detalle = "la cuenta que ejecuta el portal no puede consultar el archivo"
         raise RuntimeError(
-            "Falta preparar la identidad SSH del correo. Ejecute como administrador "
+            "Falta preparar la identidad SSH del correo: "
+            f"{detalle}. Ruta evaluada: {known_hosts}. Ejecute como administrador "
             "scripts\\preparar_identidad_correo_windows.ps1."
         ) from error
 
@@ -78,7 +97,8 @@ def verificar_correo() -> None:
     nombre_host = host if port == 22 else f"[{host}]:{port}"
     if not claves.lookup(nombre_host):
         raise RuntimeError(
-            "El archivo de identidad SSH no corresponde al host de correo configurado."
+            "El archivo de identidad SSH no corresponde al host de correo "
+            f"{nombre_host}. Ruta evaluada: {known_hosts}."
         )
     print(f"OK CORREO: identidad SSH fijada y legible en {known_hosts}.")
 
@@ -103,40 +123,58 @@ def verificar_directorio_estaticos(ruta: Path) -> None:
         ) from error
 
 
-def iniciar() -> None:
-    verificar()
-    from django.conf import settings
-    from django.core.management import call_command
-    from waitress import serve
+def comprobar_archivos_estaticos(raiz_estaticos: Path) -> None:
+    """Comprueba que la publicación ya contiene los recursos indispensables."""
 
-    # WhiteNoise construye su inventario al crear la aplicación WSGI. En una
-    # instalación nueva debemos recolectar primero; si se importa WSGI antes,
-    # el proceso conserva un inventario vacío y el portal aparece sin CSS.
-    raiz_estaticos = Path(settings.STATIC_ROOT)
-    verificar_directorio_estaticos(raiz_estaticos)
-    # No usar clear=True: borrar todos los archivos en cada arranque provocaba
-    # fallos de permisos en Windows y no aporta nada al manifiesto versionado.
-    call_command("collectstatic", interactive=False, verbosity=1, clear=False)
-    requeridos = (
-        "css/portal-v8.css",
-        "css/portal.css",
-        "images/login-background-claro.png",
-    )
     faltantes = [
-        nombre for nombre in requeridos
+        nombre
+        for nombre in ARCHIVOS_ESTATICOS_REQUERIDOS
         if not (raiz_estaticos / Path(nombre)).is_file()
     ]
+    manifiesto = raiz_estaticos / "staticfiles.json"
+    if not manifiesto.is_file():
+        faltantes.append("staticfiles.json")
     if faltantes:
         raise RuntimeError(
-            "collectstatic no generó archivos indispensables: "
-            + ", ".join(faltantes)
+            "Faltan archivos estáticos publicados: " + ", ".join(faltantes)
         )
 
-    # Debe importarse después de collectstatic para que WhiteNoise encuentre
-    # los archivos recién creados.
+
+def recolectar_archivos_estaticos() -> None:
+    """Genera estáticos durante instalación o inicio manual."""
+
+    from django.conf import settings
+    from django.core.management import call_command
+
+    raiz_estaticos = Path(settings.STATIC_ROOT)
+    verificar_directorio_estaticos(raiz_estaticos)
+    call_command("collectstatic", interactive=False, verbosity=1, clear=False)
+    comprobar_archivos_estaticos(raiz_estaticos)
+    print(f"OK ESTÁTICOS: recursos preparados en {raiz_estaticos}.")
+
+
+def preparar_estaticos() -> None:
+    preparar_django()
+    recolectar_archivos_estaticos()
+
+
+def iniciar(*, recolectar: bool = True) -> None:
+    verificar()
+    from django.conf import settings
+    from waitress import serve
+
+    raiz_estaticos = Path(settings.STATIC_ROOT)
+    if recolectar:
+        # El arranque manual conserva la comodidad anterior.
+        recolectar_archivos_estaticos()
+    else:
+        # La tarea programada usa recursos preparados por el publicador y solo
+        # necesita lectura. Así no escribe en ProgramData durante el servicio.
+        comprobar_archivos_estaticos(raiz_estaticos)
+        print(f"OK ESTÁTICOS: recursos publicados disponibles en {raiz_estaticos}.")
+
     from config.wsgi import application
 
-    print(f"OK ESTÁTICOS: CSS, imagen de acceso y WhiteNoise preparados en {raiz_estaticos}.")
     host = os.environ.get("PORTAL_BIND_HOST", "0.0.0.0").strip()
     puerto = int(os.environ.get("PORTAL_PORT", "8001"))
     hilos = int(os.environ.get("PORTAL_THREADS", "8"))
@@ -160,6 +198,11 @@ def parser() -> argparse.ArgumentParser:
     sub = analizador.add_subparsers(dest="comando", required=True)
     sub.add_parser("check", help="Comprueba Oracle y Django sin iniciar el portal")
     sub.add_parser("start", help="Comprueba, recolecta estáticos e inicia Waitress")
+    sub.add_parser(
+        "serve",
+        help="Inicia Waitress usando los estáticos preparados por el publicador",
+    )
+    sub.add_parser("static", help="Recolecta y comprueba los archivos estáticos")
     sub.add_parser("createsuperuser", help="Comprueba el esquema y crea un superusuario")
     return analizador
 
@@ -170,6 +213,10 @@ def main() -> int:
         verificar()
     elif argumentos.comando == "start":
         iniciar()
+    elif argumentos.comando == "serve":
+        iniciar(recolectar=False)
+    elif argumentos.comando == "static":
+        preparar_estaticos()
     elif argumentos.comando == "createsuperuser":
         crear_superusuario()
     return 0

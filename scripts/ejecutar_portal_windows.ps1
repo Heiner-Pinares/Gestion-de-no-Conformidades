@@ -56,7 +56,7 @@ try {
     $PreviousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        & $Python -u "run.py" "start" 2>&1 | ForEach-Object {
+        & $Python -u "run.py" "serve" 2>&1 | ForEach-Object {
             $OutputLine = [string]$_
             [IO.File]::AppendAllText($LogPath, "$OutputLine`r`n", [Text.UTF8Encoding]::new($false))
         }

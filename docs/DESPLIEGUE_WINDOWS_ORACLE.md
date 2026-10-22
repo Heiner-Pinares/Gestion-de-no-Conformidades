@@ -170,6 +170,7 @@ script de publicación usa esos componentes para mantener Waitress en ejecución
 - reinicia el proceso un minuto después de una falla;
 - impide dos instancias simultáneas;
 - guarda los logs y los estáticos en `C:\ProgramData\PortalNC`;
+- recolecta los estáticos durante la publicación y la tarea solo los lee al arrancar;
 - ejecuta primero `run.py check` y no registra la tarea si Oracle o Django fallan;
 - no instala NSSM, IIS, Apache, Nginx ni paquetes de Python adicionales.
 

@@ -61,4 +61,25 @@ if ($LASTEXITCODE -ne 0) {
     throw "La identidad se obtuvo, pero no se pudieron restringir sus permisos."
 }
 
+if (-not (Test-Path $KnownHostsPath -PathType Leaf)) {
+    throw "La preparacion termino sin crear $KnownHostsPath."
+}
+$KnownHostsItem = Get-Item $KnownHostsPath -ErrorAction Stop
+if ($KnownHostsItem.Length -le 0) {
+    throw "El archivo $KnownHostsPath quedo vacio."
+}
+try {
+    $Reader = [IO.File]::OpenRead($KnownHostsPath)
+    $Reader.Dispose()
+}
+catch {
+    throw "La cuenta actual no puede leer $KnownHostsPath. $($_.Exception.Message)"
+}
+
+$ConfiguredLine = Select-String -Path $EnvPath -Pattern '^CORREO_SSH_KNOWN_HOSTS=' | Select-Object -Last 1
+if (-not $ConfiguredLine -or $ConfiguredLine.Line -ne "CORREO_SSH_KNOWN_HOSTS=$($KnownHostsPath.Replace('\', '/'))") {
+    throw "No se pudo confirmar CORREO_SSH_KNOWN_HOSTS en .env."
+}
+
 Write-Host "Identidad SSH lista. El portal solo necesita leer $KnownHostsPath."
+Write-Host "Archivo verificado: $($KnownHostsItem.Length) bytes."

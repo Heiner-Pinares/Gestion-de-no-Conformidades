@@ -202,6 +202,18 @@ if ($LASTEXITCODE -ne 0) {
     throw "La validacion del portal fallo. No se registro la tarea automatica."
 }
 
+Write-Host "Preparando archivos estaticos antes de iniciar la tarea..."
+& $Python "run.py" "static"
+if ($LASTEXITCODE -ne 0) {
+    throw "No se pudieron preparar los archivos estaticos. No se registro la tarea automatica."
+}
+$StaticAcl = @(
+    "${ServiceAccount}:(OI)(CI)M",
+    "SYSTEM:(OI)(CI)F",
+    "BUILTIN\Administrators:(OI)(CI)F"
+)
+Set-ExplicitAcl -Path $StaticRoot -AccessEntries $StaticAcl -Recursive
+
 $PowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
 $Arguments = @(
     "-NoProfile",
@@ -241,6 +253,13 @@ try {
         if ((Get-ScheduledTask -TaskName $TaskName).State -eq "Running") {
             throw "La tarea existente no pudo detenerse. No se reemplazo su configuracion."
         }
+    }
+    $PortDeadline = (Get-Date).AddSeconds(10)
+    while ((Test-TcpPort -HostName "127.0.0.1" -TargetPort $Port) -and (Get-Date) -lt $PortDeadline) {
+        Start-Sleep -Milliseconds 500
+    }
+    if (Test-TcpPort -HostName "127.0.0.1" -TargetPort $Port) {
+        throw "El puerto $Port sigue ocupado por otro proceso. Detenga el run.py start manual antes de publicar."
     }
     try {
         Register-ScheduledTask `
