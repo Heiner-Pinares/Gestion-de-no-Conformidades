@@ -171,6 +171,7 @@ script de publicación usa esos componentes para mantener Waitress en ejecución
 - impide dos instancias simultáneas;
 - guarda los logs en `C:\ProgramData\PortalNC` y los estáticos en `work\staticfiles`;
 - recolecta los estáticos durante la publicación y la tarea solo los lee al arrancar;
+- si Windows aísla el manifiesto generado, la tarea sirve los recursos versionados desde `static` sin escribir en el checkout;
 - ejecuta primero `run.py check` y no registra la tarea si Oracle o Django fallan;
 - no instala NSSM, IIS, Apache, Nginx ni paquetes de Python adicionales.
 

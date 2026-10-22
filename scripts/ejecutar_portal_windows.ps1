@@ -41,6 +41,7 @@ try {
     $env:PORTAL_BIND_HOST = $BindHost
     $env:PORTAL_PORT = [string]$Port
     $env:PORTAL_THREADS = [string]$Threads
+    $env:PORTAL_STATIC_SOURCE_MODE = "True"
     $env:PYTHONUNBUFFERED = "1"
     $env:PYTHONUTF8 = "1"
     $env:PYTHONIOENCODING = "utf-8"

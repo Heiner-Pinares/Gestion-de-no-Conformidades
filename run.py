@@ -123,7 +123,9 @@ def verificar_directorio_estaticos(ruta: Path) -> None:
         ) from error
 
 
-def comprobar_archivos_estaticos(raiz_estaticos: Path) -> None:
+def comprobar_archivos_estaticos(
+    raiz_estaticos: Path, *, exigir_manifiesto: bool = True
+) -> None:
     """Comprueba que la publicación ya contiene los recursos indispensables."""
 
     faltantes = [
@@ -131,9 +133,10 @@ def comprobar_archivos_estaticos(raiz_estaticos: Path) -> None:
         for nombre in ARCHIVOS_ESTATICOS_REQUERIDOS
         if not (raiz_estaticos / Path(nombre)).is_file()
     ]
-    manifiesto = raiz_estaticos / "staticfiles.json"
-    if not manifiesto.is_file():
-        faltantes.append("staticfiles.json")
+    if exigir_manifiesto:
+        manifiesto = raiz_estaticos / "staticfiles.json"
+        if not manifiesto.is_file():
+            faltantes.append("staticfiles.json")
     if faltantes:
         raise RuntimeError(
             "Faltan archivos estáticos publicados: " + ", ".join(faltantes)
@@ -167,6 +170,15 @@ def iniciar(*, recolectar: bool = True) -> None:
     if recolectar:
         # El arranque manual conserva la comodidad anterior.
         recolectar_archivos_estaticos()
+    elif settings.PORTAL_STATIC_SOURCE_MODE:
+        raiz_estaticos = BASE_DIR / "static"
+        comprobar_archivos_estaticos(
+            raiz_estaticos, exigir_manifiesto=False
+        )
+        print(
+            "OK ESTÁTICOS: WhiteNoise usará los recursos versionados en "
+            f"{raiz_estaticos}."
+        )
     else:
         # La tarea programada usa recursos preparados por el publicador y solo
         # necesita lectura. Así no escribe en ProgramData durante el servicio.

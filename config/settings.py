@@ -155,6 +155,7 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+PORTAL_STATIC_SOURCE_MODE = env.bool("PORTAL_STATIC_SOURCE_MODE", default=False)
 
 
 def _static_root_predeterminado() -> Path:
@@ -178,9 +179,17 @@ STATIC_ROOT = Path(env("STATIC_ROOT", default=str(_static_root_predeterminado())
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage"
+            if PORTAL_STATIC_SOURCE_MODE
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
     },
 }
+# El servicio programado puede leer el checkout, pero algunos servidores
+# bloquean el manifiesto generado por una sesión administrativa diferente.
+# En ese modo WhiteNoise resuelve únicamente los directorios static declarados.
+WHITENOISE_USE_FINDERS = PORTAL_STATIC_SOURCE_MODE
 # Durante pruebas y despliegues graduales permite resolver desde STATICFILES_DIRS;
 # run.py siempre ejecuta collectstatic antes de abrir el puerto de producción.
 WHITENOISE_MANIFEST_STRICT = False
