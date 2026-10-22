@@ -1443,7 +1443,7 @@ class Recorridos(TestCase):
         self.assertContains(pantalla, 'name="r_1_1"', count=3)
         self.assertContains(pantalla, '4.1.7')
         self.assertContains(pantalla, 'Completar y habilitar paso 3')
-        d={'causa_raiz':'Causa comprobada','finalizar':'1'}
+        d={'causa_categoria':'METODO','causa_raiz':'Causa comprobada','finalizar':'1'}
         for p in PreguntaCausa.objects.all(): d['r_'+p.codigo.replace('.','_')]='NO'
         respuesta = self.client.post(reverse('hallazgo_causa',args=[h.pk]),d)
         self.assertEqual(respuesta.status_code,302)
@@ -1452,6 +1452,24 @@ class Recorridos(TestCase):
         self.assertEqual(h.estado, 'PBI_EN_GESTION')
         self.assertEqual(self.client.get(reverse('hallazgo_pbi',args=[h.pk])).status_code,200)
         self.assertEqual(self.client.get(reverse('hallazgo_detalle',args=[h.pk])).status_code,200)
+
+    def test_causa_raiz_exige_categoria_y_descripcion_al_completar(self):
+        h=self.crear(es_critica='SI');self.inmediata(h);self.paso(h,'iniciar_analisis')
+        self.client.force_login(self.usuario)
+        datos={'finalizar':'1'}
+        for p in PreguntaCausa.objects.all():
+            if p.texto.strip().rstrip(':').casefold() != 'otro':
+                datos['r_'+p.codigo.replace('.','_')]='NO'
+        incompleto=self.client.post(reverse('hallazgo_causa',args=[h.pk]),datos)
+        self.assertEqual(incompleto.status_code,200)
+        self.assertContains(incompleto,'Selecciona la categoría de la causa raíz.')
+        self.assertContains(incompleto,'Describe la causa raíz antes de completar el análisis.')
+        datos.update(causa_categoria='MANO_OBRA',causa_raiz='Falta de capacitación específica.')
+        completo=self.client.post(reverse('hallazgo_causa',args=[h.pk]),datos)
+        self.assertEqual(completo.status_code,302)
+        h.refresh_from_db()
+        self.assertEqual(h.ciclo_actual.control['causa_categoria'],'MANO_OBRA')
+        self.assertEqual(h.ciclo_actual.causa_raiz,'Falta de capacitación específica.')
 
     def test_no_edicion_ajena_http_y_xss(self):
         h=self.crear(titulo='<script>alert(1)</script>');self.client.force_login(self.ajeno)

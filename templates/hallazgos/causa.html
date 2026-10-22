@@ -15,7 +15,6 @@
 
   <form method="post" class="spaced" data-cause-form>
     {% csrf_token %}
-    {{ form.causa_raiz }}
     {% if form.non_field_errors %}<div class="form-errors" role="alert">{{ form.non_field_errors }}</div>{% endif %}
 
     <section class="card checklist-card cause-card">
@@ -130,6 +129,26 @@
           </details>
         {% endfor %}
       </div>
+
+      <section class="root-cause-summary" aria-labelledby="root-cause-title">
+        <div class="root-cause-heading">
+          <h2 id="root-cause-title">Causa raíz</h2>
+          <p>Selecciona la categoría 6M principal y describe la causa identificada.</p>
+        </div>
+        <div class="root-cause-fields">
+          <div class="field root-cause-category">
+            <label for="{{ form.causa_categoria.id_for_label }}">{{ form.causa_categoria.label }} <span aria-hidden="true">*</span></label>
+            {{ form.causa_categoria }}
+            {{ form.causa_categoria.errors }}
+          </div>
+          <div class="field root-cause-description">
+            <label for="{{ form.causa_raiz.id_for_label }}">{{ form.causa_raiz.label }} <span aria-hidden="true">*</span></label>
+            {{ form.causa_raiz }}
+            {{ form.causa_raiz.errors }}
+          </div>
+        </div>
+        <p class="root-cause-help">Puedes guardar el checklist como borrador. Ambos campos serán obligatorios al completar el análisis.</p>
+      </section>
 
       <div class="form-actions cause-actions">
         <a class="btn" href="{% url 'hallazgo_editar' hallazgo.pk %}">Volver a identificación</a>

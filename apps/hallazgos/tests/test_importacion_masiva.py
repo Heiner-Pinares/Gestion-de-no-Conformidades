@@ -15,10 +15,11 @@ from apps.hallazgos.models import Accion, EvaluacionEficacia, Hallazgo, Historia
 class ImportacionMasivaTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.admin = Usuario.objects.create_user("admin.carga", password="Clave-de-prueba-2026!", roles=["ADMINISTRADOR"])
-        cls.usuario = Usuario.objects.create_user("responsable.carga", password="Clave-de-prueba-2026!", roles=["USUARIO"], area="Facturación")
+        cls.admin = Usuario.objects.create_user("admin.carga", password="Clave-de-prueba-2026!", roles=["ADMINISTRADOR"], first_name="Juan Carlos", last_name="Tello")
+        cls.usuario = Usuario.objects.create_user("responsable.carga", password="Clave-de-prueba-2026!", roles=["USUARIO"], area="Facturación", first_name="Walter", last_name="Ramírez")
         cls.calidad = Usuario.objects.create_user("calidad.carga", password="Clave-de-prueba-2026!", roles=["VALIDADOR"])
         cls.tipo = Catalogo.objects.create(clase="TIPO", codigo="NOC", nombre="No conforme", orden=1)
+        cls.fuente = Catalogo.objects.create(clase="FUENTE", codigo="AUDITORIA", nombre="Hallazgo de auditoría", orden=1)
         cls.proceso = Proceso.objects.create(nombre="Facturacion", gerencia="Operaciones Comerciales", responsable=cls.usuario)
 
     def hojas(self):
@@ -129,3 +130,52 @@ class ImportacionMasivaTests(TestCase):
         self.assertEqual(hallazgo.responsable, self.usuario)
         self.assertEqual(hallazgo.registrado_por, self.usuario)
         self.assertFalse(hallazgo.ciclos.exists())
+
+    def test_acepta_formato_ntt_con_nombres_visibles_y_porcentajes_excel(self):
+        hoy = timezone.localdate()
+        hojas = {
+            "Carga masiva": [{
+                "__fila__": 2,
+                "Código hallazgo *": "NTT-001",
+                "Título *": "Hallazgo histórico NTT",
+                "Descripción hallazgo": "Descripción del hallazgo",
+                "Tipo (código) *": "NOC",
+                "Fuente (código)": "Hallazgo de auditoría",
+                "Proceso *": "Facturación",
+                "Responsable hallazgo *": "Walter Ramirez",
+                "Registrado por": "Juan Carlos Tello",
+                "Fecha registro *": hoy,
+                "Estado hallazgo *": "",
+                "Aplica impacto *": "NO",
+                "Es crítica": "SI",
+                "Origen tecnológico": "NO",
+                "Causa raíz": "MANO_DE_OBRA",
+                "Descripcion de la causa": "Faltó capacitación específica.",
+                "Tipo compromiso": "ACCION_CORRECTIVA",
+                "Descripción compromiso": "Capacitar al equipo",
+                "Responsable compromiso": "Walter Ramírez",
+                "Inicio compromiso": hoy,
+                "Fecha fin estimada": hoy + timedelta(days=10),
+                "Estado compromiso": "PENDIENTE",
+                "Avance %": 0.9,
+                "Comentario compromiso": "Avance informado por el responsable",
+            }]
+        }
+
+        resumen = ImportadorMasivo(
+            hojas=hojas, ejecutado_por=self.admin
+        ).preparar().guardar()
+
+        self.assertEqual(resumen["hallazgos"], 1)
+        hallazgo = Hallazgo.objects.get(codigo="NTT-001")
+        self.assertEqual(hallazgo.fuente_deteccion, self.fuente)
+        self.assertEqual(hallazgo.registrado_por, self.admin)
+        self.assertEqual(hallazgo.estado, "EN_IMPLEMENTACION")
+        ciclo = hallazgo.ciclos.get()
+        self.assertEqual(ciclo.control["causa_categoria"], "MANO_OBRA")
+        self.assertEqual(ciclo.causa_raiz, "Faltó capacitación específica.")
+        accion = ciclo.acciones.get()
+        self.assertEqual(accion.tipo, "CORRECTIVA")
+        self.assertEqual(accion.estado, "EN_PROCESO")
+        self.assertEqual(accion.porcentaje_avance, 90)
+        self.assertEqual(accion.fet_inicial, hoy + timedelta(days=10))

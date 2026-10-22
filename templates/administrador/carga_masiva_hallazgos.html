@@ -9,8 +9,9 @@
 <section class="admin-panel admin-import-panel">
   <div class="admin-import-notice">
     <strong>Una fila representa un compromiso.</strong>
-    <p>La plantilla contiene solo 18 columnas. Complete siempre las 7 columnas rojas. Las columnas amarillas son opcionales para impacto; las azules se usan cuando existe un compromiso y las verdes únicamente para hallazgos cerrados.</p>
-    <p>El portal genera el código del compromiso y completa responsable, fecha de inicio, fecha vigente y resultado esperado. Si un hallazgo tiene varios compromisos, repita su código y agregue uno por fila. Valide antes de importar: si encuentra un error, no guardará ninguna fila.</p>
+    <p>La plantilla oficial contiene 30 columnas en una sola hoja. Las columnas rojas identifican el hallazgo, la columna dorada clasifica la causa raíz y las columnas azules describen el compromiso. Los desplegables del Excel muestran los valores aceptados.</p>
+    <p>Puedes escribir el usuario, correo o nombre completo de una persona activa. Si dejas vacío el estado del hallazgo, el portal lo determina a partir de sus compromisos. El avance admite el formato de Excel, por ejemplo 90%.</p>
+    <p>Si un hallazgo tiene varios compromisos, repite su código y agrega un compromiso por fila. Valida antes de importar: si encuentra un error, no guardará ninguna fila.</p>
   </div>
   <form method="post" enctype="multipart/form-data" class="admin-form">
     {% csrf_token %}

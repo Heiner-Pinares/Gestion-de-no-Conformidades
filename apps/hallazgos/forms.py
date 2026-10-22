@@ -13,6 +13,14 @@ from .services.hallazgo import CAMPOS_HALLAZGO
 
 FECHA = forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d")
 FECHA_HORA = forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M")
+CAUSA_CATEGORIAS = [
+    ("METODO", "Método"),
+    ("MANO_OBRA", "Mano de obra"),
+    ("MAQUINARIA", "Maquinaria"),
+    ("MEDICION", "Medición"),
+    ("MEDIO_TRABAJO", "Medio de trabajo"),
+    ("MATERIAL", "Material"),
+]
 
 
 class SubprocesoSelect(forms.Select):
@@ -278,7 +286,19 @@ class TransicionForm(EstiloForm, forms.Form):
 
 
 class AnalisisCausaForm(EstiloForm, forms.Form):
-    causa_raiz = forms.CharField(required=False, widget=forms.HiddenInput)
+    causa_categoria = forms.ChoiceField(
+        label="Categoría de la causa raíz",
+        required=False,
+        choices=[("", "Seleccionar categoría")] + CAUSA_CATEGORIAS,
+    )
+    causa_raiz = forms.CharField(
+        label="Descripción de la causa raíz",
+        required=False,
+        widget=forms.Textarea(attrs={
+            "rows": 4,
+            "placeholder": "Describe de forma clara la causa raíz identificada...",
+        }),
+    )
     control_tipos = forms.MultipleChoiceField(
         label="Tipo de control",
         required=False,
@@ -353,12 +373,19 @@ class AnalisisCausaForm(EstiloForm, forms.Form):
         self.categorias = list(grupos.values())
         if instance:
             self.initial["causa_raiz"] = instance.causa_raiz
-            for nombre, valor in instance.control.items():
-                self.initial[f"control_{nombre}"] = valor
+            self.initial["causa_categoria"] = instance.control.get("causa_categoria", "")
+            for nombre in ("tipos", "nombre", "descripcion", "mitiga_riesgo", "frecuencia", "responsable", "evidencia"):
+                if nombre in instance.control:
+                    self.initial[f"control_{nombre}"] = instance.control[nombre]
         self.estilizar()
 
     def clean(self):
         datos = super().clean()
+        if self.data.get("finalizar") == "1":
+            if not datos.get("causa_categoria"):
+                self.add_error("causa_categoria", "Selecciona la categoría de la causa raíz.")
+            if not datos.get("causa_raiz", "").strip():
+                self.add_error("causa_raiz", "Describe la causa raíz antes de completar el análisis.")
         for pregunta in self.preguntas_otro:
             nombre = pregunta.codigo.replace(".", "_")
             if not datos.get(f"a_{nombre}"):
@@ -388,7 +415,8 @@ class AnalisisCausaForm(EstiloForm, forms.Form):
                 "respuesta": self.cleaned_data[f"r_{nombre}"],
                 "comentario": self.cleaned_data.get(f"c_{nombre}", ""),
             })
-        return {"causa_raiz": self.cleaned_data["causa_raiz"], "respuestas": respuestas,
+        return {"causa_categoria": self.cleaned_data["causa_categoria"],
+            "causa_raiz": self.cleaned_data["causa_raiz"], "respuestas": respuestas,
             "otros_activos": otros_activos,
             "control": {nombre: self.cleaned_data[f"control_{nombre}"] for nombre in ("tipos", "nombre", "descripcion", "mitiga_riesgo", "frecuencia", "responsable", "evidencia")}}
 

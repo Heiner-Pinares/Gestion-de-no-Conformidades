@@ -46,6 +46,19 @@
 .control-details.is-disabled{background:#fbfcfd;color:#a0a8b4}
 .control-details.is-disabled .control-code,.control-details.is-disabled .control-label{color:#a0a8b4}
 .control-details.is-disabled input{background:#fafbfc;color:#a0a8b4}
+.root-cause-summary{margin:8px 20px 0;border:1px solid #dbe3ed;border-radius:12px;background:#f8fafc;padding:22px}
+.root-cause-heading h2{margin:0;color:#1f2f49;font-size:21px}
+.root-cause-heading p{margin:6px 0 0;color:#60708a}
+.root-cause-fields{display:grid;grid-template-columns:minmax(240px,32%) minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}
+.root-cause-fields .field{display:grid;gap:7px}
+.root-cause-fields label{font-weight:800;color:#24344d}
+.root-cause-fields label span{color:#e30613}
+.root-cause-fields select,.root-cause-fields textarea{width:100%;border:1px solid #cbd6e3;border-radius:8px;background:#fff;color:#24344d;padding:10px 12px}
+.root-cause-fields select{min-height:44px}
+.root-cause-fields textarea{min-height:112px;resize:vertical}
+.root-cause-fields select:focus,.root-cause-fields textarea:focus{outline:2px solid #cfe2ff;border-color:#1677ff}
+.root-cause-fields .errorlist{margin:0;padding:0;list-style:none;color:#b0000a;font-size:13px}
+.root-cause-help{margin:12px 0 0;color:#60708a;font-size:13px}
 .cause-card .cause-actions{padding:18px 22px 20px}
 .cause-card .cause-actions>.btn{min-width:195px}
 .cause-card .cause-actions .toolbar .btn{min-width:220px}
@@ -55,6 +68,8 @@
   .cause-card .cause-intro{font-size:14px;padding:14px 18px}
   .cause-card .cause-accordion-list{padding:12px}
   .cause-card details.cause-accordion summary{min-height:68px;font-size:15px;padding:12px 14px}
+  .root-cause-summary{margin:6px 12px 0;padding:17px}
+  .root-cause-fields{grid-template-columns:1fr}
   .cause-card .cause-actions,.cause-card .cause-actions .toolbar{align-items:stretch;flex-direction:column;width:100%}
   .cause-card .cause-actions .btn,.cause-card .cause-actions .toolbar .btn{width:100%;min-width:0}
 }

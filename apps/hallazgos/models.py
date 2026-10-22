@@ -127,6 +127,17 @@ class CicloTratamiento(models.Model):
     def __str__(self):
         return f"{self.hallazgo.codigo} · Plan {self.numero}"
 
+    @property
+    def causa_categoria_display(self):
+        return {
+            "METODO": "Método",
+            "MANO_OBRA": "Mano de obra",
+            "MAQUINARIA": "Maquinaria",
+            "MEDICION": "Medición",
+            "MEDIO_TRABAJO": "Medio de trabajo",
+            "MATERIAL": "Material",
+        }.get(self.control.get("causa_categoria", ""), "")
+
 
 class Accion(models.Model):
     TIPOS = [

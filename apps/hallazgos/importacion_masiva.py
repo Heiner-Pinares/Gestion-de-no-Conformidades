@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import io
 import re
+import unicodedata
 import zipfile
 from collections import defaultdict
 from dataclasses import dataclass
@@ -76,7 +77,9 @@ COLUMNAS_HOJA_UNICA = {
     "Origen tecnológico": "origen_tecnologico",
     "Ticket Remedy": "ticket_remedy",
     "Justificación sin impacto": "justificacion_no_impacto",
-    "Causa raíz": "causa_raiz",
+    "Causa raíz": "causa_categoria",
+    "Descripcion de la causa": "causa_raiz",
+    "Descripción de la causa": "causa_raiz",
     "Responsable análisis": "analisis_responsable_usuario",
     "Inicio análisis": "analisis_inicio",
     "Fin análisis": "analisis_fin",
@@ -87,6 +90,7 @@ COLUMNAS_HOJA_UNICA = {
     "Inicio compromiso": "accion_fecha_inicio",
     "Fecha límite original": "accion_fet_inicial",
     "Fecha límite compromiso": "accion_fet_inicial",
+    "Fecha fin estimada": "accion_fet_inicial",
     "Fecha límite vigente": "accion_fecha_vigente",
     "Estado compromiso": "accion_estado",
     "Avance %": "accion_avance",
@@ -253,6 +257,83 @@ def _cadena(valor):
     return "" if valor is None else str(valor).strip()
 
 
+def _clave_busqueda(valor):
+    """Compara nombres humanos sin depender de tildes, mayúsculas o espacios dobles."""
+    texto = " ".join(_cadena(valor).split()).casefold()
+    return "".join(
+        caracter for caracter in unicodedata.normalize("NFKD", texto)
+        if not unicodedata.combining(caracter)
+    )
+
+
+CAUSA_CATEGORIAS = {
+    "metodo": "METODO",
+    "mano de obra": "MANO_OBRA",
+    "mano obra": "MANO_OBRA",
+    "maquinaria": "MAQUINARIA",
+    "medicion": "MEDICION",
+    "medio de trabajo": "MEDIO_TRABAJO",
+    "medio trabajo": "MEDIO_TRABAJO",
+    "material": "MATERIAL",
+}
+
+
+def _categoria_causa(valor):
+    clave = _clave_busqueda(valor).replace("_", " ")
+    return CAUSA_CATEGORIAS.get(clave)
+
+
+TIPOS_ACCION = {
+    "inmediata": "INMEDIATA",
+    "solucion inmediata": "INMEDIATA",
+    "accion inmediata": "ACCION_INMEDIATA",
+    "correctiva": "CORRECTIVA",
+    "accion correctiva": "CORRECTIVA",
+}
+
+
+def _tipo_accion(valor):
+    return TIPOS_ACCION.get(_clave_busqueda(valor).replace("_", " "), _cadena(valor).upper())
+
+
+ESTADOS_ACCION = {
+    "pendiente": "PENDIENTE",
+    "en proceso": "EN_PROCESO",
+    "completada": "COMPLETADA",
+    "completado": "COMPLETADA",
+    "terminada": "COMPLETADA",
+    "terminado": "COMPLETADA",
+    "cancelada": "CANCELADA",
+    "cancelado": "CANCELADA",
+}
+
+
+def _estado_accion(valor):
+    return ESTADOS_ACCION.get(_clave_busqueda(valor).replace("_", " "), _cadena(valor).upper())
+
+
+def _porcentaje(valor, etiqueta, *, requerido=False):
+    if _vacio(valor):
+        if requerido:
+            raise ValueError(f"{etiqueta} es obligatorio")
+        return None
+    texto = _cadena(valor)
+    tiene_simbolo = texto.endswith("%")
+    if tiene_simbolo:
+        texto = texto[:-1].strip()
+    try:
+        numero = float(texto.replace(",", "."))
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{etiqueta} debe ser un porcentaje entre 0 y 100") from exc
+    if tiene_simbolo:
+        numero = numero
+    elif 0 <= numero <= 1:
+        numero *= 100
+    if numero < 0 or numero > 100 or abs(numero - round(numero)) > 1e-9:
+        raise ValueError(f"{etiqueta} debe ser un porcentaje entero entre 0 y 100")
+    return int(round(numero))
+
+
 def _entero(valor, etiqueta, *, minimo=None, maximo=None, requerido=False):
     if _vacio(valor):
         if requerido:
@@ -370,6 +451,25 @@ def convertir_hoja_unica(hojas):
                 if not _vacio(impacto) or not _vacio(principal.get("urgencia_valor"))
                 else "NO"
             )
+        estado_hallazgo = _cadena(principal.get("estado")).upper()
+        if not estado_hallazgo:
+            estados_compromiso = [
+                _estado_accion(fila.get("accion_estado"))
+                for fila in grupo
+                if any(not _vacio(fila.get(campo)) for campo in (
+                    "accion_tipo", "accion_descripcion", "accion_estado", "accion_avance",
+                ))
+            ]
+            if estados_compromiso:
+                estado_hallazgo = (
+                    "EN_VERIFICACION"
+                    if all(estado == "COMPLETADA" for estado in estados_compromiso)
+                    else "EN_IMPLEMENTACION"
+                )
+            elif not _vacio(_valor_grupo(grupo, "causa_categoria")) or not _vacio(_valor_grupo(grupo, "causa_raiz")):
+                estado_hallazgo = "EN_ANALISIS"
+            else:
+                estado_hallazgo = "BORRADOR"
         hallazgo = {
             "__fila__": principal["__fila__"],
             "hallazgo_codigo": principal.get("hallazgo_codigo"),
@@ -386,7 +486,7 @@ def convertir_hoja_unica(hojas):
             "fecha_registro": principal.get("fecha_registro"),
             "fecha_deteccion": principal.get("fecha_deteccion"),
             "fecha_solucion": principal.get("fecha_solucion"),
-            "estado": principal.get("estado"),
+            "estado": estado_hallazgo,
             "aplica_impacto": aplica_impacto,
             "impacto_clientes": impacto,
             "impacto_tiempo": impacto,
@@ -399,11 +499,19 @@ def convertir_hoja_unica(hojas):
         }
         resultado["Hallazgos"].append(hallazgo)
 
+        categoria_causa_original = _valor_grupo(grupo, "causa_categoria")
+        categoria_causa = _categoria_causa(categoria_causa_original)
+        descripcion_causa = _valor_grupo(grupo, "causa_raiz")
+        # Compatibilidad con la plantilla anterior, donde "Causa raíz" era
+        # directamente la descripción y no una categoría 6M.
+        if not categoria_causa and not _vacio(categoria_causa_original) and _vacio(descripcion_causa):
+            descripcion_causa = categoria_causa_original
+            categoria_causa_original = ""
         campos_tratamiento = (
-            "causa_raiz", "analisis_responsable_usuario", "analisis_inicio", "analisis_fin",
+            "causa_categoria", "causa_raiz", "analisis_responsable_usuario", "analisis_inicio", "analisis_fin",
             "accion_codigo", "eficacia_resultado", "pbi_numero", "fecha_cierre",
         )
-        requiere_ciclo = _cadena(principal.get("estado")).upper() not in {
+        requiere_ciclo = estado_hallazgo not in {
             "BORRADOR", "PENDIENTE_VALIDACION", "DEVUELTO", "VALIDADO", "CANCELADO"
         } or any(not _vacio(_valor_grupo(grupo, campo)) for campo in campos_tratamiento)
         if requiere_ciclo:
@@ -417,7 +525,8 @@ def convertir_hoja_unica(hojas):
                 "creado_por_usuario": registrado, "fecha_inicio": principal.get("fecha_registro"),
                 "fecha_fin": fecha_cierre, "analisis_responsable_usuario": _valor_grupo(grupo, "analisis_responsable_usuario") or responsable,
                 "analisis_inicio": _valor_grupo(grupo, "analisis_inicio"), "analisis_fin": _valor_grupo(grupo, "analisis_fin"),
-                "causa_raiz": _valor_grupo(grupo, "causa_raiz"),
+                "causa_categoria": categoria_causa or categoria_causa_original,
+                "causa_raiz": descripcion_causa,
                 "cierre_responsable_usuario": _valor_grupo(grupo, "cierre_responsable") or _valor_grupo(grupo, "eficacia_evaluador"),
                 "fecha_cierre": fecha_cierre, "comentarios_cierre": _valor_grupo(grupo, "comentario_cierre"),
                 "resultado_cierre": resultado_eficacia if fecha_cierre else "",
@@ -440,10 +549,14 @@ def convertir_hoja_unica(hojas):
                 f"{principal['hallazgo_codigo']}-A{numero_accion:02d}"
             )
             accion_descripcion = fila.get("accion_descripcion")
-            accion_estado = _cadena(fila.get("accion_estado")).upper() or "PENDIENTE"
+            accion_estado = _estado_accion(fila.get("accion_estado")) or "PENDIENTE"
             accion_avance = fila.get("accion_avance")
             if _vacio(accion_avance):
                 accion_avance = 100 if accion_estado == "COMPLETADA" else 1 if accion_estado == "EN_PROCESO" else 0
+            else:
+                accion_avance = _porcentaje(accion_avance, "Avance %", requerido=True)
+            if accion_estado == "PENDIENTE" and accion_avance > 0:
+                accion_estado = "EN_PROCESO"
             accion_inicio = fila.get("accion_fecha_inicio") or principal.get("fecha_registro")
             resultado["Compromisos"].append({
                 "__fila__": fila["__fila__"], "hallazgo_codigo": principal["hallazgo_codigo"], "ciclo_numero": 1,
@@ -518,23 +631,49 @@ class ImportadorMasivo:
     def _cargar_maestros(self):
         usuarios = list(Usuario.objects.filter(is_active=True))
         self.usuarios = {}
+        self.usuarios_ambiguos = set()
         for usuario in usuarios:
-            self.usuarios[usuario.username.casefold()] = usuario
-            if usuario.email:
-                self.usuarios[usuario.email.casefold()] = usuario
-        self.procesos = {p.nombre.casefold(): p for p in Proceso.objects.all()}
-        self.subprocesos = {(s.proceso_id, s.nombre.casefold()): s for s in Subproceso.objects.all()}
+            alias = [usuario.username, usuario.email, usuario.get_full_name(), usuario.corporate_identifier]
+            for valor in alias:
+                clave = _clave_busqueda(valor)
+                if not clave:
+                    continue
+                existente = self.usuarios.get(clave)
+                if existente and existente.pk != usuario.pk:
+                    self.usuarios_ambiguos.add(clave)
+                    self.usuarios.pop(clave, None)
+                elif clave not in self.usuarios_ambiguos:
+                    self.usuarios[clave] = usuario
+        self.procesos = {_clave_busqueda(p.nombre): p for p in Proceso.objects.all()}
+        self.subprocesos = {(s.proceso_id, _clave_busqueda(s.nombre)): s for s in Subproceso.objects.all()}
         catalogos = list(Catalogo.objects.all())
-        self.catalogos = {(c.clase, c.codigo.casefold()): c for c in catalogos}
+        self.catalogos = {(c.clase, _clave_busqueda(c.codigo)): c for c in catalogos}
+        self.catalogos_nombre = {}
+        nombres_ambiguos = set()
+        for catalogo in catalogos:
+            clave = (catalogo.clase, _clave_busqueda(catalogo.nombre))
+            existente = self.catalogos_nombre.get(clave)
+            if existente and existente.pk != catalogo.pk:
+                nombres_ambiguos.add(clave)
+                self.catalogos_nombre.pop(clave, None)
+            elif clave not in nombres_ambiguos:
+                self.catalogos_nombre[clave] = catalogo
         self.catalogos_valor = {(c.clase, c.valor): c for c in catalogos if c.valor is not None}
         self.preguntas = {p.codigo.casefold(): p for p in PreguntaCausa.objects.select_related("categoria")}
         self.matriz = {(m.impacto.valor, m.urgencia_id): m.prioridad for m in MatrizPrioridad.objects.filter(activo=True).select_related("impacto", "prioridad")}
 
     def usuario(self, valor, etiqueta):
-        usuario = self.usuarios.get(_cadena(valor).casefold())
+        clave = _clave_busqueda(valor)
+        if clave in self.usuarios_ambiguos:
+            raise ValueError(f"{etiqueta}: el nombre '{_cadena(valor)}' corresponde a varios usuarios; use correo o usuario")
+        usuario = self.usuarios.get(clave)
         if not usuario:
             raise ValueError(f"{etiqueta}: el usuario activo '{_cadena(valor)}' no existe")
         return usuario
+
+    def catalogo(self, clase, valor):
+        clave = _clave_busqueda(valor)
+        return self.catalogos.get((clase, clave)) or self.catalogos_nombre.get((clase, clave))
 
     def preparar(self):
         if "Hallazgos" not in self.hojas:
@@ -581,18 +720,18 @@ class ImportadorMasivo:
                 if clave in existentes:
                     raise ValueError(f"el hallazgo {codigo} ya existe; la carga solo crea registros nuevos")
                 vistos.add(clave)
-                tipo = self.catalogos.get(("TIPO", _cadena(fila.get("tipo_codigo")).casefold()))
+                tipo = self.catalogo("TIPO", fila.get("tipo_codigo"))
                 if not tipo:
                     raise ValueError("tipo_codigo no existe en el catálogo TIPO")
                 fuente_codigo = _cadena(fila.get("fuente_codigo"))
-                fuente = self.catalogos.get(("FUENTE", fuente_codigo.casefold())) if fuente_codigo else None
+                fuente = self.catalogo("FUENTE", fuente_codigo) if fuente_codigo else None
                 if fuente_codigo and not fuente:
                     raise ValueError("fuente_codigo no existe en el catálogo FUENTE")
-                proceso = self.procesos.get(_cadena(fila.get("proceso")).casefold())
+                proceso = self.procesos.get(_clave_busqueda(fila.get("proceso")))
                 if not proceso:
                     raise ValueError("el proceso no existe")
                 subnombre = _cadena(fila.get("subproceso"))
-                subproceso = self.subprocesos.get((proceso.pk, subnombre.casefold())) if subnombre else None
+                subproceso = self.subprocesos.get((proceso.pk, _clave_busqueda(subnombre))) if subnombre else None
                 if subnombre and not subproceso:
                     raise ValueError("el subproceso no existe dentro del proceso indicado")
                 estado = _cadena(fila.get("estado")).upper()
@@ -605,7 +744,7 @@ class ImportadorMasivo:
                 if urgencia_valor and not urgencia:
                     raise ValueError("urgencia_valor no existe en el catálogo URGENCIA")
                 prioridad_codigo = _cadena(fila.get("prioridad_codigo"))
-                prioridad = self.catalogos.get(("PRIORIDAD", prioridad_codigo.casefold())) if prioridad_codigo else None
+                prioridad = self.catalogo("PRIORIDAD", prioridad_codigo) if prioridad_codigo else None
                 impacto_resultante = max(impactos) if aplica else None
                 if aplica and prioridad is None:
                     prioridad = self.matriz.get((impacto_resultante, urgencia.pk))
@@ -662,12 +801,16 @@ class ImportadorMasivo:
                 if clave in vistos:
                     raise ValueError("ciclo duplicado")
                 vistos.add(clave)
-                control = {}
+                categoria_original = _cadena(fila.get("causa_categoria"))
+                categoria = _categoria_causa(categoria_original) if categoria_original else ""
+                if categoria_original and not categoria:
+                    raise ValueError("causa_categoria debe ser MÉTODO, MANO_DE_OBRA, MAQUINARIA, MEDICIÓN, MEDIO_DE_TRABAJO o MATERIAL")
+                control = {"causa_categoria": categoria} if categoria else {}
                 tipos = [t.strip().upper() for t in re.split(r"[,;]", _cadena(fila.get("control_tipos"))) if t.strip()]
                 if tipos or any(not _vacio(fila.get(c)) for c in ("control_nombre","control_descripcion","control_mitiga_riesgo","control_frecuencia","control_responsable","control_evidencia")):
                     if not set(tipos) <= {"PREVENTIVO", "DETECTIVO", "CORRECTIVO"}:
                         raise ValueError("control_tipos solo admite PREVENTIVO, DETECTIVO y CORRECTIVO")
-                    control = {"tipos": tipos, "nombre": _cadena(fila.get("control_nombre")), "descripcion": _cadena(fila.get("control_descripcion")), "mitiga_riesgo": _si_no(fila.get("control_mitiga_riesgo"), "control_mitiga_riesgo", permite_na=True), "frecuencia": _cadena(fila.get("control_frecuencia")), "responsable": _cadena(fila.get("control_responsable")), "evidencia": _cadena(fila.get("control_evidencia"))}
+                    control.update({"tipos": tipos, "nombre": _cadena(fila.get("control_nombre")), "descripcion": _cadena(fila.get("control_descripcion")), "mitiga_riesgo": _si_no(fila.get("control_mitiga_riesgo"), "control_mitiga_riesgo", permite_na=True), "frecuencia": _cadena(fila.get("control_frecuencia")), "responsable": _cadena(fila.get("control_responsable")), "evidencia": _cadena(fila.get("control_evidencia"))})
                 self.preparados["ciclos"].append(dict(
                     clave=clave, codigo=codigo, numero=numero, motivo=_cadena(fila.get("motivo")),
                     creado_por=self.usuario(fila.get("creado_por_usuario"), "creado_por_usuario"),
@@ -714,10 +857,12 @@ class ImportadorMasivo:
                 if not codigo or clave in vistos or Accion.objects.filter(codigo__iexact=codigo).exists():
                     raise ValueError("accion_codigo está vacío, duplicado o ya existe")
                 vistos.add(clave)
-                tipo = _cadena(fila.get("tipo")).upper(); estado = _cadena(fila.get("estado")).upper()
+                tipo = _tipo_accion(fila.get("tipo")); estado = _estado_accion(fila.get("estado"))
                 if tipo not in {"INMEDIATA", "ACCION_INMEDIATA", "CORRECTIVA"}: raise ValueError("tipo debe ser INMEDIATA, ACCION_INMEDIATA o CORRECTIVA")
                 if estado not in dict(Accion.ESTADOS): raise ValueError("estado de compromiso no válido")
-                avance = _entero(fila.get("porcentaje_avance"), "porcentaje_avance", minimo=0, maximo=100, requerido=True)
+                avance = _porcentaje(fila.get("porcentaje_avance"), "porcentaje_avance", requerido=True)
+                if estado == "PENDIENTE" and avance > 0:
+                    estado = "EN_PROCESO"
                 fecha_inicio = _fecha(fila.get("fecha_inicio"), "fecha_inicio", requerido=True)
                 fet = _fecha(fila.get("fet_inicial"), "fet_inicial", requerido=True); vigente = _fecha(fila.get("fecha_vigente"), "fecha_vigente", requerido=True)
                 real = _fecha(fila.get("fecha_real"), "fecha_real")
@@ -749,9 +894,12 @@ class ImportadorMasivo:
                 vistos.add(clave)
                 base = dict(accion=accion.casefold(), numero=numero, usuario=self.usuario(fila.get("usuario"), "usuario"), fecha=_fecha(fila.get("fecha_hora"), "fecha_hora", hora=True, requerido=True))
                 if hoja == "Seguimientos":
-                    estado = _cadena(fila.get("estado")).upper()
+                    estado = _estado_accion(fila.get("estado"))
                     if estado not in dict(Accion.ESTADOS): raise ValueError("estado no válido")
-                    base.update(estado=estado, avance=_entero(fila.get("porcentaje_avance"), "porcentaje_avance", minimo=0, maximo=100, requerido=True), fecha_real=_fecha(fila.get("fecha_real"), "fecha_real"), comentario=_cadena(fila.get("comentario")))
+                    avance = _porcentaje(fila.get("porcentaje_avance"), "porcentaje_avance", requerido=True)
+                    if estado == "PENDIENTE" and avance > 0:
+                        estado = "EN_PROCESO"
+                    base.update(estado=estado, avance=avance, fecha_real=_fecha(fila.get("fecha_real"), "fecha_real"), comentario=_cadena(fila.get("comentario")))
                 else:
                     base.update(fecha_anterior=_fecha(fila.get("fecha_anterior"), "fecha_anterior", requerido=True), nueva_fecha=_fecha(fila.get("nueva_fecha"), "nueva_fecha", requerido=True), motivo=_cadena(fila.get("motivo")))
                 self.preparados[destino].append(base)

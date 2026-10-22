@@ -4,6 +4,7 @@ from apps.catalogos.models import PreguntaCausa
 from .common import bloquear, campos_permitidos, ciclo_vigente, editable, exigir, gestionar, registrar
 
 CONTROL_CAMPOS = ["tipos", "nombre", "descripcion", "mitiga_riesgo", "frecuencia", "responsable", "evidencia"]
+CAUSA_CATEGORIAS = {"METODO", "MANO_OBRA", "MAQUINARIA", "MEDICION", "MEDIO_TRABAJO", "MATERIAL"}
 
 
 class CausaService:
@@ -13,7 +14,7 @@ class CausaService:
         hallazgo = bloquear(hallazgo)
         gestionar(usuario, hallazgo)
         editable(hallazgo, {"EN_ANALISIS", "PBI_EN_GESTION"})
-        campos_permitidos(datos, ["respuestas", "otros_activos", "control", "causa_raiz"])
+        campos_permitidos(datos, ["respuestas", "otros_activos", "control", "causa_categoria", "causa_raiz"])
         ciclo = ciclo_vigente(hallazgo)
         analisis = ciclo
         if analisis.analisis_inicio is None:
@@ -29,6 +30,8 @@ class CausaService:
         snapshot = {str(p["id"]): p for p in analisis.checklist_snapshot}
         exigir(bool(snapshot), "Configure el catálogo de preguntas 6M antes de analizar.")
         analisis.causa_raiz = datos.get("causa_raiz", analisis.causa_raiz).strip()
+        causa_categoria = datos.get("causa_categoria", analisis.control.get("causa_categoria", ""))
+        exigir(not causa_categoria or causa_categoria in CAUSA_CATEGORIAS, "Categoría de causa raíz no válida.")
         recibidos = set()
         almacenadas = {str(item["pregunta_id"]): item for item in analisis.respuestas}
         otros_validos = {
@@ -64,6 +67,7 @@ class CausaService:
         respuestas = {r["codigo_snapshot"]: r["respuesta"] for r in analisis.respuestas}
         control = datos.get("control") or {}
         campos_permitidos(control, CONTROL_CAMPOS)
+        control_guardado = {"causa_categoria": causa_categoria} if causa_categoria else {}
         if respuestas.get("4.1") == "SI":
             if finalizar or any(control.values()):
                 exigir(all(control.get(c) for c in CONTROL_CAMPOS), "La pregunta 4.1 exige completar todos los datos del control del proceso.")
@@ -71,9 +75,8 @@ class CausaService:
                 exigir(control["mitiga_riesgo"] in {"SI", "NO", "NA"}, "Indique si el control mitiga el riesgo.")
                 for campo, limite in [("nombre", 250), ("frecuencia", 150), ("responsable", 200)]:
                     exigir(len(control[campo]) <= limite, f"El campo {campo} supera {limite} caracteres.")
-                analisis.control = control
-        else:
-            analisis.control = {}
+                control_guardado.update(control)
+        analisis.control = control_guardado
         if finalizar:
             obligatorias = set(snapshot) - otros_validos
             respondidas = {str(item["pregunta_id"]) for item in analisis.respuestas}
