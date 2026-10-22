@@ -21,7 +21,7 @@ $WorkDirectory = Join-Path $ProjectRoot "work"
 $RuntimeRoot = Join-Path $env:ProgramData "PortalNC"
 $StaticRoot = Join-Path $RuntimeRoot "staticfiles"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
-$KnownHostsPath = Join-Path $RuntimeRoot "correo_known_hosts"
+$KnownHostsPath = Join-Path $SecretsDirectory "correo_known_hosts"
 $FirewallRule = "Portal NC - acceso interno"
 
 function Assert-Administrator {
@@ -154,26 +154,6 @@ $WorkAcl = @(
     "BUILTIN\Administrators:(OI)(CI)F"
 )
 Set-ExplicitAcl -Path $WorkDirectory -AccessEntries $WorkAcl -Recursive
-$OldKnownHostsPath = Join-Path $WorkDirectory "correo_known_hosts"
-if (-not (Test-Path $KnownHostsPath -PathType Leaf)) {
-    if (Test-Path $OldKnownHostsPath -PathType Leaf) {
-        try {
-            Copy-Item $OldKnownHostsPath $KnownHostsPath -ErrorAction Stop
-        }
-        catch {
-            throw "No se pudo conservar la identidad SSH anterior desde $OldKnownHostsPath. $($_.Exception.Message)"
-        }
-    }
-    else {
-        New-Item -ItemType File -Force -Path $KnownHostsPath | Out-Null
-    }
-}
-$KnownHostsAcl = @(
-    "${ServiceAccount}:(M)",
-    "SYSTEM:(F)",
-    "BUILTIN\Administrators:(F)"
-)
-Set-ExplicitAcl -Path $KnownHostsPath -AccessEntries $KnownHostsAcl
 $SecretsAcl = @(
     "${ServiceAccount}:(OI)(CI)R",
     "SYSTEM:(OI)(CI)F",
@@ -199,8 +179,24 @@ Set-EnvValue -Name "TRUST_X_FORWARDED_PROTO" -Value ($(if ($Https) { "True" } el
 Set-EnvValue -Name "SECURE_HSTS_SECONDS" -Value ($(if ($Https) { "31536000" } else { "0" }))
 Set-EnvValue -Name "SECURE_HSTS_PRELOAD" -Value "False"
 
-Write-Host "Comprobando Oracle y Django antes de registrar el inicio automatico..."
+# Fija la clave pública SSH antes de iniciar el proceso web. En ejecución el
+# portal solo lee el archivo, de modo que el envío no requiere escribir en
+# ProgramData ni dentro del checkout.
 Set-Location $ProjectRoot
+& $Python "manage.py" "preparar_identidad_correo" "--archivo" $KnownHostsPath "--si-habilitado"
+if ($LASTEXITCODE -ne 0) {
+    throw "No se pudo preparar la identidad SSH del servidor de correo. No se publicó el portal."
+}
+if (Test-Path $KnownHostsPath -PathType Leaf) {
+    $KnownHostsAcl = @(
+        "${ServiceAccount}:(R)",
+        "SYSTEM:(F)",
+        "BUILTIN\Administrators:(F)"
+    )
+    Set-ExplicitAcl -Path $KnownHostsPath -AccessEntries $KnownHostsAcl
+}
+
+Write-Host "Comprobando Oracle y Django antes de registrar el inicio automatico..."
 & $Python "run.py" "check"
 if ($LASTEXITCODE -ne 0) {
     throw "La validacion del portal fallo. No se registro la tarea automatica."

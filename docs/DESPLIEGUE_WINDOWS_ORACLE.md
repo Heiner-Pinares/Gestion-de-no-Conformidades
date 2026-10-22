@@ -237,7 +237,7 @@ CORREO_SSH_PORT=22
 CORREO_SSH_USER=usr_mds
 CORREO_SSH_PASSWORD_FILE=secrets/correo_ssh_password.txt
 CORREO_SSH_TIMEOUT=10
-CORREO_SSH_KNOWN_HOSTS=C:/ProgramData/PortalNC/correo_known_hosts
+CORREO_SSH_KNOWN_HOSTS=secrets/correo_known_hosts
 CORREO_REMITENTE_NOMBRE=Portal Claro - Gestión de No Conformidades
 CORREO_REMITENTE_EMAIL=portal-no-conformidades@claro.com.pe
 PORTAL_PUBLIC_URL=http://172.19.194.219:8001
@@ -247,6 +247,7 @@ Confirme con Infraestructura el remitente autorizado antes de usar el valor del 
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\configurar_correo_windows.ps1" -ServiceAccount "claro\c27826"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\preparar_identidad_correo_windows.ps1" -ServiceAccount "claro\c27826"
 ```
 
 La cuenta indicada debe ser la misma que inicia el portal. El script guarda la contraseña en `secrets\correo_ssh_password.txt` y restringe sus ACL. Después:
@@ -256,7 +257,7 @@ La cuenta indicada debe ser la misma que inicia el portal. El script guarda la c
 3. Autorice una prueba controlada con una actividad de prueba.
 4. Cambie `CORREO_COMPROMISOS_ENABLED=True` y reinicie el portal.
 
-La primera conexión conserva la identidad del servidor en `C:\ProgramData\PortalNC\correo_known_hosts`; una identidad distinta para el mismo host bloquea los envíos posteriores. Un registro `CORREO_COMPROMISO_ACEPTADO` significa que `sendmail` devolvió código 0. No confirma que Outlook haya entregado finalmente el mensaje al buzón. Los intentos fallidos o inciertos quedan en `tbl_historial_hallazgo_nc` y no eliminan el compromiso guardado.
+El segundo script obtiene una vez la clave pública del servidor SSH y la guarda con ACL de solo lectura en `secrets\correo_known_hosts`. El portal nunca escribe ese archivo durante un envío. Una identidad distinta para el mismo host bloquea el correo y exige revisión manual. Un registro `CORREO_COMPROMISO_ACEPTADO` significa que `sendmail` devolvió código 0. No confirma que Outlook haya entregado finalmente el mensaje al buzón. Los intentos fallidos o inciertos quedan en `tbl_historial_hallazgo_nc` y no eliminan el compromiso guardado.
 
 ## Actualizar desde Git
 

@@ -31,3 +31,4 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host "Se creó el secreto SSH y se protegió para $ServiceAccount. Su valor no fue mostrado."
 Write-Host "Complete las variables CORREO_* y PORTAL_PUBLIC_URL en .env antes de habilitar el envío."
+Write-Host "Después ejecute scripts\preparar_identidad_correo_windows.ps1 como administrador."

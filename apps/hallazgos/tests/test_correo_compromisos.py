@@ -107,6 +107,7 @@ class CorreoCompromisoTests(TestCase):
         self.temporal = TemporaryDirectory()
         self.addCleanup(self.temporal.cleanup)
         self.known_hosts = Path(self.temporal.name) / "correo_known_hosts"
+        self.known_hosts.write_text("identidad-fijada\n", encoding="ascii")
         self.ajuste_known_hosts = override_settings(
             CORREO_SSH_KNOWN_HOSTS=str(self.known_hosts)
         )
@@ -404,12 +405,10 @@ class CorreoCompromisoTests(TestCase):
             )
         crear_cliente.assert_not_called()
 
-    def test_permiso_known_hosts_es_fallo_controlado_y_deja_trazabilidad(self):
-        with patch(
-            "apps.hallazgos.services.correo_compromisos.Path.touch",
-            side_effect=PermissionError("acceso denegado"),
-        ), self.assertRaisesRegex(
-            CorreoCompromisoError, "archivo seguro de identidad SSH"
+    def test_identidad_ssh_no_preparada_es_fallo_controlado_y_deja_trazabilidad(self):
+        self.known_hosts.unlink()
+        with self.assertRaisesRegex(
+            CorreoCompromisoError, "Falta preparar la identidad SSH"
         ):
             CorreoCompromisoService.enviar_asignacion(
                 accion=self.accion, usuario=self.responsable
@@ -420,7 +419,7 @@ class CorreoCompromisoTests(TestCase):
             accion="CORREO_COMPROMISO_FALLIDO",
         )
         self.assertEqual(
-            evento.metadata_json["resultado"], "SSH_KNOWN_HOSTS_PERMISOS"
+            evento.metadata_json["resultado"], "SSH_IDENTIDAD_NO_PREPARADA"
         )
 
     def test_guardar_plan_invoca_el_correo_solo_para_la_nueva_actividad(self):

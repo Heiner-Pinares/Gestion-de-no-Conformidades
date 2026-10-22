@@ -27,12 +27,60 @@ def preparar_django() -> None:
 
 def verificar() -> None:
     preparar_django()
+    verificar_correo()
     from django.core.management import call_command
     from scripts.verificar_oracle_dml import main as verificar_oracle
 
     verificar_oracle()
     call_command("check", "--deploy")
     print("OK DJANGO: validación de despliegue ejecutada; no hay DDL pendiente.")
+
+
+def verificar_correo() -> None:
+    """Comprueba que el proceso web pueda validar la identidad SSH sin escribir."""
+
+    import paramiko
+    from django.conf import settings
+
+    if not settings.CORREO_COMPROMISOS_ENABLED:
+        return
+    faltantes = [
+        nombre
+        for nombre, valor in (
+            ("CORREO_SSH_HOST", settings.CORREO_SSH_HOST),
+            ("CORREO_SSH_USER", settings.CORREO_SSH_USER),
+            ("CORREO_SSH_PASSWORD", settings.CORREO_SSH_PASSWORD),
+            ("CORREO_REMITENTE_EMAIL", settings.CORREO_REMITENTE_EMAIL),
+            ("PORTAL_PUBLIC_URL", settings.PORTAL_PUBLIC_URL),
+        )
+        if not str(valor).strip()
+    ]
+    if faltantes:
+        raise RuntimeError(
+            "Falta configurar el correo corporativo: " + ", ".join(faltantes) + "."
+        )
+
+    known_hosts = Path(settings.CORREO_SSH_KNOWN_HOSTS)
+    if not known_hosts.is_absolute():
+        known_hosts = BASE_DIR / known_hosts
+    try:
+        if not known_hosts.is_file() or known_hosts.stat().st_size == 0:
+            raise FileNotFoundError(str(known_hosts))
+        claves = paramiko.HostKeys(str(known_hosts))
+    except (OSError, paramiko.SSHException) as error:
+        raise RuntimeError(
+            "Falta preparar la identidad SSH del correo. Ejecute como administrador "
+            "scripts\\preparar_identidad_correo_windows.ps1."
+        ) from error
+
+    host = settings.CORREO_SSH_HOST
+    port = settings.CORREO_SSH_PORT
+    nombre_host = host if port == 22 else f"[{host}]:{port}"
+    if not claves.lookup(nombre_host):
+        raise RuntimeError(
+            "El archivo de identidad SSH no corresponde al host de correo configurado."
+        )
+    print(f"OK CORREO: identidad SSH fijada y legible en {known_hosts}.")
 
 
 def verificar_directorio_estaticos(ruta: Path) -> None:

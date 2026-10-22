@@ -307,24 +307,20 @@ class CorreoCompromisoService:
             if not known_hosts.is_absolute():
                 known_hosts = Path(settings.BASE_DIR) / known_hosts
             try:
-                known_hosts.parent.mkdir(parents=True, exist_ok=True)
-                known_hosts.touch(mode=0o600, exist_ok=True)
-                try:
-                    known_hosts.chmod(0o600)
-                except OSError:
-                    # Windows controla este archivo mediante ACL, no por bits POSIX.
-                    pass
-            except OSError as error:
+                if not known_hosts.is_file() or known_hosts.stat().st_size == 0:
+                    raise FileNotFoundError(str(known_hosts))
+                cliente.load_host_keys(str(known_hosts))
+            except (OSError, paramiko.SSHException) as error:
                 raise CorreoCompromisoError(
-                    "No se pudo preparar el archivo seguro de identidad SSH. "
-                    "Revisa los permisos de ejecución del portal.",
-                    codigo="SSH_KNOWN_HOSTS_PERMISOS",
+                    "Falta preparar la identidad SSH del servidor de correo. "
+                    "Ejecuta scripts\\preparar_identidad_correo_windows.ps1 "
+                    "como administrador.",
+                    codigo="SSH_IDENTIDAD_NO_PREPARADA",
                 ) from error
 
-            cliente.load_host_keys(str(known_hosts))
-            # AutoAddPolicy conserva la primera identidad en el archivo cargado.
-            # Paramiko rechaza una clave distinta cuando el host ya está guardado.
-            cliente.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # La identidad se fija durante la configuración. El proceso web solo
+            # lee el archivo y nunca necesita permisos de escritura para enviar.
+            cliente.set_missing_host_key_policy(paramiko.RejectPolicy())
             cliente.connect(
                 hostname=settings.CORREO_SSH_HOST,
                 port=settings.CORREO_SSH_PORT,
