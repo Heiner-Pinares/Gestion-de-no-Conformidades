@@ -47,6 +47,28 @@ function Set-EnvValue {
     [IO.File]::WriteAllText($EnvPath, $Text, [Text.UTF8Encoding]::new($false))
 }
 
+function Set-ExplicitAcl {
+    param(
+        [string]$Path,
+        [string[]]$AccessEntries,
+        [switch]$Recursive
+    )
+    $InheritanceArgs = @($Path, "/inheritance:r", "/C")
+    if ($Recursive) { $InheritanceArgs += "/T" }
+    & icacls @InheritanceArgs | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "No se pudo deshabilitar la herencia en $Path."
+    }
+    foreach ($AccessEntry in $AccessEntries) {
+        $GrantArgs = @($Path, "/grant:r", $AccessEntry, "/C")
+        if ($Recursive) { $GrantArgs += "/T" }
+        & icacls @GrantArgs | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "No se pudo asignar $AccessEntry en $Path."
+        }
+    }
+}
+
 function Test-TcpPort {
     param([string]$HostName, [int]$TargetPort)
     $Client = [Net.Sockets.TcpClient]::new()
@@ -125,28 +147,39 @@ $RuntimeAcl = @(
     "SYSTEM:(OI)(CI)F",
     "BUILTIN\Administrators:(OI)(CI)F"
 )
-& icacls $RuntimeRoot /inheritance:r /grant:r $RuntimeAcl /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "No se pudieron asignar permisos de ejecucion en $RuntimeRoot a $ServiceAccount."
-}
+Set-ExplicitAcl -Path $RuntimeRoot -AccessEntries $RuntimeAcl -Recursive
 $WorkAcl = @(
     "${ServiceAccount}:(OI)(CI)M",
     "SYSTEM:(OI)(CI)F",
     "BUILTIN\Administrators:(OI)(CI)F"
 )
-& icacls $WorkDirectory /inheritance:r /grant:r $WorkAcl /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "No se pudieron proteger los archivos de trabajo para $ServiceAccount."
+Set-ExplicitAcl -Path $WorkDirectory -AccessEntries $WorkAcl -Recursive
+$OldKnownHostsPath = Join-Path $WorkDirectory "correo_known_hosts"
+if (-not (Test-Path $KnownHostsPath -PathType Leaf)) {
+    if (Test-Path $OldKnownHostsPath -PathType Leaf) {
+        try {
+            Copy-Item $OldKnownHostsPath $KnownHostsPath -ErrorAction Stop
+        }
+        catch {
+            throw "No se pudo conservar la identidad SSH anterior desde $OldKnownHostsPath. $($_.Exception.Message)"
+        }
+    }
+    else {
+        New-Item -ItemType File -Force -Path $KnownHostsPath | Out-Null
+    }
 }
+$KnownHostsAcl = @(
+    "${ServiceAccount}:(M)",
+    "SYSTEM:(F)",
+    "BUILTIN\Administrators:(F)"
+)
+Set-ExplicitAcl -Path $KnownHostsPath -AccessEntries $KnownHostsAcl
 $SecretsAcl = @(
     "${ServiceAccount}:(OI)(CI)R",
     "SYSTEM:(OI)(CI)F",
     "BUILTIN\Administrators:(OI)(CI)F"
 )
-& icacls $SecretsDirectory /inheritance:r /grant:r $SecretsAcl /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "No se pudieron proteger los secretos para $ServiceAccount."
-}
+Set-ExplicitAcl -Path $SecretsDirectory -AccessEntries $SecretsAcl -Recursive
 
 # Solo modifica configuracion publica; nunca lee ni escribe contrasenas.
 Set-EnvValue -Name "DEBUG" -Value "False"

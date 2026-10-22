@@ -1,4 +1,4 @@
-"""Recupera intentos de correo detenidos antes de abrir la conexión SSH."""
+"""Recupera correos detenidos o fallidos antes de completar el envío."""
 
 from django.core.management.base import BaseCommand, CommandError
 
@@ -11,7 +11,7 @@ from apps.hallazgos.services.correo_compromisos import (
 
 class Command(BaseCommand):
     help = (
-        "Reintenta correos de compromisos que quedaron en INICIADO. "
+        "Reintenta correos de compromisos que quedaron en INICIADO o FALLIDO. "
         "Requiere confirmar que el mensaje no llegó a enviarse."
     )
 
@@ -34,13 +34,16 @@ class Command(BaseCommand):
         eventos = list(
             HistorialHallazgo.objects.filter(
                 hallazgo_id=hallazgo_id,
-                accion="CORREO_COMPROMISO_INICIADO",
+                accion__in={
+                    "CORREO_COMPROMISO_INICIADO",
+                    "CORREO_COMPROMISO_FALLIDO",
+                },
                 accion_relacionada__isnull=False,
             ).select_related("accion_relacionada", "usuario")
         )
         if not eventos:
             raise CommandError(
-                f"El hallazgo {hallazgo_id} no tiene correos bloqueados en INICIADO."
+                f"El hallazgo {hallazgo_id} no tiene correos recuperables."
             )
 
         recuperados = 0
@@ -72,12 +75,17 @@ class Command(BaseCommand):
                 omitidos += 1
                 continue
 
-            iniciados = HistorialHallazgo.objects.filter(
+            intentos_accion = HistorialHallazgo.objects.filter(
                 accion_relacionada=accion,
-                accion="CORREO_COMPROMISO_INICIADO",
+                accion__in={
+                    "CORREO_COMPROMISO_INICIADO",
+                    "CORREO_COMPROMISO_FALLIDO",
+                },
             )
-            usuario = iniciados.order_by("fecha_hora", "pk").first().usuario
-            for iniciado in iniciados:
+            usuario = intentos_accion.order_by("fecha_hora", "pk").first().usuario
+            for iniciado in intentos_accion.filter(
+                accion="CORREO_COMPROMISO_INICIADO"
+            ):
                 metadata = dict(iniciado.metadata_json or {})
                 metadata["resultado"] = "RECUPERADO_ANTES_DE_SSH"
                 iniciado.accion = "CORREO_COMPROMISO_FALLIDO"
@@ -110,4 +118,3 @@ class Command(BaseCommand):
         )
         if fallidos:
             raise CommandError("Uno o más correos no pudieron recuperarse.")
-
