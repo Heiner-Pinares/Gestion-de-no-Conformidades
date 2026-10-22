@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.accounts.models import Usuario
 from apps.catalogos.models import Catalogo, Proceso
 from apps.hallazgos.importacion_masiva import ErrorCargaMasiva, ImportadorMasivo, _leer_xlsx
-from apps.hallazgos.models import Accion, EvaluacionEficacia, Hallazgo, HistorialHallazgo
+from apps.hallazgos.models import Accion, CorrelativoSAC, EvaluacionEficacia, Hallazgo, HistorialHallazgo
 
 
 class ImportacionMasivaTests(TestCase):
@@ -97,10 +97,12 @@ class ImportacionMasivaTests(TestCase):
         }
         resumen = ImportadorMasivo(hojas=hojas, ejecutado_por=self.admin).preparar().guardar()
         self.assertEqual(resumen["hallazgos"], 1)
-        hallazgo = Hallazgo.objects.get(codigo="SAC-NOC-2025-0200")
+        hallazgo = Hallazgo.objects.get()
+        self.assertRegex(hallazgo.codigo, rf"^SAC-NOC-{ahora.year}-\d{{4}}$")
+        self.assertNotEqual(hallazgo.codigo, "SAC-NOC-2025-0200")
         self.assertEqual(hallazgo.estado, "CERRADO")
         accion = hallazgo.ciclos.get().acciones.get()
-        self.assertEqual(accion.codigo, "SAC-NOC-2025-0200-A01")
+        self.assertEqual(accion.codigo, f"{hallazgo.codigo}-A01")
         self.assertEqual(accion.responsable, self.usuario)
         self.assertEqual(accion.porcentaje_avance, 100)
         self.assertEqual(accion.resultado_esperado, "Corregir el registro")
@@ -125,7 +127,8 @@ class ImportacionMasivaTests(TestCase):
         ).preparar().guardar()
 
         self.assertEqual(resumen["hallazgos"], 1)
-        hallazgo = Hallazgo.objects.get(codigo="SAC-NOC-2025-0201")
+        hallazgo = Hallazgo.objects.get()
+        self.assertRegex(hallazgo.codigo, rf"^SAC-NOC-{timezone.localdate().year}-\d{{4}}$")
         self.assertFalse(hallazgo.aplica_impacto)
         self.assertEqual(hallazgo.responsable, self.usuario)
         self.assertEqual(hallazgo.registrado_por, self.usuario)
@@ -167,7 +170,9 @@ class ImportacionMasivaTests(TestCase):
         ).preparar().guardar()
 
         self.assertEqual(resumen["hallazgos"], 1)
-        hallazgo = Hallazgo.objects.get(codigo="NTT-001")
+        hallazgo = Hallazgo.objects.get()
+        self.assertRegex(hallazgo.codigo, rf"^SAC-NOC-{hoy.year}-\d{{4}}$")
+        self.assertNotEqual(hallazgo.codigo, "NTT-001")
         self.assertEqual(hallazgo.fuente_deteccion, self.fuente)
         self.assertEqual(hallazgo.registrado_por, self.admin)
         self.assertEqual(hallazgo.estado, "EN_IMPLEMENTACION")
@@ -175,7 +180,95 @@ class ImportacionMasivaTests(TestCase):
         self.assertEqual(ciclo.control["causa_categoria"], "MANO_OBRA")
         self.assertEqual(ciclo.causa_raiz, "Faltó capacitación específica.")
         accion = ciclo.acciones.get()
+        self.assertEqual(accion.codigo, f"{hallazgo.codigo}-A01")
         self.assertEqual(accion.tipo, "CORRECTIVA")
         self.assertEqual(accion.estado, "EN_PROCESO")
         self.assertEqual(accion.porcentaje_avance, 90)
         self.assertEqual(accion.fet_inicial, hoy + timedelta(days=10))
+
+    def test_genera_codigo_por_tipo_y_anio_usando_la_referencia_solo_para_agrupar(self):
+        anio = 2024
+        tipos = {}
+        for orden, (codigo, nombre) in enumerate((
+            ("INC", "Incidente"),
+            ("PBI", "PBI"),
+            ("SNC", "Salida no conforme"),
+        ), start=2):
+            tipos[codigo] = Catalogo.objects.create(clase="TIPO", codigo=codigo, nombre=nombre, orden=orden)
+        Hallazgo.objects.create(
+            codigo="SAC-INC-2024-0042",
+            titulo="Código existente",
+            tipo_registro=tipos["INC"],
+            proceso=self.proceso,
+            responsable=self.usuario,
+            registrado_por=self.admin,
+            updated_by=self.admin,
+            aplica_impacto=False,
+            justificacion_no_impacto="Registro previo",
+            estado="BORRADOR",
+        )
+        CorrelativoSAC.objects.create(anio=anio, ambito="NOC", ultimo_numero=7)
+        filas = []
+        for referencia, tipo in (("1", "INC"), ("2", "NOC"), ("3", "PBI"), ("4", "SNC")):
+            filas.append({
+                "__fila__": len(filas) + 2,
+                "Código hallazgo *": referencia,
+                "Título *": f"Hallazgo {tipo}",
+                "Tipo (código) *": tipo,
+                "Proceso *": "Facturacion",
+                "Responsable hallazgo *": self.usuario.username,
+                "Fecha registro *": f"{anio}-06-15",
+                "Estado hallazgo *": "BORRADOR",
+            })
+
+        resumen = ImportadorMasivo(
+            hojas={"Carga masiva": filas}, ejecutado_por=self.admin
+        ).preparar().guardar()
+
+        self.assertEqual(resumen["hallazgos"], 4)
+        self.assertEqual(
+            {item["referencia"] for item in resumen["codigos_generados"]},
+            {"1", "2", "3", "4"},
+        )
+        self.assertSetEqual(
+            set(Hallazgo.objects.filter(titulo__startswith="Hallazgo ").values_list("codigo", flat=True)),
+            {
+                "SAC-INC-2024-0043",
+                "SAC-NOC-2024-0008",
+                "SAC-PBI-2024-0001",
+                "SAC-SNC-2024-0001",
+            },
+        )
+
+    def test_referencia_repetida_crea_un_hallazgo_con_compromisos_consecutivos(self):
+        hoy = timezone.localdate()
+        base = {
+            "Código hallazgo *": "1",
+            "Título *": "Hallazgo con dos compromisos",
+            "Tipo (código) *": "NOC",
+            "Proceso *": "Facturacion",
+            "Responsable hallazgo *": self.usuario.username,
+            "Fecha registro *": hoy,
+            "Estado hallazgo *": "",
+            "Tipo compromiso": "ACCION_CORRECTIVA",
+            "Responsable compromiso": self.usuario.username,
+            "Inicio compromiso": hoy,
+            "Fecha fin estimada": hoy + timedelta(days=10),
+            "Estado compromiso": "PENDIENTE",
+            "Avance %": 0,
+        }
+        filas = [
+            {"__fila__": 2, **base, "Descripción compromiso": "Primera acción"},
+            {"__fila__": 3, **base, "Descripción compromiso": "Segunda acción"},
+        ]
+
+        ImportadorMasivo(
+            hojas={"Carga masiva": filas}, ejecutado_por=self.admin
+        ).preparar().guardar()
+
+        hallazgo = Hallazgo.objects.get()
+        self.assertRegex(hallazgo.codigo, rf"^SAC-NOC-{hoy.year}-\d{{4}}$")
+        self.assertListEqual(
+            list(hallazgo.ciclos.get().acciones.order_by("codigo").values_list("codigo", flat=True)),
+            [f"{hallazgo.codigo}-A01", f"{hallazgo.codigo}-A02"],
+        )

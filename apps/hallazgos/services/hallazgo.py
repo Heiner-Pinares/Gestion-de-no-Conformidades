@@ -1,4 +1,5 @@
 import logging
+import re
 from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
@@ -16,6 +17,23 @@ CAMPOS_HALLAZGO = ["titulo", "tipo_registro", "fuente_deteccion", "proceso", "su
 
 class CodigoSACService:
     @staticmethod
+    def _ultimo_existente(*, anio, ambito, modo):
+        if modo == "TYPE":
+            prefijo = f"SAC-{ambito}-{anio}-"
+            codigos = Hallazgo.objects.filter(codigo__startswith=prefijo).values_list("codigo", flat=True)
+        else:
+            patron = rf"^SAC-[A-Za-z0-9_]+-{anio}-(\d+)$"
+            codigos = Hallazgo.objects.filter(codigo__startswith="SAC-").values_list("codigo", flat=True)
+            return max(
+                (int(coincidencia.group(1)) for codigo in codigos if (coincidencia := re.fullmatch(patron, codigo))),
+                default=0,
+            )
+        return max(
+            (int(codigo.removeprefix(prefijo)) for codigo in codigos if codigo.removeprefix(prefijo).isdigit()),
+            default=0,
+        )
+
+    @staticmethod
     def previsualizar(*, tipo):
         """Muestra el próximo código probable sin reservar ni alterar el correlativo."""
         anio = timezone.localdate().year
@@ -23,12 +41,14 @@ class CodigoSACService:
         exigir(modo in {"TYPE", "YEAR"}, "SAC_SEQUENCE_SCOPE debe ser TYPE o YEAR.")
         ambito = tipo.codigo if modo == "TYPE" else "GLOBAL"
         ultimo = CorrelativoSAC.objects.filter(anio=anio, ambito=ambito).values_list("ultimo_numero", flat=True).first() or 0
+        ultimo = max(ultimo, CodigoSACService._ultimo_existente(anio=anio, ambito=ambito, modo=modo))
         return f"SAC-{tipo.codigo}-{anio}-{ultimo + 1:04d}"
 
     @staticmethod
     @transaction.atomic
-    def generar(*, tipo):
-        anio = timezone.localdate().year
+    def generar(*, tipo, anio=None):
+        anio = anio or timezone.localdate().year
+        exigir(isinstance(anio, int) and 1900 <= anio <= 9999, "El año del código SAC no es válido.")
         modo = getattr(settings, "SAC_SEQUENCE_SCOPE", "TYPE")
         exigir(modo in {"TYPE", "YEAR"}, "SAC_SEQUENCE_SCOPE debe ser TYPE o YEAR.")
         ambito = tipo.codigo if modo == "TYPE" else "GLOBAL"
@@ -38,6 +58,9 @@ class CodigoSACService:
         otros = CorrelativoSAC.objects.filter(anio=anio).exclude(ambito=ambito)
         if (modo == "YEAR" and otros.exists()) or (modo == "TYPE" and otros.filter(ambito="GLOBAL").exists()):
             raise ValidationError("El modo de correlativo SAC cambió después de reservar códigos. Requiere migración controlada; restaure SAC_SEQUENCE_SCOPE.")
+        ultimo_existente = CodigoSACService._ultimo_existente(anio=anio, ambito=ambito, modo=modo)
+        if contador.ultimo_numero < ultimo_existente:
+            contador.ultimo_numero = ultimo_existente
         contador.ultimo_numero += 1
         contador.save(update_fields=["ultimo_numero"])
         return f"SAC-{tipo.codigo}-{anio}-{contador.ultimo_numero:04d}"

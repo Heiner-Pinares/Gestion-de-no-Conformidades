@@ -30,7 +30,7 @@ from apps.hallazgos.models import (
     HistorialHallazgo, PBI,
 )
 from apps.hallazgos.services.evidencia import MAX_ARCHIVO, validar_archivo
-from apps.hallazgos.services.hallazgo import ImpactoService, UrgenciaService
+from apps.hallazgos.services.hallazgo import CodigoSACService, ImpactoService, UrgenciaService
 
 
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -618,11 +618,13 @@ def convertir_hoja_unica(hojas):
 
 class ImportadorMasivo:
     def __init__(self, *, hojas, archivos=None, ejecutado_por):
+        self.codigos_automaticos = HOJA_UNICA in hojas
         self.hojas = convertir_hoja_unica(hojas)
         self.archivos = archivos or {}
         self.ejecutado_por = ejecutado_por
         self.errores = []
         self.preparados = defaultdict(list)
+        self.codigos_generados = []
         self._cargar_maestros()
 
     def error(self, hoja, fila, mensaje):
@@ -717,7 +719,7 @@ class ImportadorMasivo:
                 clave = codigo.casefold()
                 if clave in vistos:
                     raise ValueError(f"hallazgo_codigo duplicado: {codigo}")
-                if clave in existentes:
+                if not self.codigos_automaticos and clave in existentes:
                     raise ValueError(f"el hallazgo {codigo} ya existe; la carga solo crea registros nuevos")
                 vistos.add(clave)
                 tipo = self.catalogo("TIPO", fila.get("tipo_codigo"))
@@ -775,6 +777,8 @@ class ImportadorMasivo:
                     requisito_referencia=_cadena(fila.get("requisito_referencia")),
                     estado=estado, updated_by=actualizado,
                 )
+                if self.codigos_automaticos:
+                    datos["referencia_codigo"] = clave
                 if not datos["titulo"]:
                     raise ValueError("titulo es obligatorio")
                 if aplica:
@@ -1048,11 +1052,20 @@ class ImportadorMasivo:
     @transaction.atomic
     def guardar(self):
         hallazgos = {}
-        for datos in self.preparados["hallazgos"]:
+        for preparados in self.preparados["hallazgos"]:
+            datos = preparados.copy()
+            referencia = datos.pop("referencia_codigo", datos["codigo"].casefold())
+            if self.codigos_automaticos:
+                datos["codigo"] = CodigoSACService.generar(
+                    tipo=datos["tipo_registro"],
+                    anio=datos["fecha_registro"].year,
+                )
             h = Hallazgo(**datos)
             h.full_clean()
             h.save(force_insert=True)
-            hallazgos[h.codigo.casefold()] = h
+            hallazgos[referencia] = h
+            if self.codigos_automaticos:
+                self.codigos_generados.append({"referencia": preparados["codigo"], "codigo": h.codigo})
             HistorialHallazgo.objects.create(hallazgo=h, usuario=self.ejecutado_por, fecha_hora=h.fecha_registro, accion="IMPORTACION_MASIVA", estado_anterior="", estado_nuevo=h.estado, comentario="Expediente creado mediante carga masiva.", metadata_json={"origen": "plantilla_xlsx"})
             self._actualizar_correlativo(h)
         ciclos = {}
@@ -1071,8 +1084,13 @@ class ImportadorMasivo:
             ciclo.respuestas = [{"pregunta_id": x["pregunta"].pk, "codigo_snapshot": x["pregunta"].codigo, "texto_snapshot": x["texto"], "es_otro": x["pregunta"].texto.strip().rstrip(":").casefold() == "otro", "respuesta": x["respuesta"], "comentario": x["comentario"], "usuario_id": x["usuario"].pk, "fecha": x["fecha"].isoformat()} for x in items]
             ciclo.save(update_fields=["checklist_snapshot","respuestas"])
         acciones = {}
-        for datos in self.preparados["acciones"]:
+        numeros_accion = defaultdict(int)
+        for preparados in self.preparados["acciones"]:
+            datos = preparados.copy()
             clave = datos.pop("clave"); clave_ciclo = datos.pop("clave_ciclo")
+            if self.codigos_automaticos:
+                numeros_accion[clave_ciclo] += 1
+                datos["codigo"] = f"{ciclos[clave_ciclo].hallazgo.codigo}-A{numeros_accion[clave_ciclo]:02d}"
             accion = Accion(ciclo=ciclos[clave_ciclo], **datos); accion.full_clean(); accion.save(force_insert=True); acciones[clave] = accion
             fecha_evento = timezone.make_aware(datetime.combine(accion.fecha_inicio, time.min))
             HistorialHallazgo.objects.create(hallazgo=accion.hallazgo, usuario=accion.responsable, fecha_hora=fecha_evento, accion="CREAR_ACCION", accion_relacionada=accion, estado_anterior=accion.hallazgo.estado, estado_nuevo=accion.hallazgo.estado, metadata_json={"accion": accion.codigo, "tipo": accion.tipo, "ciclo": accion.ciclo.numero, "origen": "carga_masiva"})
@@ -1102,8 +1120,11 @@ class ImportadorMasivo:
             evidencia.full_clean(); evidencia.save(force_insert=True)
             ArchivoEvidencia.objects.create(evidencia=evidencia, contenido=datos["contenido"], sha256=hashlib.sha256(datos["contenido"]).hexdigest())
             HistorialHallazgo.objects.create(hallazgo=hallazgo, usuario=evidencia.subido_por, fecha_hora=evidencia.fecha_carga, accion="EVIDENCIA", estado_anterior=hallazgo.estado, estado_nuevo=hallazgo.estado, comentario=evidencia.descripcion, metadata_json={"evidencia": evidencia.pk, "nombre": evidencia.nombre_original, "mime": evidencia.mime_type, "tamanio": evidencia.tamanio, "origen": "carga_masiva"})
-        AuditoriaAdministracion.objects.create(usuario=self.ejecutado_por, entidad="Hallazgo", objeto="carga_masiva", accion="importar", antes={}, despues=self.resumen())
-        return self.resumen()
+        resultado = self.resumen()
+        if self.codigos_generados:
+            resultado["codigos_generados"] = list(self.codigos_generados)
+        AuditoriaAdministracion.objects.create(usuario=self.ejecutado_por, entidad="Hallazgo", objeto="carga_masiva", accion="importar", antes={}, despues=resultado)
+        return resultado
 
     def _actualizar_correlativo(self, hallazgo):
         coincidencia = re.fullmatch(r"SAC-([A-Za-z0-9_]+)-(\d{4})-(\d+)", hallazgo.codigo)

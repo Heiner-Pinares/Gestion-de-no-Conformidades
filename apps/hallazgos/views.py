@@ -291,6 +291,7 @@ def hallazgo_carga_masiva(request):
         raise PermissionDenied
     form = CargaMasivaHallazgosForm(request.POST or None, request.FILES or None)
     resultado = None
+    codigos_generados = []
     errores_carga = []
     if request.method == "POST" and form.is_valid():
         guardar = request.POST.get("accion") == "importar"
@@ -300,6 +301,7 @@ def hallazgo_carga_masiva(request):
                 ejecutado_por=request.user,
                 guardar=guardar,
             )
+            codigos_generados = resultado.pop("codigos_generados", [])
         except ErrorCargaMasiva as exc:
             errores_carga = exc.errores
         else:
@@ -310,6 +312,7 @@ def hallazgo_carga_masiva(request):
     return render(request, "administrador/carga_masiva_hallazgos.html", {
         "form": form,
         "resultado": resultado,
+        "codigos_generados": codigos_generados,
         "errores_carga": errores_carga,
     })
 

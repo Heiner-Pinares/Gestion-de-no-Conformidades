@@ -11,7 +11,8 @@
     <strong>Una fila representa un compromiso.</strong>
     <p>La plantilla oficial contiene 30 columnas en una sola hoja. Las columnas rojas identifican el hallazgo, la columna dorada clasifica la causa raíz y las columnas azules describen el compromiso. Los desplegables del Excel muestran los valores aceptados.</p>
     <p>Puedes escribir el usuario, correo o nombre completo de una persona activa. Si dejas vacío el estado del hallazgo, el portal lo determina a partir de sus compromisos. El avance admite el formato de Excel, por ejemplo 90%.</p>
-    <p>Si un hallazgo tiene varios compromisos, repite su código y agrega un compromiso por fila. Valida antes de importar: si encuentra un error, no guardará ninguna fila.</p>
+    <p><b>Código hallazgo</b> funciona como referencia dentro del Excel: coloca 1, 2, 3, etc. y repite el mismo valor cuando un hallazgo tenga varios compromisos. Al importar, el portal asignará automáticamente el código definitivo según el tipo y el año, por ejemplo <b>SAC-NOC-2026-0001</b>.</p>
+    <p>Valida antes de importar: si encuentra un error, no guardará ninguna fila.</p>
   </div>
   <form method="post" enctype="multipart/form-data" class="admin-form">
     {% csrf_token %}
@@ -36,6 +37,19 @@
   <h2>Resumen del archivo</h2>
   <div class="admin-import-summary">
     {% for nombre, total in resultado.items %}<div><strong>{{ total }}</strong><span>{{ nombre|capfirst }}</span></div>{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if codigos_generados %}
+<section class="admin-panel">
+  <h2>Códigos asignados</h2>
+  <p>Conserva esta relación para identificar cada fila del archivo dentro del portal.</p>
+  <div class="table-scroll">
+    <table>
+      <thead><tr><th>Referencia del Excel</th><th>Código definitivo</th></tr></thead>
+      <tbody>{% for item in codigos_generados %}<tr><td>{{ item.referencia }}</td><td><b>{{ item.codigo }}</b></td></tr>{% endfor %}</tbody>
+    </table>
   </div>
 </section>
 {% endif %}
