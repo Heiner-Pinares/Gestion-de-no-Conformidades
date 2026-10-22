@@ -236,9 +236,19 @@ CORREO_SSH_PASSWORD = secreto(
     "CORREO_SSH_PASSWORD", "CORREO_SSH_PASSWORD_FILE", default=""
 )
 CORREO_SSH_TIMEOUT = env.int("CORREO_SSH_TIMEOUT", default=10)
+PORTAL_RUNTIME_ROOT = Path(
+    env(
+        "PORTAL_RUNTIME_ROOT",
+        default=str(
+            Path(os.environ["PROGRAMDATA"]) / "PortalNC"
+            if os.environ.get("PROGRAMDATA")
+            else BASE_DIR / "work"
+        ),
+    )
+)
 CORREO_SSH_KNOWN_HOSTS = env(
     "CORREO_SSH_KNOWN_HOSTS",
-    default=str(BASE_DIR / "work" / "correo_known_hosts"),
+    default=str(PORTAL_RUNTIME_ROOT / "correo_known_hosts"),
 )
 CORREO_REMITENTE_NOMBRE = env(
     "CORREO_REMITENTE_NOMBRE",

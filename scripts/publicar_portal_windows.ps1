@@ -21,6 +21,7 @@ $WorkDirectory = Join-Path $ProjectRoot "work"
 $RuntimeRoot = Join-Path $env:ProgramData "PortalNC"
 $StaticRoot = Join-Path $RuntimeRoot "staticfiles"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
+$KnownHostsPath = Join-Path $RuntimeRoot "correo_known_hosts"
 $FirewallRule = "Portal NC - acceso interno"
 
 function Assert-Administrator {
@@ -156,6 +157,8 @@ Set-EnvValue -Name "PORTAL_BIND_HOST" -Value $BindHost
 Set-EnvValue -Name "PORTAL_PORT" -Value ([string]$Port)
 Set-EnvValue -Name "PORTAL_THREADS" -Value ([string]$Threads)
 Set-EnvValue -Name "STATIC_ROOT" -Value ($StaticRoot.Replace("\", "/"))
+Set-EnvValue -Name "PORTAL_RUNTIME_ROOT" -Value ($RuntimeRoot.Replace("\", "/"))
+Set-EnvValue -Name "CORREO_SSH_KNOWN_HOSTS" -Value ($KnownHostsPath.Replace("\", "/"))
 Set-EnvValue -Name "SECURE_SSL_REDIRECT" -Value ($(if ($Https) { "True" } else { "False" }))
 Set-EnvValue -Name "SESSION_COOKIE_SECURE" -Value ($(if ($Https) { "True" } else { "False" }))
 Set-EnvValue -Name "CSRF_COOKIE_SECURE" -Value ($(if ($Https) { "True" } else { "False" }))

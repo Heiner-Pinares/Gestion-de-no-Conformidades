@@ -404,6 +404,25 @@ class CorreoCompromisoTests(TestCase):
             )
         crear_cliente.assert_not_called()
 
+    def test_permiso_known_hosts_es_fallo_controlado_y_deja_trazabilidad(self):
+        with patch(
+            "apps.hallazgos.services.correo_compromisos.Path.touch",
+            side_effect=PermissionError("acceso denegado"),
+        ), self.assertRaisesRegex(
+            CorreoCompromisoError, "archivo seguro de identidad SSH"
+        ):
+            CorreoCompromisoService.enviar_asignacion(
+                accion=self.accion, usuario=self.responsable
+            )
+
+        evento = HistorialHallazgo.objects.get(
+            accion_relacionada=self.accion,
+            accion="CORREO_COMPROMISO_FALLIDO",
+        )
+        self.assertEqual(
+            evento.metadata_json["resultado"], "SSH_KNOWN_HOSTS_PERMISOS"
+        )
+
     def test_guardar_plan_invoca_el_correo_solo_para_la_nueva_actividad(self):
         self.client.force_login(self.responsable)
         plan = {

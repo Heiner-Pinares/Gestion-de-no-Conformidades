@@ -237,7 +237,7 @@ CORREO_SSH_PORT=22
 CORREO_SSH_USER=usr_mds
 CORREO_SSH_PASSWORD_FILE=secrets/correo_ssh_password.txt
 CORREO_SSH_TIMEOUT=10
-CORREO_SSH_KNOWN_HOSTS=work/correo_known_hosts
+CORREO_SSH_KNOWN_HOSTS=C:/ProgramData/PortalNC/correo_known_hosts
 CORREO_REMITENTE_NOMBRE=Portal Claro - Gestión de No Conformidades
 CORREO_REMITENTE_EMAIL=portal-no-conformidades@claro.com.pe
 PORTAL_PUBLIC_URL=http://172.19.194.219:8001
@@ -256,7 +256,7 @@ La cuenta indicada debe ser la misma que inicia el portal. El script guarda la c
 3. Autorice una prueba controlada con una actividad de prueba.
 4. Cambie `CORREO_COMPROMISOS_ENABLED=True` y reinicie el portal.
 
-La primera conexión conserva la identidad del servidor en `work\correo_known_hosts`; una identidad distinta para el mismo host bloquea los envíos posteriores. Un registro `CORREO_COMPROMISO_ACEPTADO` significa que `sendmail` devolvió código 0. No confirma que Outlook haya entregado finalmente el mensaje al buzón. Los intentos fallidos o inciertos quedan en `tbl_historial_hallazgo_nc` y no eliminan el compromiso guardado.
+La primera conexión conserva la identidad del servidor en `C:\ProgramData\PortalNC\correo_known_hosts`; una identidad distinta para el mismo host bloquea los envíos posteriores. Un registro `CORREO_COMPROMISO_ACEPTADO` significa que `sendmail` devolvió código 0. No confirma que Outlook haya entregado finalmente el mensaje al buzón. Los intentos fallidos o inciertos quedan en `tbl_historial_hallazgo_nc` y no eliminan el compromiso guardado.
 
 ## Actualizar desde Git
 

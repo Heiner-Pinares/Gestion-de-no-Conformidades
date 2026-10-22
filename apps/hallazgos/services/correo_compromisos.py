@@ -300,18 +300,27 @@ class CorreoCompromisoService:
                 codigo="SIN_DESTINATARIOS",
             )
 
-        known_hosts = Path(settings.CORREO_SSH_KNOWN_HOSTS)
-        known_hosts.parent.mkdir(parents=True, exist_ok=True)
-        known_hosts.touch(mode=0o600, exist_ok=True)
-        try:
-            known_hosts.chmod(0o600)
-        except OSError:
-            # Windows controla este archivo mediante ACL, no por bits POSIX.
-            pass
-
         cliente = paramiko.SSHClient()
         envio_iniciado = False
         try:
+            known_hosts = Path(settings.CORREO_SSH_KNOWN_HOSTS)
+            if not known_hosts.is_absolute():
+                known_hosts = Path(settings.BASE_DIR) / known_hosts
+            try:
+                known_hosts.parent.mkdir(parents=True, exist_ok=True)
+                known_hosts.touch(mode=0o600, exist_ok=True)
+                try:
+                    known_hosts.chmod(0o600)
+                except OSError:
+                    # Windows controla este archivo mediante ACL, no por bits POSIX.
+                    pass
+            except OSError as error:
+                raise CorreoCompromisoError(
+                    "No se pudo preparar el archivo seguro de identidad SSH. "
+                    "Revisa los permisos de ejecución del portal.",
+                    codigo="SSH_KNOWN_HOSTS_PERMISOS",
+                ) from error
+
             cliente.load_host_keys(str(known_hosts))
             # AutoAddPolicy conserva la primera identidad en el archivo cargado.
             # Paramiko rechaza una clave distinta cuando el host ya está guardado.
@@ -444,9 +453,12 @@ class CorreoCompromisoService:
         """Notifica una sola vez al aprobador sin afectar la solicitud guardada."""
 
         with transaction.atomic():
-            solicitud = HistorialHallazgo.objects.select_for_update().select_related(
-                "accion_relacionada__ciclo__hallazgo"
-            ).get(pk=solicitud.pk, accion="SOLICITUD_REPROGRAMACION")
+            # Bloquear solo la fila de historial. Incluir la relación opcional
+            # produce un OUTER JOIN que PostgreSQL y Oracle no permiten con
+            # FOR UPDATE sobre el lado anulable.
+            solicitud = HistorialHallazgo.objects.select_for_update().get(
+                pk=solicitud.pk, accion="SOLICITUD_REPROGRAMACION"
+            )
             accion = solicitud.accion_relacionada
             if accion is None:
                 raise CorreoCompromisoError(
