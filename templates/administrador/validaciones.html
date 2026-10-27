@@ -6,11 +6,11 @@
   <div class="admin-page-title"><span class="admin-page-icon">✓</span><div><h1>Validaciones</h1><p>Revisión del paso 4 y vistos buenos administrativos de cierre.</p></div></div>
 </div>
 
-<section class="admin-metrics validation-metrics" aria-label="Resumen de validaciones">
-  <article class="admin-metric validation-metric"><span class="admin-metric-icon amber">{% include 'includes/admin_icon.html' with icon='clock' %}</span><div><strong>{{ resumen_validaciones.pendientes }}</strong><span>En verificación</span><small>Paso 4 activo</small></div></article>
-  <article class="admin-metric validation-metric"><span class="admin-metric-icon green">{% include 'includes/admin_icon.html' with icon='check-circle' %}</span><div><strong>{{ resumen_validaciones.listos }}</strong><span>Listos para cerrar</span><small>Requieren visto bueno</small></div></article>
-  <article class="admin-metric validation-metric"><span class="admin-metric-icon blue">{% include 'includes/admin_icon.html' with icon='review' %}</span><div><strong>{{ resumen_validaciones.en_revision }}</strong><span>En revisión</span><small>Con requisitos pendientes</small></div></article>
-  <article class="admin-metric validation-metric"><span class="admin-metric-icon purple">{% include 'includes/admin_icon.html' with icon='archive-check' %}</span><div><strong>{{ resumen_validaciones.cerrados }}</strong><span>Cerrados</span><small>Histórico finalizado</small></div></article>
+<section class="admin-dashboard-metrics validation-metrics" aria-label="Resumen de validaciones">
+  <article class="admin-dashboard-metric validation-metric metric-amber"><div class="admin-dashboard-metric-head"><span class="admin-dashboard-metric-icon">{% include 'includes/admin_icon.html' with icon='clock' %}</span><div><strong>{{ resumen_validaciones.pendientes }}</strong><span>En verificación</span><small>Paso 4 activo</small></div></div></article>
+  <article class="admin-dashboard-metric validation-metric metric-green"><div class="admin-dashboard-metric-head"><span class="admin-dashboard-metric-icon">{% include 'includes/admin_icon.html' with icon='check-circle' %}</span><div><strong>{{ resumen_validaciones.listos }}</strong><span>Listos para cerrar</span><small>Requieren visto bueno</small></div></div></article>
+  <article class="admin-dashboard-metric validation-metric metric-blue"><div class="admin-dashboard-metric-head"><span class="admin-dashboard-metric-icon">{% include 'includes/admin_icon.html' with icon='review' %}</span><div><strong>{{ resumen_validaciones.en_revision }}</strong><span>En revisión</span><small>Con requisitos pendientes</small></div></div></article>
+  <article class="admin-dashboard-metric validation-metric metric-purple"><div class="admin-dashboard-metric-head"><span class="admin-dashboard-metric-icon">{% include 'includes/admin_icon.html' with icon='archive-check' %}</span><div><strong>{{ resumen_validaciones.cerrados }}</strong><span>Cerrados</span><small>Histórico finalizado</small></div></div></article>
 </section>
 
 <form method="get" class="admin-filter">

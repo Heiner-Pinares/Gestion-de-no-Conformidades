@@ -139,13 +139,12 @@ html{max-width:100%;overflow-x:hidden}
   .admin-filter.admin-hallazgos-filter{min-width:1120px}
 }
 
-/* Validaciones: indicadores visuales y tabla con mayor legibilidad. */
-.admin-validations-page .validation-metric{align-items:center;gap:17px}
-.admin-validations-page .validation-metric .admin-metric-icon{flex:0 0 70px;width:70px;height:70px;border-radius:18px;box-shadow:inset 0 0 0 1px rgba(20,55,96,.04)}
-.admin-validations-page .validation-metric .admin-metric-icon .admin-icon{width:36px;height:36px;stroke-width:1.9}
-.admin-validations-page .validation-metric strong{font-size:38px}
-.admin-validations-page .validation-metric span:not(.admin-metric-icon){font-size:17px;font-weight:650}
-.admin-validations-page .validation-metric small{font-size:14px}
+/* Validaciones: usa el mismo patrón visual de indicadores que el Inicio. */
+.admin-validations-page .validation-metrics{margin:0 0 20px}
+.admin-validations-page .validation-metric{min-height:164px}
+.admin-validations-page .validation-metric .admin-dashboard-metric-head{width:100%}
+.admin-validations-page .validation-metric .admin-dashboard-metric-icon{display:grid;place-items:center;width:72px;flex-basis:72px}
+.admin-validations-page .validation-metric .admin-dashboard-metric-icon .admin-icon{display:block;margin:0}
 .admin-validations-table{min-width:1080px}
 .admin-validations-table th{padding:15px 18px;font-size:15px;text-align:left}
 .admin-validations-table td{padding:16px 18px;font-size:16px;line-height:1.45;vertical-align:middle}
@@ -155,7 +154,7 @@ html{max-width:100%;overflow-x:hidden}
 .admin-validations-page .admin-list-footer{font-size:14px}
 
 @media(max-width:760px){
-  .admin-validations-page .validation-metric .admin-metric-icon{flex-basis:64px;width:64px;height:64px}
+  .admin-validations-page .validation-metric .admin-dashboard-metric-head{justify-content:flex-start}
 }
 
 /* Configuración administrativa de los rangos de impacto. */
