@@ -1,7 +1,6 @@
 """Adaptadores HTTP. Las reglas y transacciones pertenecen a services."""
 import io
 from pathlib import Path
-from datetime import timedelta
 from django import forms
 from django.conf import settings
 from django.contrib import messages
@@ -144,53 +143,28 @@ def inicio(request):
     plantilla = "administrador/inicio.html" if es_administrador(request.user) else "hallazgos/inicio.html"
     contexto = {"recientes": qs[:8], "resumen": resumen}
     if es_administrador(request.user):
-        hoy = timezone.localdate()
-        inicio_mes = hoy.replace(day=1)
-        fin_mes_anterior = inicio_mes - timedelta(days=1)
-        inicio_mes_anterior = fin_mes_anterior.replace(day=1)
-
-        def variacion(consulta, *, favorable_al_subir=True):
-            actual = consulta.filter(fecha_registro__date__gte=inicio_mes).count()
-            anterior = consulta.filter(
-                fecha_registro__date__gte=inicio_mes_anterior,
-                fecha_registro__date__lte=fin_mes_anterior,
-            ).count()
-            if anterior:
-                porcentaje = round(abs(actual - anterior) * 100 / anterior)
-            else:
-                porcentaje = 100 if actual else 0
-            direccion = "up" if actual > anterior else "down" if actual < anterior else "flat"
-            favorable = direccion == ("up" if favorable_al_subir else "down")
-            return {
-                "porcentaje": porcentaje,
-                "direccion": direccion,
-                "simbolo": "↑" if direccion == "up" else "↓" if direccion == "down" else "−",
-                "clase": "positive" if favorable else "negative" if direccion != "flat" else "neutral",
-            }
-
         metricas = [
             {
                 "valor": resumen["total"], "etiqueta": "Total hallazgos",
                 "detalle": "Registros del sistema", "tono": "blue", "icono": "document",
-                **variacion(qs),
             },
             {
                 "valor": resumen["pendientes"], "etiqueta": "Pendientes",
                 "detalle": "Requieren atención", "tono": "amber", "icono": "clock",
-                **variacion(qs.exclude(estado__in=["CERRADO", "CANCELADO"]), favorable_al_subir=False),
             },
             {
                 "valor": resumen["en_analisis"], "etiqueta": "En análisis",
                 "detalle": "Análisis de causa raíz", "tono": "purple", "icono": "settings",
-                **variacion(qs.filter(estado__in=["EN_ANALISIS", "PBI_EN_GESTION"]), favorable_al_subir=False),
             },
             {
                 "valor": resumen["cerrados"], "etiqueta": "Cerrados",
                 "detalle": "Gestión finalizada", "tono": "green", "icono": "check",
-                **variacion(qs.filter(estado="CERRADO")),
             },
         ]
-        contexto["metricas_admin"] = metricas
+        contexto.update(
+            metricas_admin=metricas,
+            ultima_actualizacion=qs.order_by("-updated_at").values_list("updated_at", flat=True).first(),
+        )
     return render(request, plantilla, contexto)
 
 
