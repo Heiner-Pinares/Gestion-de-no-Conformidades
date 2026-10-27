@@ -33,6 +33,11 @@ from .services import (
 
 TIPO_ACTIVIDADES = "actividades"
 TITULO_ACTIVIDADES = "Actividades"
+ALCANCE_INDICADORES_PREDETERMINADO = (
+    "Facturación",
+    "Post-Facturación",
+    "Control y Mejoras",
+)
 
 
 def tipos_catalogo():
@@ -439,9 +444,12 @@ def reportes(request):
         })
         return {clave: agregados.get(clave, 0) or 0 for clave, _etiqueta, _estados in categorias}
 
-    def agrupar_por_jefatura(consulta, categorias):
+    def agrupar_por_jefatura(consulta, categorias, grupos_iniciales=()):
         filas = consulta.order_by().values("jefatura_indicador", "estado").annotate(total=Count("pk", distinct=True))
-        grupos = {}
+        grupos = {
+            nombre: {clave: 0 for clave, _etiqueta, _estados in categorias}
+            for nombre in grupos_iniciales
+        }
         for fila in filas:
             nombre = fila["jefatura_indicador"] or "Sin jefatura configurada"
             grupo = grupos.setdefault(nombre, {clave: 0 for clave, _etiqueta, _estados in categorias})
@@ -450,20 +458,43 @@ def reportes(request):
                     grupo[clave] += fila["total"]
                     break
         maximo = max((valor for grupo in grupos.values() for valor in grupo.values()), default=1) or 1
-        return [
-            {
+        nombres_ordenados = list(grupos_iniciales) + sorted(
+            nombre for nombre in grupos if nombre not in grupos_iniciales
+        )
+        resultado = []
+        for nombre in nombres_ordenados:
+            valores = grupos[nombre]
+            resultado.append({
                 "nombre": nombre,
                 "series": [
                     {"clave": clave, "etiqueta": etiqueta, "total": valores[clave],
                      "porcentaje": round(100 * valores[clave] / maximo)}
                     for clave, etiqueta, _estados in categorias
                 ],
-            }
-            for nombre, valores in sorted(grupos.items())
-        ], maximo
+            })
+        return resultado, maximo
 
     hallazgos_base = hallazgos_visibles(request.user).order_by()
-    anios = [fecha.year for fecha in hallazgos_base.dates("fecha_registro", "year", order="DESC")]
+    base = con_jefatura(hallazgos_base)
+    jefaturas_registradas = base.order_by("jefatura_indicador").values_list(
+        "jefatura_indicador", flat=True,
+    ).distinct()
+    jefaturas = list(dict.fromkeys([
+        *ALCANCE_INDICADORES_PREDETERMINADO,
+        *(valor for valor in jefaturas_registradas if valor),
+    ]))
+    jefatura = request.GET.get("jefatura", "").strip()
+    if jefatura not in jefaturas:
+        jefatura = ""
+
+    if jefatura:
+        alcance = base.filter(jefatura_indicador=jefatura)
+        grupos_iniciales = ()
+    else:
+        alcance = base.filter(jefatura_indicador__in=ALCANCE_INDICADORES_PREDETERMINADO)
+        grupos_iniciales = ALCANCE_INDICADORES_PREDETERMINADO
+
+    anios = [fecha.year for fecha in alcance.dates("fecha_registro", "year", order="DESC")]
     if not anios:
         anios = [timezone.localdate().year]
     try:
@@ -473,15 +504,7 @@ def reportes(request):
     if anio not in anios:
         anio = anios[0]
 
-    base = con_jefatura(hallazgos_base)
-    jefaturas = list(base.order_by("jefatura_indicador").values_list("jefatura_indicador", flat=True).distinct())
-    jefatura = request.GET.get("jefatura", "").strip()
-    if jefatura not in jefaturas:
-        jefatura = ""
-
-    qs = base.filter(fecha_registro__year=anio)
-    if jefatura:
-        qs = qs.filter(jefatura_indicador=jefatura)
+    qs = alcance.filter(fecha_registro__year=anio)
 
     if request.GET.get("formato") == "csv":
         respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -523,7 +546,9 @@ def reportes(request):
             ],
         })
 
-    hallazgos_por_jefatura, maximo_hallazgos_jefatura = agrupar_por_jefatura(qs, categorias_hallazgo)
+    hallazgos_por_jefatura, maximo_hallazgos_jefatura = agrupar_por_jefatura(
+        qs, categorias_hallazgo, grupos_iniciales,
+    )
 
     acciones = Accion.objects.filter(ciclo__hallazgo__in=qs.values("pk")).order_by()
     conteo_acciones = contar_estados(acciones, categorias_actividad)
@@ -538,7 +563,7 @@ def reportes(request):
     ]
     acciones_jefatura_qs = con_jefatura(acciones, "ciclo__hallazgo__proceso__")
     acciones_por_jefatura, maximo_acciones_jefatura = agrupar_por_jefatura(
-        acciones_jefatura_qs, categorias_actividad,
+        acciones_jefatura_qs, categorias_actividad, grupos_iniciales,
     )
 
     return render(request, "administrador/reportes.html", {

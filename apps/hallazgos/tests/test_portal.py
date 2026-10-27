@@ -817,6 +817,18 @@ class Recorridos(TestCase):
         self.assertContains(respuesta, 'Datos calculados con los registros actuales de la plataforma.')
         self.assertNotContains(respuesta, 'Datos ilustrativos')
 
+        respuesta_default = self.client.get(reverse('reportes'), {'anio': fecha.year})
+        self.assertEqual(respuesta_default.status_code, 200)
+        self.assertEqual(respuesta_default.context['total_hallazgos'], 1)
+        self.assertEqual(
+            [grupo['nombre'] for grupo in respuesta_default.context['hallazgos_por_jefatura']],
+            ['Facturación', 'Post-Facturación', 'Control y Mejoras'],
+        )
+        self.assertEqual(
+            [grupo['nombre'] for grupo in respuesta_default.context['acciones_por_jefatura']],
+            ['Facturación', 'Post-Facturación', 'Control y Mejoras'],
+        )
+
     def test_cabecera_muestra_el_area_del_usuario(self):
         self.usuario.area = 'Facturación'
         self.usuario.save(update_fields=['area'])
