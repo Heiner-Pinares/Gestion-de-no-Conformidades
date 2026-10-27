@@ -119,6 +119,26 @@ html{max-width:100%;overflow-x:hidden}
   .admin-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 }
 
+/* Bandeja de hallazgos: filtros en una línea y tabla de lectura cómoda. */
+.admin-hallazgos-filter-scroll{max-width:100%;margin-bottom:16px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.admin-filter.admin-hallazgos-filter{grid-template-columns:minmax(200px,1.45fr) repeat(3,minmax(150px,1fr)) repeat(2,minmax(145px,.8fr)) max-content;min-width:1180px;margin:0;gap:12px;padding:17px}
+.admin-hallazgos-filter .field{min-width:0}
+.admin-hallazgos-filter label{font-size:13px;font-weight:750}
+.admin-hallazgos-filter .input,.admin-hallazgos-filter input,.admin-hallazgos-filter select{width:100%;font-size:15px}
+.admin-hallazgos-filter .admin-filter-actions{grid-column:auto;flex-wrap:nowrap;white-space:nowrap}
+.admin-hallazgos-filter .admin-filter-actions .btn,.admin-hallazgos-filter .admin-filter-actions a{font-size:14px}
+.admin-hallazgos-table{min-width:1250px}
+.admin-hallazgos-table th{padding:14px 15px;font-size:14px;text-align:left}
+.admin-hallazgos-table td{padding:14px 15px;font-size:15px;line-height:1.4;vertical-align:middle}
+.admin-hallazgos-table .code{white-space:nowrap;font-weight:650}
+.admin-hallazgos-table .admin-state{font-size:13.5px}
+.admin-hallazgos-table .admin-action-link{padding:8px 14px;font-size:14px}
+.admin-hallazgos-page .admin-list-footer{font-size:13.5px}
+
+@media(max-width:760px){
+  .admin-filter.admin-hallazgos-filter{min-width:1120px}
+}
+
 /* Configuración administrativa de los rangos de impacto. */
 .admin-impact-form{display:grid;gap:15px;padding:20px;background:#fff;border:1px solid var(--admin-line);border-radius:13px;box-shadow:0 8px 28px rgba(31,53,82,.09)}
 .admin-impact-intro{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:18px;align-items:center;padding:16px 20px;border-radius:10px;background:linear-gradient(90deg,#fff0f2,#fff8f8)}
