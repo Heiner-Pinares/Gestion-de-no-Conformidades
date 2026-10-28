@@ -5,15 +5,17 @@ from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import SetPasswordForm
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.db.models import Case, CharField, Count, F, Q, When
 from django.db.models.functions import ExtractMonth
 from django.forms.models import model_to_dict
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from apps.accounts.forms import UsuarioCreacionForm, UsuarioEdicionForm
 from apps.accounts.models import Usuario, UsuarioRol
 from apps.accounts.permissions import es_administrador, es_validador
@@ -351,6 +353,54 @@ def catalogo_editar(request, tipo, pk=None):
         messages.success(request, "Catálogo guardado. Los valores históricos del caso se conservan.")
         return redirect(f"/administracion/catalogos/?tipo={tipo}")
     return render(request, "administrador/formulario.html", {"form": form, "titulo": titulo, "volver": "catalogos"})
+
+
+@solo_admin
+@require_POST
+def catalogo_eliminar(request, tipo, pk):
+    """Elimina un valor inactivo únicamente cuando no tiene referencias históricas."""
+    if tipo not in CATALOGOS and tipo != TIPO_ACTIVIDADES:
+        raise Http404
+
+    if tipo == TIPO_ACTIVIDADES:
+        modelo, campos = Catalogo, ["proceso", "subproceso", "nombre", "activo"]
+        objeto = get_object_or_404(actividades_queryset(), pk=pk)
+        entidad = "ActividadCatalogo"
+    else:
+        modelo, campos, _ = CATALOGOS[tipo]
+        objeto = get_object_or_404(modelo, pk=pk)
+        entidad = modelo.__name__
+
+    nombre = str(objeto)
+    destino = f"/administracion/catalogos/?tipo={tipo}"
+    try:
+        with transaction.atomic():
+            if tipo == TIPO_ACTIVIDADES:
+                actual = actividades_queryset().select_for_update().get(pk=objeto.pk)
+                antes = datos_actividad(actual)
+            else:
+                actual = modelo.objects.select_for_update().get(pk=objeto.pk)
+                antes = serializar(actual, campos)
+            if actual.activo:
+                raise ValidationError(
+                    "Primero marque el registro como inactivo desde Editar y luego elimínelo."
+                )
+            identificador = actual.pk
+            actual.delete()
+            registrar_auditoria(
+                request.user, entidad, identificador, "eliminar", antes, {},
+            )
+    except ProtectedError:
+        messages.error(
+            request,
+            f'No se puede eliminar "{nombre}" porque está relacionado con hallazgos '
+            "u otros datos históricos. Manténgalo inactivo para que no aparezca en nuevos registros.",
+        )
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(request, f'"{nombre}" fue eliminado del catálogo.')
+    return redirect(destino)
 
 
 @solo_admin

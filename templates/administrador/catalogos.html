@@ -21,8 +21,18 @@
   </form>
   <div class="admin-table-wrap"><table class="admin-table">
     <thead><tr><th>Código</th>{% if tipo == 'actividades' %}<th>Proceso</th><th>Subproceso</th><th>Actividad</th>{% elif tipo == 'subprocesos' %}<th>Proceso</th><th>Subproceso</th>{% else %}<th>Valor</th>{% endif %}<th>Estado</th><th>Acción</th></tr></thead>
-    <tbody>{% for obj in pagina %}<tr><td>{{ obj.pk }}</td>{% if tipo == 'actividades' %}<td>{{ obj.proceso_catalogo|default:'—' }}</td><td>{{ obj.subproceso_catalogo|default:'—' }}</td><td>{{ obj.nombre }}</td>{% elif tipo == 'subprocesos' %}<td>{{ obj.proceso }}</td><td>{{ obj.nombre }}</td>{% else %}<td>{{ obj }}</td>{% endif %}<td><span class="admin-state {% if obj.activo %}active{% else %}inactive{% endif %}">{{ obj.activo|yesno:'Activo,Inactivo' }}{% if obj.es_demo %} · DEMO{% endif %}</span></td><td><a class="admin-action-link" href="{% url 'catalogo_editar' tipo obj.pk %}">Editar</a></td></tr>{% empty %}<tr><td colspan="{% if tipo == 'actividades' %}6{% elif tipo == 'subprocesos' %}5{% else %}4{% endif %}" class="admin-empty">No hay registros para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
+    <tbody>{% for obj in pagina %}<tr><td>{{ obj.pk }}</td>{% if tipo == 'actividades' %}<td>{{ obj.proceso_catalogo|default:'—' }}</td><td>{{ obj.subproceso_catalogo|default:'—' }}</td><td>{{ obj.nombre }}</td>{% elif tipo == 'subprocesos' %}<td>{{ obj.proceso }}</td><td>{{ obj.nombre }}</td>{% else %}<td>{{ obj }}</td>{% endif %}<td><span class="admin-state {% if obj.activo %}active{% else %}inactive{% endif %}">{{ obj.activo|yesno:'Activo,Inactivo' }}{% if obj.es_demo %} · DEMO{% endif %}</span></td><td class="admin-actions"><a class="admin-action-link" href="{% url 'catalogo_editar' tipo obj.pk %}">Editar</a>{% if not obj.activo %}<button class="admin-action-link danger" type="button" data-catalog-delete-open data-delete-url="{% url 'catalogo_eliminar' tipo obj.pk %}" data-delete-name="{{ obj|escape }}">Eliminar</button>{% endif %}</td></tr>{% empty %}<tr><td colspan="{% if tipo == 'actividades' %}6{% elif tipo == 'subprocesos' %}5{% else %}4{% endif %}" class="admin-empty">No hay registros para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
   </table></div><div class="admin-list-footer"><span>{{ pagina.paginator.count }} registros</span>{% include 'includes/admin_paginacion.html' with pagina=pagina %}</div>
 </section>
+<dialog class="admin-delete-dialog" data-catalog-delete-dialog aria-labelledby="catalog-delete-dialog-title">
+  <form method="post" data-catalog-delete-form>
+    {% csrf_token %}
+    <span class="admin-delete-icon" aria-hidden="true">!</span>
+    <h2 id="catalog-delete-dialog-title">¿Eliminar este valor?</h2>
+    <p>Se eliminará <strong data-catalog-delete-name></strong> del catálogo.</p>
+    <p class="admin-delete-warning">Si está relacionado con hallazgos o datos históricos, el sistema bloqueará la eliminación y deberá conservarse como inactivo.</p>
+    <div class="admin-delete-actions"><button class="btn" type="button" data-catalog-delete-cancel>Cancelar</button><button class="btn primary" type="submit">Sí, eliminar</button></div>
+  </form>
+</dialog>
 {% endif %}
 {% endblock %}

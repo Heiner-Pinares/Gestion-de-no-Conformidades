@@ -10,27 +10,47 @@
   }
 
   const dialog = document.querySelector('[data-delete-dialog]');
-  if (!dialog) return;
-  const form = dialog.querySelector('[data-delete-form]');
-  const code = dialog.querySelector('[data-delete-code]');
-  const title = dialog.querySelector('[data-delete-title]');
-  const confirmation = dialog.querySelector('[data-delete-confirmation]');
-  const cancel = dialog.querySelector('[data-delete-cancel]');
+  if (dialog) {
+    const form = dialog.querySelector('[data-delete-form]');
+    const code = dialog.querySelector('[data-delete-code]');
+    const title = dialog.querySelector('[data-delete-title]');
+    const confirmation = dialog.querySelector('[data-delete-confirmation]');
+    const cancel = dialog.querySelector('[data-delete-cancel]');
 
-  document.querySelectorAll('[data-delete-open]').forEach((trigger) => {
-    trigger.addEventListener('click', () => {
-      form.action = trigger.dataset.deleteUrl;
-      code.textContent = trigger.dataset.deleteCode;
-      title.textContent = trigger.dataset.deleteTitle ? ` (${trigger.dataset.deleteTitle})` : '';
-      confirmation.value = trigger.dataset.deleteCode;
-      dialog.showModal();
-      cancel.focus();
+    document.querySelectorAll('[data-delete-open]').forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        form.action = trigger.dataset.deleteUrl;
+        code.textContent = trigger.dataset.deleteCode;
+        title.textContent = trigger.dataset.deleteTitle ? ` (${trigger.dataset.deleteTitle})` : '';
+        confirmation.value = trigger.dataset.deleteCode;
+        dialog.showModal();
+        cancel.focus();
+      });
     });
-  });
-  cancel.addEventListener('click', () => dialog.close());
-  dialog.addEventListener('click', (event) => {
-    if (event.target === dialog) dialog.close();
-  });
+    cancel.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+  }
+
+  const catalogDialog = document.querySelector('[data-catalog-delete-dialog]');
+  if (catalogDialog) {
+    const catalogForm = catalogDialog.querySelector('[data-catalog-delete-form]');
+    const catalogName = catalogDialog.querySelector('[data-catalog-delete-name]');
+    const catalogCancel = catalogDialog.querySelector('[data-catalog-delete-cancel]');
+    document.querySelectorAll('[data-catalog-delete-open]').forEach((trigger) => {
+      trigger.addEventListener('click', () => {
+        catalogForm.action = trigger.dataset.deleteUrl;
+        catalogName.textContent = trigger.dataset.deleteName;
+        catalogDialog.showModal();
+        catalogCancel.focus();
+      });
+    });
+    catalogCancel.addEventListener('click', () => catalogDialog.close());
+    catalogDialog.addEventListener('click', (event) => {
+      if (event.target === catalogDialog) catalogDialog.close();
+    });
+  }
 
   const bulkForm = document.querySelector('[data-bulk-delete-form]');
   const bulkDialog = document.querySelector('[data-bulk-delete-dialog]');

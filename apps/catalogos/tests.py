@@ -74,6 +74,68 @@ class CatalogoIdentificacionTests(TestCase):
         self.assertEqual(segunda["actividades"], 18)
 
 
+class CatalogoDeletionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin = Usuario.objects.create_user(
+            "admin.catalogos",
+            password="ClaveSoloParaTests-2026!",
+        )
+        cls.admin.add_role("ADMINISTRADOR")
+        cls.usuario = Usuario.objects.create_user(
+            "usuario.catalogos",
+            password="ClaveSoloParaTests-2026!",
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin)
+
+    def test_admin_elimina_proceso_inactivo_sin_referencias(self):
+        proceso = Proceso.objects.create(nombre="Proceso descartable", activo=False)
+        listado = self.client.get(reverse("catalogos"), {
+            "tipo": "procesos", "estado": "inactivo",
+        })
+        self.assertContains(
+            listado,
+            reverse("catalogo_eliminar", args=["procesos", proceso.pk]),
+        )
+
+        respuesta = self.client.post(
+            reverse("catalogo_eliminar", args=["procesos", proceso.pk]),
+            follow=True,
+        )
+
+        self.assertFalse(Proceso.objects.filter(pk=proceso.pk).exists())
+        self.assertContains(respuesta, "fue eliminado del catálogo")
+
+    def test_no_elimina_activo_ni_inactivo_con_datos_relacionados(self):
+        activo = Proceso.objects.create(nombre="Proceso activo")
+        respuesta = self.client.post(
+            reverse("catalogo_eliminar", args=["procesos", activo.pk]),
+            follow=True,
+        )
+        self.assertTrue(Proceso.objects.filter(pk=activo.pk).exists())
+        self.assertContains(respuesta, "Primero marque el registro como inactivo")
+
+        protegido = Proceso.objects.create(nombre="Proceso histórico", activo=False)
+        Subproceso.objects.create(proceso=protegido, nombre="Subproceso histórico")
+        respuesta = self.client.post(
+            reverse("catalogo_eliminar", args=["procesos", protegido.pk]),
+            follow=True,
+        )
+        self.assertTrue(Proceso.objects.filter(pk=protegido.pk).exists())
+        self.assertContains(respuesta, "está relacionado con hallazgos u otros datos históricos")
+
+    def test_eliminacion_exige_post_y_administrador(self):
+        proceso = Proceso.objects.create(nombre="Proceso restringido", activo=False)
+        url = reverse("catalogo_eliminar", args=["procesos", proceso.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.post(url).status_code, 403)
+        self.assertTrue(Proceso.objects.filter(pk=proceso.pk).exists())
+
+
 class CorreosCompromisosCatalogoTests(TestCase):
     @classmethod
     def setUpTestData(cls):
