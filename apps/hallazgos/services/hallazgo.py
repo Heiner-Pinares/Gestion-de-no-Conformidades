@@ -285,3 +285,31 @@ class HallazgoService:
             despues={"eliminado": True},
         )
         return codigo
+
+    @staticmethod
+    @transaction.atomic
+    def eliminar_varios(*, usuario, ids):
+        """Elimina una selección completa o no elimina nada si algún ID no existe."""
+        if not usuario.is_authenticated or not usuario.has_perm("accounts.administrar_plataforma"):
+            raise PermissionDenied("Solo un administrador puede eliminar hallazgos.")
+        try:
+            ids_normalizados = sorted({int(pk) for pk in ids})
+        except (TypeError, ValueError) as error:
+            raise ValidationError("La selección de hallazgos no es válida.") from error
+        if not ids_normalizados:
+            raise ValidationError("Seleccione al menos un hallazgo para eliminar.")
+
+        hallazgos = list(
+            Hallazgo.objects.select_for_update()
+            .filter(pk__in=ids_normalizados)
+            .order_by("pk")
+        )
+        if len(hallazgos) != len(ids_normalizados):
+            raise ValidationError(
+                "Uno de los hallazgos seleccionados ya no existe. Actualice la bandeja e inténtelo nuevamente."
+            )
+
+        return [
+            HallazgoService.eliminar(usuario=usuario, hallazgo=hallazgo)
+            for hallazgo in hallazgos
+        ]

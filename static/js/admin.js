@@ -31,4 +31,57 @@
   dialog.addEventListener('click', (event) => {
     if (event.target === dialog) dialog.close();
   });
+
+  const bulkForm = document.querySelector('[data-bulk-delete-form]');
+  const bulkDialog = document.querySelector('[data-bulk-delete-dialog]');
+  if (!bulkForm || !bulkDialog) return;
+  const selectAll = bulkForm.querySelector('[data-bulk-select-all]');
+  const selections = [...bulkForm.querySelectorAll('[data-bulk-select]')];
+  const openBulkDialog = bulkForm.querySelector('[data-bulk-delete-open]');
+  const summary = bulkForm.querySelector('[data-bulk-selection-summary]');
+  const bulkCount = bulkDialog.querySelector('[data-bulk-delete-count]');
+  const bulkCodes = bulkDialog.querySelector('[data-bulk-delete-codes]');
+  const cancelBulk = bulkDialog.querySelector('[data-bulk-delete-cancel]');
+
+  const selectedItems = () => selections.filter((checkbox) => checkbox.checked);
+  const updateBulkSelection = () => {
+    const selected = selectedItems();
+    const count = selected.length;
+    openBulkDialog.disabled = count === 0;
+    summary.textContent = count
+      ? `${count} ${count === 1 ? 'hallazgo seleccionado' : 'hallazgos seleccionados'}.`
+      : 'Selecciona los hallazgos que deseas eliminar.';
+    if (selectAll) {
+      selectAll.checked = selections.length > 0 && count === selections.length;
+      selectAll.indeterminate = count > 0 && count < selections.length;
+    }
+    selections.forEach((checkbox) => {
+      checkbox.closest('tr')?.classList.toggle('is-selected', checkbox.checked);
+    });
+  };
+
+  selectAll?.addEventListener('change', () => {
+    selections.forEach((checkbox) => { checkbox.checked = selectAll.checked; });
+    updateBulkSelection();
+  });
+  selections.forEach((checkbox) => checkbox.addEventListener('change', updateBulkSelection));
+  openBulkDialog.addEventListener('click', () => {
+    const selected = selectedItems();
+    if (!selected.length) return;
+    const codes = selected.map((checkbox) => checkbox.dataset.code);
+    bulkCount.textContent = `${selected.length} ${selected.length === 1 ? 'hallazgo' : 'hallazgos'}`;
+    bulkCodes.textContent = codes.length > 5
+      ? `${codes.slice(0, 5).join(', ')} y ${codes.length - 5} más.`
+      : `${codes.join(', ')}.`;
+    bulkDialog.showModal();
+    cancelBulk.focus();
+  });
+  cancelBulk.addEventListener('click', () => bulkDialog.close());
+  bulkDialog.addEventListener('click', (event) => {
+    if (event.target === bulkDialog) bulkDialog.close();
+  });
+  bulkForm.addEventListener('submit', (event) => {
+    if (!selectedItems().length) event.preventDefault();
+  });
+  updateBulkSelection();
 })();

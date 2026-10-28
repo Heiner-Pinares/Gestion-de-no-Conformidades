@@ -15,13 +15,42 @@
 </div>
 
 <section class="admin-panel">
-  <div class="admin-table-wrap">
-    <table class="admin-table admin-hallazgos-table">
-      <thead><tr><th>Código</th><th>Proceso</th><th>Descripción</th><th>Responsable</th><th>Estado</th><th>Fecha</th><th>Plantillas</th><th>Acciones</th></tr></thead>
-      <tbody>{% for caso in page_obj %}<tr><td class="code"><a href="{% url 'hallazgo_detalle' caso.pk %}">{{ caso.codigo }}</a></td><td>{{ caso.proceso }}</td><td>{{ caso.titulo|truncatechars:48 }}</td><td>{{ caso.responsable.get_full_name|default:caso.responsable.username }}</td><td><span class="admin-state {% if caso.estado == 'CERRADO' %}active{% elif caso.estado == 'DEVUELTO' or caso.estado == 'CANCELADO' %}returned{% elif caso.estado == 'EN_VERIFICACION' %}pending{% else %}review{% endif %}">{{ caso.get_estado_display }}</span></td><td>{{ caso.fecha_registro|date:'d/m/Y' }}</td><td class="admin-actions">{% if caso.estado == 'CERRADO' %}<a class="admin-action-link" href="{% url 'hallazgo_plantilla_descargar' caso.pk 'solicitud' %}" aria-label="Descargar solicitud de acción correctiva de {{ caso.codigo }}">↓ Solicitud AC</a><a class="admin-action-link" href="{% url 'hallazgo_plantilla_descargar' caso.pk 'matriz' %}" aria-label="Descargar matriz de control de {{ caso.codigo }}">↓ Matriz</a>{% else %}<span class="muted">Disponible al cerrar</span>{% endif %}</td><td class="admin-actions"><a class="admin-action-link" href="{% url 'hallazgo_detalle' caso.pk %}">Ver</a><button class="admin-action-link danger" type="button" data-delete-open data-delete-url="{% url 'hallazgo_eliminar' caso.pk %}" data-delete-code="{{ caso.codigo|escape }}" data-delete-title="{{ caso.titulo|escape }}">Eliminar</button></td></tr>{% empty %}<tr><td colspan="8" class="admin-empty">No hay hallazgos para los filtros seleccionados.</td></tr>{% endfor %}</tbody>
-    </table>
-  </div>
-  <div class="admin-list-footer"><span>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ page_obj.paginator.count }} hallazgos</span>{% include 'includes/admin_paginacion.html' with pagina=page_obj %}</div>
+  <form id="bulk-delete-form" method="post" action="{% url 'hallazgos_eliminar_varios' %}" class="admin-bulk-delete-form" data-bulk-delete-form>
+    {% csrf_token %}
+    <input type="hidden" name="confirmacion" value="ELIMINAR_SELECCIONADOS">
+    <div class="admin-bulk-bar">
+      <div><strong>Selección múltiple</strong><span data-bulk-selection-summary>Selecciona los hallazgos que deseas eliminar.</span></div>
+      <button class="admin-bulk-delete-button" type="button" data-bulk-delete-open disabled>Eliminar seleccionados</button>
+    </div>
+    <div class="admin-table-wrap">
+      <table class="admin-table admin-hallazgos-table">
+        <thead>
+          <tr>
+            <th class="admin-selection-cell"><input type="checkbox" data-bulk-select-all aria-label="Seleccionar todos los hallazgos de esta página"></th>
+            <th>Código</th><th>Proceso</th><th>Descripción</th><th>Responsable</th><th>Estado</th><th>Fecha</th><th>Plantillas</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for caso in page_obj %}
+            <tr>
+              <td class="admin-selection-cell"><input type="checkbox" name="hallazgo_ids" value="{{ caso.pk }}" data-bulk-select data-code="{{ caso.codigo|escape }}" aria-label="Seleccionar {{ caso.codigo }}"></td>
+              <td class="code"><a href="{% url 'hallazgo_detalle' caso.pk %}">{{ caso.codigo }}</a></td>
+              <td>{{ caso.proceso }}</td>
+              <td>{{ caso.titulo|truncatechars:48 }}</td>
+              <td>{{ caso.responsable.get_full_name|default:caso.responsable.username }}</td>
+              <td><span class="admin-state {% if caso.estado == 'CERRADO' %}active{% elif caso.estado == 'DEVUELTO' or caso.estado == 'CANCELADO' %}returned{% elif caso.estado == 'EN_VERIFICACION' %}pending{% else %}review{% endif %}">{{ caso.get_estado_display }}</span></td>
+              <td>{{ caso.fecha_registro|date:'d/m/Y' }}</td>
+              <td class="admin-actions">{% if caso.estado == 'CERRADO' %}<a class="admin-action-link" href="{% url 'hallazgo_plantilla_descargar' caso.pk 'solicitud' %}" aria-label="Descargar solicitud de acción correctiva de {{ caso.codigo }}">↓ Solicitud AC</a><a class="admin-action-link" href="{% url 'hallazgo_plantilla_descargar' caso.pk 'matriz' %}" aria-label="Descargar matriz de control de {{ caso.codigo }}">↓ Matriz</a>{% else %}<span class="muted">Disponible al cerrar</span>{% endif %}</td>
+              <td class="admin-actions"><a class="admin-action-link" href="{% url 'hallazgo_detalle' caso.pk %}">Ver</a><button class="admin-action-link danger" type="button" data-delete-open data-delete-url="{% url 'hallazgo_eliminar' caso.pk %}" data-delete-code="{{ caso.codigo|escape }}" data-delete-title="{{ caso.titulo|escape }}">Eliminar</button></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="9" class="admin-empty">No hay hallazgos para los filtros seleccionados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="admin-list-footer"><span>Mostrando {{ page_obj.start_index }} a {{ page_obj.end_index }} de {{ page_obj.paginator.count }} hallazgos</span>{% include 'includes/admin_paginacion.html' with pagina=page_obj %}</div>
+  </form>
 </section>
 
 <dialog class="admin-delete-dialog" data-delete-dialog aria-labelledby="delete-dialog-title">
@@ -37,6 +66,20 @@
       <button class="btn primary" type="submit">Sí, eliminar</button>
     </div>
   </form>
+</dialog>
+
+<dialog class="admin-delete-dialog" data-bulk-delete-dialog aria-labelledby="bulk-delete-dialog-title">
+  <div class="admin-delete-dialog-content">
+    <div class="admin-delete-icon" aria-hidden="true">!</div>
+    <h2 id="bulk-delete-dialog-title">¿Eliminar los hallazgos seleccionados?</h2>
+    <p>Vas a eliminar <strong data-bulk-delete-count></strong>.</p>
+    <p class="admin-bulk-delete-codes" data-bulk-delete-codes></p>
+    <p class="admin-delete-warning">También se eliminarán todos sus ciclos, acciones, seguimientos, evaluaciones, evidencias, historiales y notificaciones. Esta operación no se puede deshacer.</p>
+    <div class="admin-delete-actions">
+      <button class="btn" type="button" data-bulk-delete-cancel>Cancelar</button>
+      <button class="btn primary" type="submit" form="bulk-delete-form">Sí, eliminar seleccionados</button>
+    </div>
+  </div>
 </dialog>
 
 {% endblock %}

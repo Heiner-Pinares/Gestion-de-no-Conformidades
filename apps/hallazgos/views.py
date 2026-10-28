@@ -321,6 +321,29 @@ def hallazgo_eliminar(request, pk):
 
 
 @login_required
+@require_POST
+def hallazgos_eliminar_varios(request):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    if request.POST.get("confirmacion", "").strip() != "ELIMINAR_SELECCIONADOS":
+        messages.error(request, "No se eliminaron hallazgos porque faltó confirmar la operación.")
+        return redirect("hallazgo_buscar")
+    try:
+        codigos = HallazgoService.eliminar_varios(
+            usuario=request.user,
+            ids=request.POST.getlist("hallazgo_ids"),
+        )
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(
+            request,
+            f"Se eliminaron {len(codigos)} hallazgos y todos sus datos relacionados.",
+        )
+    return redirect("hallazgo_buscar")
+
+
+@login_required
 def hallazgo_plantilla_descargar(request, pk, tipo):
     """Entrega una copia completada de las plantillas oficiales del hallazgo."""
     hallazgo = obtener_hallazgo(request.user, pk)

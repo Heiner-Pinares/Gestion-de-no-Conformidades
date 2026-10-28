@@ -1428,6 +1428,49 @@ class Recorridos(TestCase):
             accion="eliminar",
         ).exists())
 
+    def test_administrador_elimina_varios_hallazgos_con_confirmacion(self):
+        primero = self.crear(titulo="Primer hallazgo para eliminación múltiple")
+        segundo = self.crear(titulo="Segundo hallazgo para eliminación múltiple")
+        url = reverse("hallazgos_eliminar_varios")
+        datos = {
+            "confirmacion": "ELIMINAR_SELECCIONADOS",
+            "hallazgo_ids": [primero.pk, segundo.pk],
+        }
+
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.post(url, datos).status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        listado = self.client.get(reverse("hallazgo_buscar"))
+        self.assertContains(listado, "data-bulk-delete-form")
+        self.assertContains(listado, "data-bulk-select-all")
+
+        respuesta = self.client.post(url, {
+            "confirmacion": "CONFIRMACION_INCORRECTA",
+            "hallazgo_ids": [primero.pk, segundo.pk],
+        })
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertEqual(Hallazgo.objects.filter(pk__in=[primero.pk, segundo.pk]).count(), 2)
+
+        respuesta = self.client.post(url, {
+            "confirmacion": "ELIMINAR_SELECCIONADOS",
+            "hallazgo_ids": [primero.pk, segundo.pk, 999999999],
+        })
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertEqual(Hallazgo.objects.filter(pk__in=[primero.pk, segundo.pk]).count(), 2)
+
+        respuesta = self.client.post(url, datos)
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertFalse(Hallazgo.objects.filter(pk__in=[primero.pk, segundo.pk]).exists())
+        self.assertEqual(
+            AuditoriaAdministracion.objects.filter(
+                entidad="Hallazgo",
+                objeto__in=[primero.codigo, segundo.codigo],
+                accion="eliminar",
+            ).count(),
+            2,
+        )
+
     def test_catalogo_nuevo_recibe_valor_tecnico_interno(self):
         fuente = FuenteDeteccion.objects.create(codigo='NUEVA', nombre='Fuente nueva')
         self.assertIsNotNone(fuente.valor)
