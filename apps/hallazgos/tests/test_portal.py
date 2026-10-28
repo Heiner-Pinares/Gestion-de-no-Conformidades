@@ -1428,6 +1428,29 @@ class Recorridos(TestCase):
             accion="eliminar",
         ).exists())
 
+    def test_filtro_muestra_solo_estados_con_hallazgos_visibles(self):
+        hallazgo = self.crear()
+        Hallazgo.objects.filter(pk=hallazgo.pk).update(estado="EN_ANALISIS")
+        self.client.force_login(self.admin)
+
+        pagina = self.client.get(reverse("hallazgo_buscar"))
+
+        self.assertContains(
+            pagina,
+            '<option value="EN_ANALISIS">En análisis</option>',
+            html=True,
+        )
+        self.assertNotContains(
+            pagina,
+            '<option value="PBI_EN_GESTION">PBI en gestión</option>',
+            html=True,
+        )
+        self.assertNotContains(
+            pagina,
+            '<option value="CERRADO">Cerrado</option>',
+            html=True,
+        )
+
     def test_administrador_elimina_varios_hallazgos_con_confirmacion(self):
         primero = self.crear(titulo="Primer hallazgo para eliminación múltiple")
         segundo = self.crear(titulo="Segundo hallazgo para eliminación múltiple")

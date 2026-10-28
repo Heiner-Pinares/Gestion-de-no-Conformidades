@@ -233,8 +233,12 @@ def hallazgo_editar(request, pk):
 
 @login_required
 def hallazgo_buscar(request):
-    form = BuscarHallazgoForm(request.GET or None)
     qs = hallazgos_visibles(request.user)
+    estados_disponibles = qs.order_by().values_list("estado", flat=True).distinct()
+    form = BuscarHallazgoForm(
+        request.GET or None,
+        estados_disponibles=estados_disponibles,
+    )
     if request.GET and form.is_valid():
         datos = form.cleaned_data
         if datos.get("codigo"):

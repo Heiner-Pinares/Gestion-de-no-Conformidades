@@ -704,8 +704,21 @@ class BuscarHallazgoForm(EstiloForm, forms.Form):
     fecha_desde = forms.DateField(required=False, widget=FECHA)
     fecha_hasta = forms.DateField(required=False, widget=FECHA)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, estados_disponibles=None, **kwargs):
         super().__init__(*args, **kwargs)
+        if estados_disponibles is not None:
+            disponibles = {str(estado) for estado in estados_disponibles}
+            solicitado = self.data.get("estado") if self.is_bound else self.initial.get("estado")
+            if solicitado in dict(ESTADOS):
+                disponibles.add(solicitado)
+            self.fields["estado"].choices = [
+                ("", "Todos"),
+                *[
+                    (codigo, etiqueta)
+                    for codigo, etiqueta in ESTADOS
+                    if codigo in disponibles
+                ],
+            ]
         self.estilizar()
 
     def clean(self):
