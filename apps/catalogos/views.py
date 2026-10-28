@@ -25,7 +25,7 @@ from .forms import (
 )
 from .models import (
     AuditoriaAdministracion, Catalogo, ConfiguracionImpacto, ConfiguracionUrgencia,
-    Proceso, ProcesoValidador,
+    Proceso, ProcesoValidador, Subproceso,
 )
 from .services import (
     TIPO_COPIA, TIPO_PARA, correos_queryset, detalle_actividad,
@@ -373,6 +373,7 @@ def catalogo_eliminar(request, tipo, pk):
 
     nombre = str(objeto)
     destino = f"/administracion/catalogos/?tipo={tipo}"
+    eliminados = {}
     try:
         with transaction.atomic():
             if tipo == TIPO_ACTIVIDADES:
@@ -385,10 +386,49 @@ def catalogo_eliminar(request, tipo, pk):
                 raise ValidationError(
                     "Primero marque el registro como inactivo desde Editar y luego elimínelo."
                 )
+            if tipo in {"procesos", "subprocesos"}:
+                from apps.hallazgos.models import Hallazgo
+
+                filtro_hallazgos = (
+                    Q(proceso_id=actual.pk) | Q(subproceso__proceso_id=actual.pk)
+                    if tipo == "procesos"
+                    else Q(subproceso_id=actual.pk)
+                )
+                total_hallazgos = Hallazgo.objects.filter(filtro_hallazgos).count()
+                if total_hallazgos:
+                    etiqueta = "hallazgo" if total_hallazgos == 1 else "hallazgos"
+                    raise ValidationError(
+                        f'No se puede eliminar "{nombre}": {total_hallazgos} '
+                        f"{etiqueta} lo utiliza. Manténgalo inactivo para conservar el historial."
+                    )
+
+                subprocesos = (
+                    list(
+                        Subproceso.objects.select_for_update()
+                        .filter(proceso_id=actual.pk)
+                        .order_by("pk")
+                    )
+                    if tipo == "procesos"
+                    else [actual]
+                )
+                actividades_eliminadas = 0
+                for subproceso in subprocesos:
+                    cantidad, _ = actividades_queryset().filter(
+                        codigo__startswith=f"ACT_{subproceso.pk}_",
+                    ).delete()
+                    actividades_eliminadas += cantidad
+                if tipo == "procesos" and subprocesos:
+                    Subproceso.objects.filter(
+                        pk__in=[subproceso.pk for subproceso in subprocesos],
+                    ).delete()
+                eliminados = {
+                    "subprocesos_eliminados": len(subprocesos) if tipo == "procesos" else 0,
+                    "actividades_eliminadas": actividades_eliminadas,
+                }
             identificador = actual.pk
             actual.delete()
             registrar_auditoria(
-                request.user, entidad, identificador, "eliminar", antes, {},
+                request.user, entidad, identificador, "eliminar", antes, eliminados,
             )
     except ProtectedError:
         messages.error(
@@ -399,7 +439,19 @@ def catalogo_eliminar(request, tipo, pk):
     except ValidationError as error:
         messages.error(request, error.messages[0])
     else:
-        messages.success(request, f'"{nombre}" fue eliminado del catálogo.')
+        relacionados = []
+        if eliminados.get("subprocesos_eliminados"):
+            cantidad = eliminados["subprocesos_eliminados"]
+            relacionados.append(
+                f"{cantidad} {'subproceso' if cantidad == 1 else 'subprocesos'}"
+            )
+        if eliminados.get("actividades_eliminadas"):
+            cantidad = eliminados["actividades_eliminadas"]
+            relacionados.append(
+                f"{cantidad} {'actividad' if cantidad == 1 else 'actividades'}"
+            )
+        detalle = f" junto con {' y '.join(relacionados)}" if relacionados else ""
+        messages.success(request, f'"{nombre}" fue eliminado del catálogo{detalle}.')
     return redirect(destino)
 
 

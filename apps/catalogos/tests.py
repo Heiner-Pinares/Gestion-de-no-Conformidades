@@ -5,7 +5,8 @@ from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from apps.accounts.models import Usuario
-from apps.catalogos.models import Catalogo, CategoriaCausa, Proceso, Subproceso
+from apps.catalogos.models import Catalogo, CategoriaCausa, Proceso, Subproceso, TipoRegistro
+from apps.hallazgos.models import Hallazgo
 from apps.catalogos.services import (
     TIPO_COPIA, TIPO_PARA, actividades_para, correos_queryset,
     destinatarios_adicionales, sincronizar_catalogo_identificacion,
@@ -108,7 +109,7 @@ class CatalogoDeletionTests(TestCase):
         self.assertFalse(Proceso.objects.filter(pk=proceso.pk).exists())
         self.assertContains(respuesta, "fue eliminado del catálogo")
 
-    def test_no_elimina_activo_ni_inactivo_con_datos_relacionados(self):
+    def test_no_elimina_activo_y_elimina_jerarquia_sin_hallazgos(self):
         activo = Proceso.objects.create(nombre="Proceso activo")
         respuesta = self.client.post(
             reverse("catalogo_eliminar", args=["procesos", activo.pk]),
@@ -117,14 +118,45 @@ class CatalogoDeletionTests(TestCase):
         self.assertTrue(Proceso.objects.filter(pk=activo.pk).exists())
         self.assertContains(respuesta, "Primero marque el registro como inactivo")
 
-        protegido = Proceso.objects.create(nombre="Proceso histórico", activo=False)
-        Subproceso.objects.create(proceso=protegido, nombre="Subproceso histórico")
+        proceso = Proceso.objects.create(nombre="Proceso con jerarquía", activo=False)
+        subproceso = Subproceso.objects.create(
+            proceso=proceso, nombre="Subproceso sin hallazgos",
+        )
+        actividad = Catalogo.objects.create(
+            clase="CATEGORIA",
+            codigo=f"ACT_{subproceso.pk}_PRUEBA",
+            nombre="Actividad sin hallazgos",
+            activo=False,
+        )
         respuesta = self.client.post(
-            reverse("catalogo_eliminar", args=["procesos", protegido.pk]),
+            reverse("catalogo_eliminar", args=["procesos", proceso.pk]),
             follow=True,
         )
-        self.assertTrue(Proceso.objects.filter(pk=protegido.pk).exists())
-        self.assertContains(respuesta, "está relacionado con hallazgos u otros datos históricos")
+        self.assertFalse(Proceso.objects.filter(pk=proceso.pk).exists())
+        self.assertFalse(Subproceso.objects.filter(pk=subproceso.pk).exists())
+        self.assertFalse(Catalogo.objects.filter(pk=actividad.pk).exists())
+        self.assertContains(respuesta, "junto con 1 subproceso y 1 actividad")
+
+    def test_no_elimina_proceso_utilizado_por_hallazgo(self):
+        proceso = Proceso.objects.create(nombre="Proceso histórico", activo=False)
+        tipo = TipoRegistro.objects.create(codigo="INC", nombre="Incidente")
+        Hallazgo.objects.create(
+            codigo="SAC-INC-2026-9999",
+            titulo="Hallazgo histórico",
+            tipo_registro=tipo,
+            proceso=proceso,
+            responsable=self.usuario,
+            registrado_por=self.usuario,
+            updated_by=self.usuario,
+        )
+
+        respuesta = self.client.post(
+            reverse("catalogo_eliminar", args=["procesos", proceso.pk]),
+            follow=True,
+        )
+
+        self.assertTrue(Proceso.objects.filter(pk=proceso.pk).exists())
+        self.assertContains(respuesta, "1 hallazgo lo utiliza")
 
     def test_eliminacion_exige_post_y_administrador(self):
         proceso = Proceso.objects.create(nombre="Proceso restringido", activo=False)
