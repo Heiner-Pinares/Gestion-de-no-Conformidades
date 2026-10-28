@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Administración{% endblock %} · Portal Claro</title>
   <link rel="stylesheet" href="{% static 'css/portal-v8.css' %}">
-  <link rel="stylesheet" href="{% static 'css/portal.css' %}?v=impacto-configurable-1">
-  <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=admin-bulk-delete-12">
+  <link rel="stylesheet" href="{% static 'css/portal.css' %}?v=navigation-back-1">
+  <link rel="stylesheet" href="{% static 'css/admin.css' %}?v=navigation-back-13">
   {% block extra_head %}{% endblock %}
   <link rel="stylesheet" href="{% static 'css/responsive.css' %}?v=3">
 </head>
-<body class="admin-body {% block body_class %}{% endblock %}">
+<body class="admin-body {% block body_class %}{% endblock %}" data-portal-authenticated="true">
   <a class="skip-link" href="#contenido">Saltar al contenido</a>
   <header class="admin-toolbar">
     <div class="admin-brand">
@@ -56,12 +56,14 @@
 
     <section class="admin-stage">
       <main id="contenido" class="admin-content" tabindex="-1">
+        {% if request.resolver_match.url_name != 'inicio' %}<div class="portal-back-row no-print"><button class="portal-back-button" type="button" data-history-back data-fallback="{% url 'inicio' %}"><span aria-hidden="true">←</span> Regresar</button></div>{% endif %}
         {% if messages %}{% for message in messages %}<div class="alert {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}{% endif %}
         {% block content %}{% endblock %}
       </main>
       {% block admin_footer %}<footer class="admin-footer"><span>Claro Perú · Gestión de No Conformidades</span><span>Hacemos más simple la vida de más personas</span></footer>{% endblock %}
     </section>
   </div>
+  <script src="{% static 'js/navigation.js' %}?v=1" defer></script>
   <script src="{% static 'js/admin.js' %}?v=4" defer></script>
   {% block extra_js %}{% endblock %}
 </body>

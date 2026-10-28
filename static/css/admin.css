@@ -209,6 +209,7 @@ html{max-width:100%;overflow-x:hidden}
 .admin-sidebar-toggle{position:absolute;z-index:5;right:-1px;top:45%;display:grid;place-items:center;width:31px;height:62px;padding:0;border:0;border-radius:31px 0 0 31px;background:#f31723;color:#fff;font-size:23px;line-height:1;cursor:pointer;box-shadow:0 5px 12px rgba(239,16,27,.35)}
 .admin-stage{box-sizing:border-box;position:relative;display:flex;min-width:0;height:100%;min-height:0;overflow:hidden;background:radial-gradient(circle at 66% 5%,#fff 0,#f9fcff 45%,#f4f8fc 100%)}.admin-stage:before{width:760px;height:260px;right:-80px;top:-75px;opacity:.65}
 .admin-content{box-sizing:border-box;position:relative;z-index:1;flex:1 1 auto;min-width:0;min-height:0;padding:20px 27px 24px;overflow:auto;scrollbar-width:thin;scrollbar-color:#bfd0e2 transparent}.admin-footer{flex:0 0 auto}
+.admin-content>.portal-back-row{max-width:none;margin:0 0 14px;padding:0}.admin-content>.portal-back-row .portal-back-button{min-height:38px;padding:7px 14px}
 .admin-sidebar-collapsed{--admin-sidebar-width:72px}.admin-sidebar-collapsed .admin-nav-label,.admin-sidebar-collapsed .admin-sidebar-foot{display:none}.admin-sidebar-collapsed .admin-sidebar nav a{justify-content:center;padding:12px 10px}.admin-sidebar-collapsed .admin-sidebar nav a b{flex-basis:29px}.admin-sidebar-collapsed .admin-sidebar-toggle{width:24px}
 
 /* Inicio administrativo */
