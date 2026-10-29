@@ -15,7 +15,7 @@ TRANSICIONES = {
     "iniciar_pbi": ({"EN_ANALISIS"}, "PBI_EN_GESTION", "Iniciar gestión PBI"),
     "planificar": ({"EN_ANALISIS", "PBI_EN_GESTION"}, "PLAN_ACCION", "Pasar al plan de acción"),
     "iniciar_implementacion": ({"PLAN_ACCION"}, "EN_IMPLEMENTACION", "Iniciar implementación"),
-    "enviar_verificacion": ({"ACCION_INMEDIATA", "EN_IMPLEMENTACION"}, "EN_VERIFICACION", "Enviar a verificación"),
+    "enviar_verificacion": ({"ACCION_INMEDIATA", "EN_IMPLEMENTACION"}, "EN_VERIFICACION", "Evaluación de eficacia"),
     "cerrar": ({"EN_VERIFICACION"}, "CERRADO", "Dar visto bueno y cerrar"),
     "reabrir": ({"CERRADO"}, "REABIERTO", "Reabrir tratamiento"),
 }
@@ -111,7 +111,7 @@ class WorkflowService:
 
     @staticmethod
     @transaction.atomic
-    def ejecutar(*, usuario, hallazgo, accion, comentario="", version=None):
+    def ejecutar(*, usuario, hallazgo, accion, comentario="", version=None, metadata=None):
         hallazgo = bloquear(hallazgo, version)
         exigir(accion in TRANSICIONES, "La transición solicitada no existe.")
         origenes, destino, etiqueta = TRANSICIONES[accion]
@@ -160,7 +160,7 @@ class WorkflowService:
             exigir(
                 validadores.exists(),
                 "El proceso no tiene un validador activo asignado. "
-                "Solicite al administrador asignarlo antes de enviar a verificación.",
+                "Solicite al administrador asignarlo antes de enviar a evaluación de eficacia.",
             )
             if hallazgo.es_critica == "SI":
                 exigir(hallazgo.estado == "EN_IMPLEMENTACION", "El caso crítico debe completar análisis y acciones correctivas.")
@@ -178,7 +178,7 @@ class WorkflowService:
             nuevo_ciclo(hallazgo, usuario, comentario)
         anterior = hallazgo.estado
         hallazgo.estado = destino
-        registrar(hallazgo, usuario, accion.upper(), comentario, anterior=anterior)
+        registrar(hallazgo, usuario, accion.upper(), comentario, anterior=anterior, metadata=metadata)
         destinatarios = None
         if accion in {"enviar", "enviar_verificacion"}:
             destinatarios = set(hallazgo.proceso.validadores.filter(is_active=True).values_list("pk", flat=True)) | {hallazgo.registrado_por_id, hallazgo.responsable_id}

@@ -640,6 +640,49 @@ class EvaluacionEficaciaForm(EstiloForm, forms.ModelForm):
         self.estilizar()
 
 
+class SolicitudEvaluacionEficaciaForm(EstiloForm, forms.Form):
+    fecha_evaluacion = forms.DateField(
+        label="Fecha de evaluación",
+        widget=FECHA,
+        initial=timezone.localdate,
+    )
+    titulo_falla = forms.CharField(
+        label="Título de la falla",
+        max_length=250,
+        widget=forms.TextInput(attrs={"placeholder": "Título de la falla"}),
+    )
+    archivo = forms.FileField(
+        label="Adjuntar evidencia",
+        help_text="PDF, JPG, PNG, DOCX o XLSX; máximo 10 MB por archivo.",
+    )
+    comentario = forms.CharField(
+        label="Comentario",
+        max_length=1000,
+        widget=forms.Textarea(attrs={
+            "rows": 4,
+            "placeholder": "Describe el resultado observado y por qué la solución puede ser evaluada.",
+        }),
+    )
+
+    def __init__(self, *args, fecha_minima=None, **kwargs):
+        self.fecha_minima = fecha_minima
+        super().__init__(*args, **kwargs)
+        self.estilizar()
+
+    def clean_fecha_evaluacion(self):
+        fecha = self.cleaned_data["fecha_evaluacion"]
+        if fecha > timezone.localdate():
+            raise ValidationError("La fecha de evaluación no puede estar en el futuro.")
+        if self.fecha_minima and fecha < self.fecha_minima:
+            raise ValidationError("La fecha de evaluación no puede ser anterior al inicio del plan.")
+        return fecha
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data["archivo"]
+        validar_archivo(archivo)
+        return archivo
+
+
 class PBIForm(EstiloForm, forms.ModelForm):
     class Meta:
         model = PBI

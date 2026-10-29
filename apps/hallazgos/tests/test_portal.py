@@ -168,6 +168,64 @@ class Recorridos(TestCase):
         self.paso(h,'cerrar',self.admin)
         self.assertEqual(h.estado,'CERRADO')
 
+    def test_solicitud_de_evaluacion_exige_evidencia_y_muestra_confirmacion(self):
+        h = self.crear()
+        self.inmediata(h)
+        self.client.force_login(self.usuario)
+
+        detalle = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
+        self.assertContains(detalle, 'data-efficacy-open')
+        self.assertContains(detalle, 'Evaluación de eficacia')
+        self.assertNotContains(detalle, 'Enviar a verificación')
+        self.assertContains(detalle, 'Título de la falla')
+        self.assertContains(detalle, 'Adjuntar evidencia')
+
+        sin_archivo = self.client.post(reverse('hallazgo_solicitar_evaluacion', args=[h.pk]), {
+            'fecha_evaluacion': timezone.localdate().isoformat(),
+            'titulo_falla': 'Falla controlada',
+            'comentario': 'La solución fue aplicada y está lista para revisión.',
+        })
+        self.assertIn('abrir_evaluacion=1', sin_archivo.url)
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'ACCION_INMEDIATA')
+
+        pdf = SimpleUploadedFile(
+            'informe_eficacia.pdf',
+            b'%PDF-1.4\nevidencia de eficacia\n%%EOF',
+            content_type='application/pdf',
+        )
+        respuesta = self.client.post(reverse('hallazgo_solicitar_evaluacion', args=[h.pk]), {
+            'fecha_evaluacion': timezone.localdate().isoformat(),
+            'titulo_falla': 'Falla controlada',
+            'comentario': 'La solución fue aplicada y está lista para revisión.',
+            'archivo': pdf,
+        })
+        self.assertIn('evaluacion_enviada=1', respuesta.url)
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'EN_VERIFICACION')
+        evidencia = h.evidencias.get()
+        self.assertEqual(evidencia.nombre_original, 'informe_eficacia.pdf')
+        evento = h.historial.get(accion='ENVIAR_VERIFICACION')
+        self.assertEqual(evento.metadata_json['titulo_falla'], 'Falla controlada')
+        self.assertEqual(evento.metadata_json['evidencia'], evidencia.pk)
+
+        confirmacion = self.client.get(respuesta.url)
+        self.assertContains(confirmacion, 'Evaluación de eficacia<br>enviada.', html=True)
+        self.assertContains(confirmacion, 'La evidencia registrada ha sido enviada correctamente.')
+        self.assertContains(confirmacion, 'data-efficacy-success')
+
+    def test_transicion_antigua_de_verificacion_abre_el_nuevo_formulario(self):
+        h = self.crear()
+        self.inmediata(h)
+        self.client.force_login(self.usuario)
+
+        respuesta = self.client.get(reverse('hallazgo_transicion', args=[h.pk, 'enviar_verificacion']))
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn('abrir_evaluacion=1', respuesta.url)
+        h.refresh_from_db()
+        self.assertEqual(h.estado, 'ACCION_INMEDIATA')
+
     def test_plan_crea_compromisos_pendientes_y_confirma(self):
         h = self.crear()
         self.paso(h, 'enviar')

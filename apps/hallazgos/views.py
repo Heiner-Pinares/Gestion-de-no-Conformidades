@@ -11,6 +11,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from apps.accounts.permissions import es_administrador, puede_gestionar, puede_validar, puede_ver
@@ -19,7 +20,7 @@ from .forms import (
     AccionForm, ActividadPlanForm, AnalisisCausaForm, BuscarHallazgoForm, ComunicacionForm,
     EvaluacionEficaciaForm, EvidenciaForm, HallazgoForm, PBIForm,
     ReprogramacionForm, SeguimientoForm, SeguimientoLineaForm, TransicionForm,
-    CargaMasivaHallazgosForm,
+    CargaMasivaHallazgosForm, SolicitudEvaluacionEficaciaForm,
 )
 from .models import Accion, ArchivoEvidencia, Evidencia, Hallazgo, HistorialHallazgo, Notificacion
 from .selectors import acciones_disponibles, hallazgos_visibles, indicadores, timeline_hallazgo
@@ -480,6 +481,7 @@ def hallazgo_detalle(request, pk):
         h,
     )
     transiciones = acciones_disponibles(request.user, h)
+    puede_solicitar_evaluacion = any(codigo == "enviar_verificacion" for codigo, _ in transiciones)
     ultima_evaluacion = ciclo.evaluaciones.first() if ciclo else None
     actividades_vigentes = [a for a in actividades if a.estado != "CANCELADA"]
     total_actividades = len(actividades_vigentes)
@@ -493,6 +495,7 @@ def hallazgo_detalle(request, pk):
         and ultima_evaluacion
         and ultima_evaluacion.resultado == "EFICAZ"
     )
+    fecha_inicio_plan = timezone.localtime(ciclo.fecha_inicio).date() if ciclo else None
     context = {
         "hallazgo": h, "ciclo": ciclo, "timeline": timeline_hallazgo(h),
         "transiciones": [(codigo, etiqueta) for codigo, etiqueta in transiciones if codigo != "cerrar"],
@@ -519,8 +522,59 @@ def hallazgo_detalle(request, pk):
         "total_actividades": total_actividades,
         "actividades_completadas": actividades_completadas,
         "reprogramacion_form": ReprogramacionForm(solicitante=request.user),
+        "solicitud_evaluacion_form": SolicitudEvaluacionEficaciaForm(
+            fecha_minima=fecha_inicio_plan,
+        ),
+        "abrir_evaluacion": puede_solicitar_evaluacion and request.GET.get("abrir_evaluacion") == "1",
+        "evaluacion_enviada": request.GET.get("evaluacion_enviada") == "1",
     }
     return render(request, "hallazgos/detalle.html", context)
+
+
+@login_required
+@require_POST
+def hallazgo_solicitar_evaluacion(request, pk):
+    h = obtener_hallazgo(request.user, pk)
+    disponibles = dict(acciones_disponibles(request.user, h))
+    if "enviar_verificacion" not in disponibles:
+        raise PermissionDenied
+    ciclo = h.ciclo_actual
+    fecha_inicio = timezone.localtime(ciclo.fecha_inicio).date() if ciclo else None
+    form = SolicitudEvaluacionEficaciaForm(
+        request.POST,
+        request.FILES,
+        fecha_minima=fecha_inicio,
+    )
+    if not form.is_valid():
+        for errores_campo in form.errors.values():
+            for mensaje in errores_campo:
+                messages.error(request, mensaje)
+        return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}?abrir_evaluacion=1")
+    datos = form.cleaned_data
+    try:
+        with transaction.atomic():
+            evidencia = EvidenciaService.subir(
+                usuario=request.user,
+                hallazgo=h,
+                archivo=datos["archivo"],
+                descripcion=f"Evaluación de eficacia · {datos['titulo_falla']}: {datos['comentario']}",
+            )
+            WorkflowService.ejecutar(
+                usuario=request.user,
+                hallazgo=h,
+                accion="enviar_verificacion",
+                comentario=datos["comentario"],
+                metadata={
+                    "titulo_falla": datos["titulo_falla"],
+                    "fecha_evaluacion_solicitada": datos["fecha_evaluacion"].isoformat(),
+                    "evidencia": evidencia.pk,
+                    "ciclo": ciclo.numero,
+                },
+            )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+        return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}?abrir_evaluacion=1")
+    return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}?evaluacion_enviada=1")
 
 
 @login_required
@@ -529,6 +583,8 @@ def hallazgo_transicion(request, pk, accion):
     disponibles = dict(acciones_disponibles(request.user, h))
     if accion not in disponibles:
         raise PermissionDenied
+    if accion == "enviar_verificacion":
+        return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}?abrir_evaluacion=1")
     form = TransicionForm(request.POST or None, initial={"version": h.version})
     if accion == "cerrar":
         form.fields["comentario"].required = True
