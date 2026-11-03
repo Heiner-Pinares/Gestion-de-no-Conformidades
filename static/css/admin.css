@@ -131,6 +131,8 @@ html{max-width:100%;overflow-x:hidden}
 .admin-bulk-bar{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:13px 16px;border-bottom:1px solid var(--admin-line);background:#f8fbff}
 .admin-bulk-bar>div{display:grid;gap:3px}.admin-bulk-bar strong{color:#132b50;font-size:14px}.admin-bulk-bar span{color:#607493;font-size:12px}
 .admin-bulk-delete-button{min-height:40px;padding:9px 16px;border:1px solid #e30613;border-radius:7px;background:#fff;color:#c60d18;font:inherit;font-size:14px;font-weight:750;cursor:pointer}.admin-bulk-delete-button:hover:not(:disabled){background:#e30613;color:#fff}.admin-bulk-delete-button:disabled{border-color:#ccd6e1;color:#8b9aae;cursor:not-allowed;opacity:.72}
+.admin-delete-all-button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:12px 19px;border:1px solid #d90b16;border-radius:7px;background:#fff;color:#c60d18;font:inherit;font-weight:750;cursor:pointer}.admin-delete-all-button:hover:not(:disabled){background:#fff0f1}.admin-delete-all-button:disabled{border-color:#ccd6e1;color:#8b9aae;cursor:not-allowed;opacity:.7}
+.admin-delete-confirm-field{display:grid;width:100%;gap:8px;margin-top:16px;text-align:left;color:#243a5d;font-size:13px}.admin-delete-confirm-field input{box-sizing:border-box;width:100%;min-height:44px;border:1px solid #bdcadd;border-radius:7px;padding:9px 11px;font:inherit}.admin-delete-confirm-field input:focus{border-color:#e30613;outline:3px solid #ffd8db}
 .admin-hallazgos-table{min-width:1320px}
 .admin-hallazgos-table th{padding:14px 15px;font-size:14px;text-align:left}
 .admin-hallazgos-table td{padding:14px 15px;font-size:15px;line-height:1.4;vertical-align:middle}
@@ -163,7 +165,7 @@ html{max-width:100%;overflow-x:hidden}
 
 @media(max-width:760px){
   .admin-validations-page .validation-metric .admin-dashboard-metric-head{justify-content:flex-start}
-  .admin-bulk-bar{align-items:stretch;flex-direction:column}.admin-bulk-delete-button{width:100%}
+  .admin-bulk-bar{align-items:stretch;flex-direction:column}.admin-bulk-delete-button,.admin-delete-all-button{width:100%}
   .admin-delete-actions{flex-direction:column-reverse}.admin-delete-actions .btn{width:100%}
 }
 

@@ -313,3 +313,19 @@ class HallazgoService:
             HallazgoService.eliminar(usuario=usuario, hallazgo=hallazgo)
             for hallazgo in hallazgos
         ]
+
+    @staticmethod
+    @transaction.atomic
+    def eliminar_todos(*, usuario):
+        """Elimina todos los hallazgos en una sola transacción administrativa."""
+        if not usuario.is_authenticated or not usuario.has_perm("accounts.administrar_plataforma"):
+            raise PermissionDenied("Solo un administrador puede eliminar hallazgos.")
+
+        hallazgos = list(Hallazgo.objects.select_for_update().order_by("pk"))
+        if not hallazgos:
+            raise ValidationError("No hay hallazgos para eliminar.")
+
+        return [
+            HallazgoService.eliminar(usuario=usuario, hallazgo=hallazgo)
+            for hallazgo in hallazgos
+        ]

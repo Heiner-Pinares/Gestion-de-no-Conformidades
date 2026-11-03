@@ -1590,6 +1590,37 @@ class Recorridos(TestCase):
             2,
         )
 
+    def test_administrador_elimina_todos_los_hallazgos_con_confirmacion(self):
+        primero = self.crear(titulo="Primer hallazgo para eliminación total")
+        segundo = self.crear(titulo="Segundo hallazgo para eliminación total")
+        url = reverse("hallazgos_eliminar_todos")
+
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.post(url, {"confirmacion": "ELIMINAR TODO"}).status_code, 403)
+        self.client.force_login(self.admin)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        listado = self.client.get(reverse("hallazgo_buscar"))
+        self.assertContains(listado, "data-delete-all-open")
+        self.assertContains(listado, "data-delete-all-dialog")
+        listado_filtrado = self.client.get(reverse("hallazgo_buscar"), {"codigo": "NO-EXISTE"})
+        self.assertContains(listado_filtrado, 'data-total-hallazgos="2"')
+
+        respuesta = self.client.post(url, {"confirmacion": "ELIMINAR"})
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertEqual(Hallazgo.objects.filter(pk__in=[primero.pk, segundo.pk]).count(), 2)
+
+        respuesta = self.client.post(url, {"confirmacion": "ELIMINAR TODO"})
+        self.assertRedirects(respuesta, reverse("hallazgo_buscar"))
+        self.assertFalse(Hallazgo.objects.exists())
+        self.assertEqual(
+            AuditoriaAdministracion.objects.filter(
+                entidad="Hallazgo",
+                objeto__in=[primero.codigo, segundo.codigo],
+                accion="eliminar",
+            ).count(),
+            2,
+        )
+
     def test_catalogo_nuevo_recibe_valor_tecnico_interno(self):
         fuente = FuenteDeteccion.objects.create(codigo='NUEVA', nombre='Fuente nueva')
         self.assertIsNotNone(fuente.valor)

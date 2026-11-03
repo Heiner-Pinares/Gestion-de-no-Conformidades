@@ -52,6 +52,32 @@
     });
   }
 
+  const deleteAllDialog = document.querySelector('[data-delete-all-dialog]');
+  const openDeleteAll = document.querySelector('[data-delete-all-open]');
+  if (deleteAllDialog && openDeleteAll) {
+    const deleteAllForm = deleteAllDialog.querySelector('[data-delete-all-form]');
+    const deleteAllConfirmation = deleteAllDialog.querySelector('[data-delete-all-confirmation]');
+    const deleteAllSubmit = deleteAllDialog.querySelector('[data-delete-all-submit]');
+    const cancelDeleteAll = deleteAllDialog.querySelector('[data-delete-all-cancel]');
+    const updateDeleteAll = () => {
+      deleteAllSubmit.disabled = deleteAllConfirmation.value.trim() !== 'ELIMINAR TODO';
+    };
+    openDeleteAll.addEventListener('click', () => {
+      deleteAllForm.reset();
+      updateDeleteAll();
+      deleteAllDialog.showModal();
+      deleteAllConfirmation.focus();
+    });
+    deleteAllConfirmation.addEventListener('input', updateDeleteAll);
+    cancelDeleteAll.addEventListener('click', () => deleteAllDialog.close());
+    deleteAllDialog.addEventListener('click', (event) => {
+      if (event.target === deleteAllDialog) deleteAllDialog.close();
+    });
+    deleteAllForm.addEventListener('submit', (event) => {
+      if (deleteAllConfirmation.value.trim() !== 'ELIMINAR TODO') event.preventDefault();
+    });
+  }
+
   const bulkForm = document.querySelector('[data-bulk-delete-form]');
   const bulkDialog = document.querySelector('[data-bulk-delete-dialog]');
   if (!bulkForm || !bulkDialog) return;

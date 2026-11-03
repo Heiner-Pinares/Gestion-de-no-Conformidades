@@ -4,7 +4,10 @@
 {% block content %}
 <div class="admin-page-head">
   <div class="admin-page-title"><span class="admin-page-icon">▤</span><div><h1>Hallazgos</h1><p>Bandeja general de casos registrados en el sistema.</p></div></div>
-  <div class="toolbar"><a class="admin-primary" href="{% url 'hallazgo_carga_masiva' %}">↑ Carga masiva</a></div>
+  <div class="toolbar">
+    <button class="admin-delete-all-button" type="button" data-delete-all-open data-total-hallazgos="{{ total_hallazgos }}"{% if not total_hallazgos %} disabled{% endif %}>Eliminar todos</button>
+    <a class="admin-primary" href="{% url 'hallazgo_carga_masiva' %}">↑ Carga masiva</a>
+  </div>
 </div>
 
 <div class="admin-hallazgos-filter-scroll" tabindex="0" aria-label="Filtros de hallazgos">
@@ -64,6 +67,24 @@
     <div class="admin-delete-actions">
       <button class="btn" type="button" data-delete-cancel>Cancelar</button>
       <button class="btn primary" type="submit">Sí, eliminar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="admin-delete-dialog" data-delete-all-dialog aria-labelledby="delete-all-dialog-title">
+  <form method="post" action="{% url 'hallazgos_eliminar_todos' %}" data-delete-all-form>
+    {% csrf_token %}
+    <div class="admin-delete-icon" aria-hidden="true">!</div>
+    <h2 id="delete-all-dialog-title">¿Eliminar todos los hallazgos?</h2>
+    <p>Vas a eliminar <strong>{{ total_hallazgos }} hallazgo{{ total_hallazgos|pluralize }}</strong>, incluidos los que no aparecen en esta página o en los filtros actuales.</p>
+    <p class="admin-delete-warning">También se eliminarán todos sus ciclos, acciones, seguimientos, evaluaciones, evidencias, historiales y notificaciones. Esta operación no se puede deshacer.</p>
+    <label class="admin-delete-confirm-field">
+      <span>Escribe <strong>ELIMINAR TODO</strong> para confirmar</span>
+      <input class="input" type="text" name="confirmacion" autocomplete="off" data-delete-all-confirmation>
+    </label>
+    <div class="admin-delete-actions">
+      <button class="btn" type="button" data-delete-all-cancel>Cancelar</button>
+      <button class="btn primary" type="submit" data-delete-all-submit disabled>Sí, eliminar todo</button>
     </div>
   </form>
 </dialog>

@@ -261,6 +261,7 @@ def hallazgo_buscar(request):
         "form": form,
         "page_obj": Paginator(qs, 10 if es_admin else 25).get_page(request.GET.get("page")),
         "filtros": filtros.urlencode(),
+        "total_hallazgos": Hallazgo.objects.count() if es_admin else 0,
     })
 
 
@@ -344,6 +345,29 @@ def hallazgos_eliminar_varios(request):
         messages.success(
             request,
             f"Se eliminaron {len(codigos)} hallazgos y todos sus datos relacionados.",
+        )
+    return redirect("hallazgo_buscar")
+
+
+@login_required
+@require_POST
+def hallazgos_eliminar_todos(request):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    if request.POST.get("confirmacion", "").strip() != "ELIMINAR TODO":
+        messages.error(
+            request,
+            'No se eliminaron hallazgos. Escriba exactamente "ELIMINAR TODO" para confirmar.',
+        )
+        return redirect("hallazgo_buscar")
+    try:
+        codigos = HallazgoService.eliminar_todos(usuario=request.user)
+    except ValidationError as error:
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(
+            request,
+            f"Se eliminaron los {len(codigos)} hallazgos y todos sus datos relacionados.",
         )
     return redirect("hallazgo_buscar")
 
