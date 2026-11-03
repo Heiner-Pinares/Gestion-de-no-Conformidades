@@ -230,12 +230,17 @@ class Recorridos(TestCase):
         h = self.crear()
         actividad = self.inmediata(h)
         self.paso(h, 'enviar_verificacion')
+        h.responsable = self.ajeno
+        h.save(update_fields=['responsable'])
+        actividad.responsable = self.ajeno
+        actividad.save(update_fields=['responsable'])
         self.client.force_login(self.usuario)
 
         detalle = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
         self.assertContains(detalle, 'Evidencias complementarias del plan')
         self.assertContains(detalle, reverse('hallazgo_evidencia_plan', args=[h.pk]))
         self.assertContains(detalle, 'Agrega documentos adicionales sin modificar ni reabrir')
+        self.assertNotContains(detalle, 'No tienes permiso para cargar archivos')
 
         pdf = SimpleUploadedFile(
             'evidencia_complementaria.pdf',

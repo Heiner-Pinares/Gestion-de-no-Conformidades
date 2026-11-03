@@ -64,6 +64,7 @@ class EvidenciaService:
         contextos = [c for c in (accion, analisis, evaluacion, cierre) if c is not None]
         exigir(len(contextos) <= 1, "Asocie la evidencia a un único contexto.")
         autor_borrador = hallazgo.estado in {"BORRADOR", "DEVUELTO"} and hallazgo.registrado_por_id == usuario.pk and usuario.has_perm("accounts.registrar_hallazgo")
+        reportante = hallazgo.registrado_por_id == usuario.pk and usuario.has_perm("accounts.registrar_hallazgo")
         ejecutor = accion is not None and accion.responsable_id == usuario.pk and usuario.has_perm("accounts.registrar_hallazgo")
         ejecutor_plan = bool(
             cierre is not None
@@ -71,7 +72,7 @@ class EvidenciaService:
             and cierre.acciones.filter(responsable=usuario).exists()
         )
         administrador = usuario.has_perm("accounts.administrar_plataforma")
-        if not (autor_borrador or puede_gestionar(usuario, hallazgo) or puede_validar(usuario, hallazgo) or ejecutor or ejecutor_plan or administrador):
+        if not (autor_borrador or reportante or puede_gestionar(usuario, hallazgo) or puede_validar(usuario, hallazgo) or ejecutor or ejecutor_plan or administrador):
             raise PermissionDenied("No tiene permiso para adjuntar evidencias a este caso.")
         if contextos:
             contexto = contextos[0]

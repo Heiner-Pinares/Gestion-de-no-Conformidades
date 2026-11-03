@@ -27,6 +27,10 @@
     </label>
     <button class="btn primary" type="submit">＋ Agregar evidencia</button>
   </form>
+  {% elif not hallazgo_admite_evidencias %}
+  <div class="plan-evidence-locked" role="status"><b>El hallazgo ya está {{ hallazgo.get_estado_display|lower }}.</b><span>Las evidencias existentes permanecen disponibles para consulta, pero el expediente cerrado no admite nuevos archivos.</span></div>
+  {% else %}
+  <div class="plan-evidence-locked" role="status"><b>No tienes permiso para cargar archivos en este plan.</b><span>Puede hacerlo el reportante, el responsable del hallazgo, un responsable de sus compromisos, Calidad o un administrador.</span></div>
   {% endif %}
 
   <div class="plan-evidence-list">

@@ -501,6 +501,10 @@ def hallazgo_detalle(request, pk):
         and request.user.has_perm("accounts.registrar_hallazgo")
         and ciclo.acciones.filter(responsable=request.user).exists()
     )
+    reportante_hallazgo = bool(
+        h.registrado_por_id == request.user.pk
+        and request.user.has_perm("accounts.registrar_hallazgo")
+    )
     puede_adjuntar_evidencia_plan = bool(
         ciclo
         and h.estado not in {"CERRADO", "CANCELADO"}
@@ -508,6 +512,7 @@ def hallazgo_detalle(request, pk):
             gestionar
             or puede_validar(request.user, h)
             or responsable_compromiso
+            or reportante_hallazgo
             or es_administrador(request.user)
         )
     )
@@ -540,6 +545,7 @@ def hallazgo_detalle(request, pk):
         "evidencias_plan": ciclo.evidencias_cierre.select_related("subido_por") if ciclo else Evidencia.objects.none(),
         "evidencia_plan_form": EvidenciaPlanForm(),
         "puede_adjuntar_evidencia_plan": puede_adjuntar_evidencia_plan,
+        "hallazgo_admite_evidencias": h.estado not in {"CERRADO", "CANCELADO"},
         "solicitud_evaluacion_form": SolicitudEvaluacionEficaciaForm(
             fecha_minima=fecha_inicio_plan,
         ),
