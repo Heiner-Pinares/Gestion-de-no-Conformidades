@@ -18,7 +18,7 @@ from apps.accounts.permissions import es_administrador, puede_gestionar, puede_v
 from apps.catalogos.models import CategoriaCausa
 from .forms import (
     AccionForm, ActividadPlanForm, AnalisisCausaForm, BuscarHallazgoForm, ComunicacionForm,
-    EvaluacionEficaciaForm, EvidenciaForm, HallazgoForm, PBIForm,
+    EvaluacionEficaciaForm, EvidenciaForm, EvidenciaPlanForm, HallazgoForm, PBIForm,
     ReprogramacionForm, SeguimientoForm, SeguimientoLineaForm, TransicionForm,
     CargaMasivaHallazgosForm, SolicitudEvaluacionEficaciaForm,
 )
@@ -496,6 +496,21 @@ def hallazgo_detalle(request, pk):
         and ultima_evaluacion.resultado == "EFICAZ"
     )
     fecha_inicio_plan = timezone.localtime(ciclo.fecha_inicio).date() if ciclo else None
+    responsable_compromiso = bool(
+        ciclo
+        and request.user.has_perm("accounts.registrar_hallazgo")
+        and ciclo.acciones.filter(responsable=request.user).exists()
+    )
+    puede_adjuntar_evidencia_plan = bool(
+        ciclo
+        and h.estado not in {"CERRADO", "CANCELADO"}
+        and (
+            gestionar
+            or puede_validar(request.user, h)
+            or responsable_compromiso
+            or es_administrador(request.user)
+        )
+    )
     context = {
         "hallazgo": h, "ciclo": ciclo, "timeline": timeline_hallazgo(h),
         "transiciones": [(codigo, etiqueta) for codigo, etiqueta in transiciones if codigo != "cerrar"],
@@ -522,6 +537,9 @@ def hallazgo_detalle(request, pk):
         "total_actividades": total_actividades,
         "actividades_completadas": actividades_completadas,
         "reprogramacion_form": ReprogramacionForm(solicitante=request.user),
+        "evidencias_plan": ciclo.evidencias_cierre.select_related("subido_por") if ciclo else Evidencia.objects.none(),
+        "evidencia_plan_form": EvidenciaPlanForm(),
+        "puede_adjuntar_evidencia_plan": puede_adjuntar_evidencia_plan,
         "solicitud_evaluacion_form": SolicitudEvaluacionEficaciaForm(
             fecha_minima=fecha_inicio_plan,
         ),
@@ -1000,6 +1018,33 @@ def hallazgo_evidencia(request, pk):
     h = obtener_hallazgo(request.user, pk)
     form = EvidenciaForm(request.POST or None, request.FILES or None, hallazgo=h)
     return completar_formulario(request, form, "Adjuntar evidencia", lambda d: EvidenciaService.subir(usuario=request.user, hallazgo=h, **d), h, multipart=True, aviso="PDF, PNG o JPEG de hasta 10 MB. La descarga requiere acceso al caso.")
+
+
+@login_required
+@require_POST
+def hallazgo_evidencia_plan(request, pk):
+    h = obtener_hallazgo(request.user, pk)
+    ciclo = h.ciclo_actual
+    if ciclo is None:
+        raise PermissionDenied
+    form = EvidenciaPlanForm(request.POST, request.FILES)
+    if not form.is_valid():
+        for errores_campo in form.errors.values():
+            for mensaje in errores_campo:
+                messages.error(request, mensaje)
+        return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}#evidencias-plan")
+    try:
+        EvidenciaService.subir(
+            usuario=request.user,
+            hallazgo=h,
+            cierre=ciclo,
+            **form.cleaned_data,
+        )
+    except ValidationError as error:
+        messages.error(request, " ".join(error.messages))
+    else:
+        messages.success(request, "La evidencia complementaria fue agregada al plan correctamente.")
+    return redirect(f"{reverse('hallazgo_detalle', args=[h.pk])}#evidencias-plan")
 
 
 @login_required

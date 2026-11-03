@@ -226,6 +226,39 @@ class Recorridos(TestCase):
         h.refresh_from_db()
         self.assertEqual(h.estado, 'ACCION_INMEDIATA')
 
+    def test_evidencia_complementaria_se_agrega_con_compromisos_terminados(self):
+        h = self.crear()
+        actividad = self.inmediata(h)
+        self.paso(h, 'enviar_verificacion')
+        self.client.force_login(self.usuario)
+
+        detalle = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
+        self.assertContains(detalle, 'Evidencias complementarias del plan')
+        self.assertContains(detalle, reverse('hallazgo_evidencia_plan', args=[h.pk]))
+        self.assertContains(detalle, 'Agrega documentos adicionales sin modificar ni reabrir')
+
+        pdf = SimpleUploadedFile(
+            'evidencia_complementaria.pdf',
+            b'%PDF-1.4\nevidencia posterior al compromiso\n%%EOF',
+            content_type='application/pdf',
+        )
+        respuesta = self.client.post(reverse('hallazgo_evidencia_plan', args=[h.pk]), {
+            'descripcion': 'Acta posterior que confirma la estabilidad de la solución.',
+            'archivo': pdf,
+        })
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertTrue(respuesta.url.endswith('#evidencias-plan'))
+        actividad.refresh_from_db()
+        self.assertEqual(actividad.estado, 'COMPLETADA')
+        evidencia = h.ciclo_actual.evidencias_cierre.get()
+        self.assertEqual(evidencia.nombre_original, 'evidencia_complementaria.pdf')
+        self.assertEqual(evidencia.accion_id, None)
+        detalle_actualizado = self.client.get(reverse('hallazgo_detalle', args=[h.pk]))
+        self.assertContains(detalle_actualizado, 'evidencia_complementaria.pdf')
+        self.assertContains(detalle_actualizado, 'Acta posterior que confirma la estabilidad')
+        self.assertContains(detalle_actualizado, reverse('evidencia_descargar', args=[evidencia.pk]))
+
     def test_plan_crea_compromisos_pendientes_y_confirma(self):
         h = self.crear()
         self.paso(h, 'enviar')

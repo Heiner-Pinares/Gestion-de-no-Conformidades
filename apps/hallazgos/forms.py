@@ -739,6 +739,30 @@ class EvidenciaForm(EstiloForm, forms.Form):
         return archivo
 
 
+class EvidenciaPlanForm(EstiloForm, forms.Form):
+    archivo = forms.FileField(
+        label="Archivo",
+        help_text="PDF, DOC, DOCX, XLS, XLSX, PNG o JPEG; máximo 10 MB.",
+    )
+    descripcion = forms.CharField(
+        label="Descripción de la evidencia",
+        max_length=500,
+        widget=forms.Textarea(attrs={
+            "rows": 2,
+            "placeholder": "Indica qué demuestra el documento o a qué parte del plan corresponde.",
+        }),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.estilizar()
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data["archivo"]
+        validar_archivo(archivo)
+        return archivo
+
+
 class BuscarHallazgoForm(EstiloForm, forms.Form):
     codigo = forms.CharField(label="Código o título", required=False)
     estado = forms.ChoiceField(choices=[("", "Todos")] + ESTADOS, required=False)

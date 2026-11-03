@@ -1,0 +1,53 @@
+{% if ciclo %}
+<section class="card spaced plan-evidence-card" id="evidencias-plan">
+  <header class="plan-evidence-head">
+    <div class="plan-evidence-title">
+      <span class="plan-evidence-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M12 17V5m0 0L7 10m5-5 5 5"/><path d="M5 15v4h14v-4"/></svg>
+      </span>
+      <div>
+        <h2>Evidencias complementarias del plan</h2>
+        <p>Agrega documentos adicionales sin modificar ni reabrir los compromisos terminados.</p>
+      </div>
+    </div>
+    <span class="plan-evidence-count">{{ evidencias_plan|length }} archivo{{ evidencias_plan|length|pluralize }}</span>
+  </header>
+
+  {% if puede_adjuntar_evidencia_plan %}
+  <form class="plan-evidence-form" method="post" enctype="multipart/form-data" action="{% url 'hallazgo_evidencia_plan' hallazgo.pk %}">
+    {% csrf_token %}
+    <label class="plan-evidence-file">
+      <span>Archivo <b>*</b></span>
+      {{ evidencia_plan_form.archivo }}
+      <small>{{ evidencia_plan_form.archivo.help_text }}</small>
+    </label>
+    <label class="plan-evidence-description">
+      <span>Descripción de la evidencia <b>*</b></span>
+      {{ evidencia_plan_form.descripcion }}
+    </label>
+    <button class="btn primary" type="submit">＋ Agregar evidencia</button>
+  </form>
+  {% endif %}
+
+  <div class="plan-evidence-list">
+    {% for evidencia in evidencias_plan %}
+    <article class="plan-evidence-item">
+      <span class="plan-evidence-document" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
+      </span>
+      <div>
+        <a href="{% url 'evidencia_descargar' evidencia.pk %}?ver=1" target="_blank" rel="noopener">{{ evidencia.nombre_original }}</a>
+        <p>{{ evidencia.descripcion }}</p>
+        <small>{{ evidencia.fecha_carga|date:'d/m/Y H:i' }} · {{ evidencia.subido_por }} · {{ evidencia.tamanio|filesizeformat }}</small>
+      </div>
+      <a class="btn slim" href="{% url 'evidencia_descargar' evidencia.pk %}" aria-label="Descargar {{ evidencia.nombre_original }}">Descargar</a>
+    </article>
+    {% empty %}
+    <div class="plan-evidence-empty">
+      <b>Aún no hay evidencias complementarias.</b>
+      <span>Los documentos adjuntos desde el seguimiento de cada compromiso permanecen en su propio historial.</span>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

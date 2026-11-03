@@ -29,6 +29,7 @@ urlpatterns = [
     path("hallazgos/<int:pk>/pbi/", views.hallazgo_pbi, name="hallazgo_pbi"),
     path("hallazgos/<int:pk>/comunicacion/", views.hallazgo_comunicacion, name="hallazgo_comunicacion"),
     path("hallazgos/<int:pk>/evidencias/", views.hallazgo_evidencia, name="hallazgo_evidencia"),
+    path("hallazgos/<int:pk>/evidencias-plan/", views.hallazgo_evidencia_plan, name="hallazgo_evidencia_plan"),
     path("evidencias/<int:pk>/descargar/", views.evidencia_descargar, name="evidencia_descargar"),
     path("notificaciones/", views.notificaciones, name="notificaciones"),
     path("notificaciones/<int:pk>/leer/", views.notificacion_leer, name="notificacion_leer"),
