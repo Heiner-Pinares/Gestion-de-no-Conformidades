@@ -926,6 +926,48 @@ class Recorridos(TestCase):
             ['Facturación', 'Post-Facturación', 'Control y Mejoras'],
         )
 
+    def test_indicadores_filtran_por_tipo_y_permiten_todos_los_anios(self):
+        self.proceso.gerencia = 'Facturación'
+        self.proceso.save(update_fields=['gerencia'])
+        fecha_actual = timezone.now().replace(month=3, day=10)
+        fecha_anterior = fecha_actual.replace(year=fecha_actual.year - 1)
+        incidente = self.crear(
+            titulo='Incidente del año actual',
+            tipo_registro=TipoRegistro.objects.get(codigo='INC'),
+        )
+        no_conforme = self.crear(
+            titulo='No conformidad del año anterior',
+            tipo_registro=TipoRegistro.objects.get(codigo='NOC'),
+        )
+        Hallazgo.objects.filter(pk=incidente.pk).update(fecha_registro=fecha_actual)
+        Hallazgo.objects.filter(pk=no_conforme.pk).update(fecha_registro=fecha_anterior)
+        self.client.force_login(self.admin)
+
+        respuesta_inicial = self.client.get(reverse('reportes'))
+        self.assertEqual(respuesta_inicial.context['anio'], fecha_actual.year)
+        self.assertEqual(respuesta_inicial.context['total_hallazgos'], 1)
+        self.assertContains(respuesta_inicial, '<option value="">Todos</option>', html=True)
+        self.assertContains(respuesta_inicial, 'Tipo de hallazgo')
+
+        todos = self.client.get(reverse('reportes'), {
+            'anio': '', 'jefatura': 'Facturación',
+        })
+        self.assertIsNone(todos.context['anio'])
+        self.assertEqual(todos.context['total_hallazgos'], 2)
+        self.assertContains(todos, '<option value="" selected>Todos</option>', html=True)
+
+        filtrado = self.client.get(reverse('reportes'), {
+            'anio': '', 'tipo': 'NOC', 'jefatura': 'Facturación',
+        })
+        self.assertEqual(filtrado.context['tipo'], 'NOC')
+        self.assertEqual(filtrado.context['total_hallazgos'], 1)
+        self.assertEqual(filtrado.context['meses'][2]['total'], 1)
+        self.assertContains(
+            filtrado,
+            '<option value="NOC" selected>No Conforme</option>',
+            html=True,
+        )
+
     def test_cabecera_muestra_el_area_del_usuario(self):
         self.usuario.area = 'Facturación'
         self.usuario.save(update_fields=['area'])

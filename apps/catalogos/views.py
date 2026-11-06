@@ -25,7 +25,7 @@ from .forms import (
 )
 from .models import (
     AuditoriaAdministracion, Catalogo, ConfiguracionImpacto, ConfiguracionUrgencia,
-    Proceso, ProcesoValidador, Subproceso,
+    Proceso, ProcesoValidador, Subproceso, TipoRegistro,
 )
 from .services import (
     TIPO_COPIA, TIPO_PARA, correos_queryset, detalle_actividad,
@@ -577,6 +577,14 @@ def reportes(request):
         return resultado, maximo
 
     hallazgos_base = hallazgos_visibles(request.user).order_by()
+    tipos = list(TipoRegistro.objects.filter(
+        Q(activo=True) | Q(pk__in=hallazgos_base.values("tipo_registro_id")),
+    ).order_by("orden", "nombre").distinct())
+    tipos_por_codigo = {tipo.codigo: tipo for tipo in tipos}
+    tipo_codigo = request.GET.get("tipo", "").strip()
+    if tipo_codigo not in tipos_por_codigo:
+        tipo_codigo = ""
+
     base = con_jefatura(hallazgos_base)
     jefaturas_registradas = base.order_by("jefatura_indicador").values_list(
         "jefatura_indicador", flat=True,
@@ -596,17 +604,24 @@ def reportes(request):
         alcance = base.filter(jefatura_indicador__in=ALCANCE_INDICADORES_PREDETERMINADO)
         grupos_iniciales = ALCANCE_INDICADORES_PREDETERMINADO
 
+    if tipo_codigo:
+        alcance = alcance.filter(tipo_registro__codigo=tipo_codigo)
+
     anios = [fecha.year for fecha in alcance.dates("fecha_registro", "year", order="DESC")]
     if not anios:
         anios = [timezone.localdate().year]
-    try:
-        anio = int(request.GET.get("anio", anios[0]))
-    except (TypeError, ValueError):
-        anio = anios[0]
-    if anio not in anios:
-        anio = anios[0]
+    anio_solicitado = request.GET.get("anio")
+    if anio_solicitado == "":
+        anio = None
+    else:
+        try:
+            anio = int(anio_solicitado) if anio_solicitado is not None else anios[0]
+        except (TypeError, ValueError):
+            anio = anios[0]
+        if anio not in anios:
+            anio = anios[0]
 
-    qs = alcance.filter(fecha_registro__year=anio)
+    qs = alcance if anio is None else alcance.filter(fecha_registro__year=anio)
 
     if request.GET.get("formato") == "csv":
         respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
@@ -669,7 +684,9 @@ def reportes(request):
     )
 
     return render(request, "administrador/reportes.html", {
-        "anios": anios, "anio": anio, "jefaturas": jefaturas, "jefatura": jefatura,
+        "anios": anios, "anio": anio, "tipos": tipos, "tipo": tipo_codigo,
+        "jefaturas": jefaturas, "jefatura": jefatura,
+        "periodo_indicadores": f"el año {anio}" if anio else "todos los años",
         "total_hallazgos": total_hallazgos,
         "hallazgos_cerrados": hallazgos_cerrados,
         "tasa_cierre_hallazgos": tasa_cierre_hallazgos,

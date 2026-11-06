@@ -2,13 +2,14 @@
 {% load static %}
 {% block title %}Indicadores{% endblock %}
 {% block body_class %}admin-indicators-page{% endblock %}
-{% block extra_head %}<link rel="stylesheet" href="{% static 'css/indicadores.css' %}?v=2">{% endblock %}
+{% block extra_head %}<link rel="stylesheet" href="{% static 'css/indicadores.css' %}?v=3">{% endblock %}
 {% block content %}
 <div class="indicator-page">
   <header class="indicator-head">
     <div><h1>Incidencias · No conformidades</h1><p>Indicadores de hallazgos y actividades.</p></div>
     <form class="indicator-filters" method="get">
-      <label><span>Año</span><select name="anio" class="input">{% for valor in anios %}<option value="{{ valor }}"{% if valor == anio %} selected{% endif %}>{{ valor }}</option>{% endfor %}</select></label>
+      <label><span>Año</span><select name="anio" class="input"><option value=""{% if not anio %} selected{% endif %}>Todos</option>{% for valor in anios %}<option value="{{ valor }}"{% if valor == anio %} selected{% endif %}>{{ valor }}</option>{% endfor %}</select></label>
+      <label><span>Tipo de hallazgo</span><select name="tipo" class="input"><option value="">Todos</option>{% for valor in tipos %}<option value="{{ valor.codigo }}"{% if valor.codigo == tipo %} selected{% endif %}>{{ valor.nombre }}</option>{% endfor %}</select></label>
       <label><span>Jefatura</span><select name="jefatura" class="input"><option value="">Todas</option>{% for valor in jefaturas %}<option value="{{ valor }}"{% if valor == jefatura %} selected{% endif %}>{{ valor }}</option>{% endfor %}</select></label>
       <button class="admin-primary" type="submit">Aplicar filtros</button>
     </form>
@@ -32,7 +33,7 @@
 
     <section class="indicator-card indicator-month-card">
       <h2>Estado de hallazgos por mes</h2>
-      <div class="indicator-month-chart" aria-label="Estado mensual de hallazgos durante {{ anio }}">
+      <div class="indicator-month-chart" aria-label="Estado mensual de hallazgos durante {{ periodo_indicadores }}">
         <div class="indicator-chart-grid" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <div class="indicator-month-bars">
           {% for mes in meses %}<div class="indicator-month"><div class="indicator-stack" title="{{ mes.etiqueta }}: {{ mes.total }} hallazgos">{% for serie in mes.series %}<span class="{{ serie.clave }}" style="height:{{ serie.porcentaje }}%" title="{{ serie.total }}"></span>{% endfor %}</div><b>{{ mes.etiqueta }}</b></div>{% endfor %}
