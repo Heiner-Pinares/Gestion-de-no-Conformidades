@@ -26,7 +26,8 @@
 .indicator-chart-grid i{border-top:1px solid #dbe5ef}
 .indicator-month-bars{position:absolute;inset:12px 3px 0;display:grid;grid-template-columns:repeat(12,minmax(24px,1fr));gap:8px;align-items:end}
 .indicator-month{display:grid;grid-template-rows:165px 24px;align-items:end;min-width:0;text-align:center}
-.indicator-month>b{align-self:end;color:#314d78;font-size:11px}.indicator-stack{display:flex;flex-direction:column-reverse;justify-content:flex-start;align-self:end;width:72%;height:100%;margin:0 auto;overflow:hidden;border-radius:3px 3px 0 0}
+.indicator-month>b{align-self:end;color:#314d78;font-size:11px}.indicator-stack{position:relative;display:flex;flex-direction:column-reverse;justify-content:flex-start;align-self:end;width:72%;height:100%;margin:0 auto;overflow:visible;border-radius:3px 3px 0 0}
+.indicator-month-total{position:absolute;left:50%;bottom:calc(var(--month-height) + 4px);z-index:2;transform:translateX(-50%);color:#0d1a43;font-size:12px;font-weight:850;line-height:1;white-space:nowrap;text-shadow:0 1px 0 #fff}
 .indicator-stack>span{display:block;min-height:0;width:100%}.indicator-stack>span[style*="height:0%"]{display:none}
 .pendiente{background:#ffa32f!important}.en_proceso{background:#397cf0!important}.terminado{background:#43b960!important}.cancelado{background:#9aa8b8!important}
 .indicator-legend{display:flex;justify-content:center;gap:22px;margin-top:13px;color:#405b84;font-size:11px;white-space:nowrap}

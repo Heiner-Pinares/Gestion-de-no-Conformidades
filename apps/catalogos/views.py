@@ -654,11 +654,13 @@ def reportes(request):
     nombres_meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
     for numero, etiqueta in enumerate(nombres_meses, 1):
         valores = datos_mensuales[numero]
+        total_mes = sum(valores.values())
         meses.append({
             "etiqueta": etiqueta,
-            "total": sum(valores.values()),
+            "total": total_mes,
+            "porcentaje_total": round(88 * total_mes / maximo_mensual),
             "series": [
-                {"clave": clave, "total": valores[clave], "porcentaje": round(100 * valores[clave] / maximo_mensual)}
+                {"clave": clave, "total": valores[clave], "porcentaje": round(88 * valores[clave] / maximo_mensual)}
                 for clave, _nombre, _estados in categorias_hallazgo
             ],
         })

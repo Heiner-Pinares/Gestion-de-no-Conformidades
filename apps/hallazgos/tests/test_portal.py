@@ -904,6 +904,7 @@ class Recorridos(TestCase):
         self.assertEqual(respuesta.context['total_acciones'], 2)
         self.assertEqual(respuesta.context['acciones_cerradas'], 0)
         self.assertEqual(respuesta.context['meses'][1]['total'], 1)
+        self.assertEqual(respuesta.context['meses'][1]['porcentaje_total'], 88)
         self.assertEqual(respuesta.context['hallazgos_por_jefatura'][0]['nombre'], 'Facturación')
         estados = {item['clave']: item['total'] for item in respuesta.context['estados_acciones']}
         self.assertEqual(estados, {
@@ -911,6 +912,7 @@ class Recorridos(TestCase):
         })
         self.assertContains(respuesta, 'Incidencias · No conformidades')
         self.assertContains(respuesta, 'Estado de actividades por jefatura')
+        self.assertContains(respuesta, 'indicator-month-total')
         self.assertContains(respuesta, 'Datos calculados con los registros actuales de la plataforma.')
         self.assertNotContains(respuesta, 'Datos ilustrativos')
 
