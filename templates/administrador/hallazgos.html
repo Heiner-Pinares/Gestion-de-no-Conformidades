@@ -6,6 +6,7 @@
   <div class="admin-page-title"><span class="admin-page-icon">▤</span><div><h1>Hallazgos</h1><p>Bandeja general de casos registrados en el sistema.</p></div></div>
   <div class="toolbar">
     <button class="admin-delete-all-button" type="button" data-delete-all-open data-total-hallazgos="{{ total_hallazgos }}"{% if not total_hallazgos %} disabled{% endif %}>Eliminar todos</button>
+    <a class="admin-export-all-button" href="{% url 'hallazgos_exportar_todos' %}">↓ Descargar todos</a>
     <a class="admin-primary" href="{% url 'hallazgo_carga_masiva' %}">↑ Carga masiva</a>
   </div>
 </div>

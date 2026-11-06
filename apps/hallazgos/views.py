@@ -31,6 +31,7 @@ from .services import (
 )
 from .services.plantillas import generar_plantilla
 from .importacion_masiva import ErrorCargaMasiva, procesar_carga
+from .exportacion_masiva import generar_exportacion_masiva
 
 
 def obtener_hallazgo(usuario, pk):
@@ -310,6 +311,21 @@ def hallazgo_carga_masiva_plantilla(request):
         filename="plantilla_carga_masiva_hallazgos.xlsx",
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+@login_required
+def hallazgos_exportar_todos(request):
+    if not es_administrador(request.user):
+        raise PermissionDenied
+    contenido, _ = generar_exportacion_masiva()
+    fecha = timezone.localdate().strftime("%Y%m%d")
+    respuesta = FileResponse(
+        io.BytesIO(contenido),
+        as_attachment=True,
+        filename=f"hallazgos_exportados_{fecha}.xlsx",
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    return respuesta
 
 
 @login_required

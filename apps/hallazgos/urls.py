@@ -9,6 +9,7 @@ urlpatterns = [
     path("hallazgos/", views.hallazgo_buscar, name="hallazgo_buscar"),
     path("hallazgos/carga-masiva/", views.hallazgo_carga_masiva, name="hallazgo_carga_masiva"),
     path("hallazgos/carga-masiva/plantilla/", views.hallazgo_carga_masiva_plantilla, name="hallazgo_carga_masiva_plantilla"),
+    path("hallazgos/exportar-todos/", views.hallazgos_exportar_todos, name="hallazgos_exportar_todos"),
     path("hallazgos/<int:pk>/plantillas/<str:tipo>/", views.hallazgo_plantilla_descargar, name="hallazgo_plantilla_descargar"),
     path("administracion/validaciones/", views.validaciones_admin, name="validaciones_admin"),
     path("hallazgos/<int:pk>/", views.hallazgo_detalle, name="hallazgo_detalle"),

@@ -18,6 +18,7 @@ from apps.accounts.models import Usuario
 from apps.catalogos.models import AuditoriaAdministracion, CategoriaCausa, ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
 from apps.catalogos.services import actividades_queryset
 from apps.hallazgos.forms import HallazgoForm
+from apps.hallazgos.importacion_masiva import _leer_xlsx
 from apps.hallazgos.models import Accion, CicloTratamiento, CorrelativoSAC, Hallazgo, HistorialHallazgo, Notificacion
 from apps.hallazgos.selectors import acciones_disponibles, hallazgos_visibles, timeline_hallazgo
 from apps.hallazgos.services import AccionService, CausaService, ComunicacionService, EficaciaService, EvidenciaService, HallazgoService, PBIService, WorkflowService
@@ -1589,6 +1590,50 @@ class Recorridos(TestCase):
             ).count(),
             2,
         )
+
+    def test_administrador_descarga_todos_los_hallazgos_en_excel(self):
+        sin_compromiso = self.crear(titulo="Hallazgo sin compromiso")
+        con_compromiso = self.crear(titulo="Hallazgo con compromiso & control")
+        accion = self.inmediata(con_compromiso)
+        segunda_accion = self.accion(con_compromiso, tipo="CORRECTIVA")
+        Accion.objects.filter(pk=segunda_accion.pk).update(descripcion="Aplicar control correctivo")
+        segunda_accion.refresh_from_db()
+        url = reverse("hallazgos_exportar_todos")
+
+        self.client.force_login(self.usuario)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(self.admin)
+        listado = self.client.get(reverse("hallazgo_buscar"), {"codigo": "NO-EXISTE"})
+        self.assertContains(listado, url)
+        self.assertContains(listado, "Descargar todos")
+
+        respuesta = self.client.get(url)
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(
+            respuesta["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("hallazgos_exportados_", respuesta["Content-Disposition"])
+        contenido = b"".join(respuesta.streaming_content)
+        self.assertTrue(contenido.startswith(b"PK"))
+        filas = _leer_xlsx(contenido)["Carga masiva"]
+        self.assertEqual(len(filas), 3)
+        self.assertTrue(all(len(fila) == 31 for fila in filas))  # 30 columnas + número de fila.
+        por_codigo = {}
+        for fila in filas:
+            por_codigo.setdefault(fila["Código hallazgo *"], []).append(fila)
+        self.assertEqual(set(por_codigo), {sin_compromiso.codigo, con_compromiso.codigo})
+        compromisos = {
+            fila["Descripción compromiso"]: fila
+            for fila in por_codigo[con_compromiso.codigo]
+        }
+        self.assertEqual(set(compromisos), {accion.descripcion, segunda_accion.descripcion})
+        self.assertEqual(
+            compromisos[accion.descripcion]["Responsable compromiso"],
+            self.usuario.username,
+        )
+        self.assertEqual(por_codigo[sin_compromiso.codigo][0]["Descripción compromiso"], "")
 
     def test_administrador_elimina_todos_los_hallazgos_con_confirmacion(self):
         primero = self.crear(titulo="Primer hallazgo para eliminación total")
