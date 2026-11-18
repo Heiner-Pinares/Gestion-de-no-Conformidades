@@ -191,7 +191,8 @@ STORAGES = {
 # En ese modo WhiteNoise resuelve únicamente los directorios static declarados.
 WHITENOISE_USE_FINDERS = PORTAL_STATIC_SOURCE_MODE
 # Durante pruebas y despliegues graduales permite resolver desde STATICFILES_DIRS;
-# run.py siempre ejecuta collectstatic antes de abrir el puerto de producción.
+# El inicio manual con run.py start ejecuta collectstatic. La tarea programada
+# valida y sirve los recursos versionados directamente desde static.
 WHITENOISE_MANIFEST_STRICT = False
 MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "media")))
 MEDIA_URL = "/evidencias-privadas/"  # Nunca publicada como directorio estático.

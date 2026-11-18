@@ -161,6 +161,21 @@ def preparar_estaticos() -> None:
     recolectar_archivos_estaticos()
 
 
+def comprobar_estaticos_fuente() -> None:
+    """Valida los recursos versionados sin escribir en STATIC_ROOT."""
+
+    preparar_django()
+    raiz_estaticos = BASE_DIR / "static"
+    comprobar_archivos_estaticos(
+        raiz_estaticos,
+        exigir_manifiesto=False,
+    )
+    print(
+        "OK ESTÁTICOS: recursos versionados disponibles en "
+        f"{raiz_estaticos}."
+    )
+
+
 def iniciar(*, recolectar: bool = True) -> None:
     verificar()
     from django.conf import settings
@@ -212,9 +227,13 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("start", help="Comprueba, recolecta estáticos e inicia Waitress")
     sub.add_parser(
         "serve",
-        help="Inicia Waitress usando los estáticos preparados por el publicador",
+        help="Inicia Waitress usando los estáticos versionados del proyecto",
     )
     sub.add_parser("static", help="Recolecta y comprueba los archivos estáticos")
+    sub.add_parser(
+        "static-source",
+        help="Comprueba los estáticos versionados sin escribir en STATIC_ROOT",
+    )
     sub.add_parser("createsuperuser", help="Comprueba el esquema y crea un superusuario")
     return analizador
 
@@ -229,6 +248,8 @@ def main() -> int:
         iniciar(recolectar=False)
     elif argumentos.comando == "static":
         preparar_estaticos()
+    elif argumentos.comando == "static-source":
+        comprobar_estaticos_fuente()
     elif argumentos.comando == "createsuperuser":
         crear_superusuario()
     return 0

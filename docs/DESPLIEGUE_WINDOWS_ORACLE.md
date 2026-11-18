@@ -81,6 +81,7 @@ DB_USER=USRFACSOP
 DB_PASSWORD_FILE=secrets/oracle_password.txt
 DB_REQUIRE_DML_ONLY=True
 DB_ALLOWED_USERS=USRFACSOP
+DB_CONN_MAX_AGE=0
 ORACLE_THICK_MODE=True
 ORACLE_CLIENT_LIB_DIR=C:/oracle/instantclient_19
 
@@ -169,9 +170,9 @@ script de publicación usa esos componentes para mantener Waitress en ejecución
 - arranca el portal al encender el servidor, aunque nadie inicie sesión;
 - reinicia el proceso un minuto después de una falla;
 - impide dos instancias simultáneas;
-- guarda los logs en `C:\ProgramData\PortalNC` y los estáticos en `work\staticfiles`;
-- recolecta los estáticos durante la publicación y la tarea solo los lee al arrancar;
-- si Windows aísla el manifiesto generado, la tarea sirve los recursos versionados desde `static` sin escribir en el checkout;
+- guarda los logs en `C:\ProgramData\PortalNC`;
+- valida los recursos versionados durante la publicación sin escribir en `STATIC_ROOT`;
+- sirve los recursos directamente desde `static`, con acceso de solo lectura para la cuenta programada;
 - ejecuta primero `run.py check` y no registra la tarea si Oracle o Django fallan;
 - no instala NSSM, IIS, Apache, Nginx ni paquetes de Python adicionales.
 

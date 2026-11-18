@@ -17,9 +17,7 @@ $Python = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $EnvPath = Join-Path $ProjectRoot ".env"
 $Runner = Join-Path $PSScriptRoot "ejecutar_portal_windows.ps1"
 $SecretsDirectory = Join-Path $ProjectRoot "secrets"
-$WorkDirectory = Join-Path $ProjectRoot "work"
 $RuntimeRoot = Join-Path $env:ProgramData "PortalNC"
-$StaticRoot = Join-Path $WorkDirectory "staticfiles"
 $LogDirectory = Join-Path $RuntimeRoot "logs"
 $KnownHostsPath = Join-Path $SecretsDirectory "correo_known_hosts"
 $FirewallRule = "Portal NC - acceso interno"
@@ -44,6 +42,14 @@ function Set-EnvValue {
         if ($Text.Length -gt 0 -and -not $Text.EndsWith("`n")) { $Text += "`r`n" }
         $Text += "$Line`r`n"
     }
+    [IO.File]::WriteAllText($EnvPath, $Text, [Text.UTF8Encoding]::new($false))
+}
+
+function Remove-EnvValue {
+    param([string]$Name)
+    $Text = [IO.File]::ReadAllText($EnvPath)
+    $Pattern = "(?m)^" + [Regex]::Escape($Name) + "=.*(?:\r?\n|$)"
+    $Text = [Regex]::Replace($Text, $Pattern, "")
     [IO.File]::WriteAllText($EnvPath, $Text, [Text.UTF8Encoding]::new($false))
 }
 
@@ -139,7 +145,7 @@ $Origin = "{0}://{1}" -f $Uri.Scheme, $Uri.Authority
 $BindHost = if ($Https) { "127.0.0.1" } else { "0.0.0.0" }
 $AllowedHosts = @($Uri.Host, "127.0.0.1", "localhost") | Select-Object -Unique
 
-New-Item -ItemType Directory -Force -Path $RuntimeRoot, $StaticRoot, $LogDirectory, $WorkDirectory | Out-Null
+New-Item -ItemType Directory -Force -Path $RuntimeRoot, $LogDirectory | Out-Null
 $ProjectAccess = "${ServiceAccount}:(OI)(CI)RX"
 & icacls $ProjectRoot /grant $ProjectAccess /T /C | Out-Null
 if ($LASTEXITCODE -ne 0) {
@@ -151,12 +157,6 @@ $RuntimeAcl = @(
     "BUILTIN\Administrators:(OI)(CI)F"
 )
 Set-ExplicitAcl -Path $RuntimeRoot -AccessEntries $RuntimeAcl -Recursive
-$WorkAcl = @(
-    "${ServiceAccount}:(OI)(CI)M",
-    "SYSTEM:(OI)(CI)F",
-    "BUILTIN\Administrators:(OI)(CI)F"
-)
-Set-ExplicitAcl -Path $WorkDirectory -AccessEntries $WorkAcl -Recursive
 $SecretsAcl = @(
     "${ServiceAccount}:(OI)(CI)R",
     "SYSTEM:(OI)(CI)F",
@@ -172,7 +172,13 @@ Set-EnvValue -Name "PORTAL_PUBLIC_URL" -Value $Origin
 Set-EnvValue -Name "PORTAL_BIND_HOST" -Value $BindHost
 Set-EnvValue -Name "PORTAL_PORT" -Value ([string]$Port)
 Set-EnvValue -Name "PORTAL_THREADS" -Value ([string]$Threads)
-Set-EnvValue -Name "STATIC_ROOT" -Value ($StaticRoot.Replace("\", "/"))
+Set-EnvValue -Name "DB_CONN_MAX_AGE" -Value "0"
+# No comparta STATIC_ROOT entre la sesion administrativa que publica y la
+# cuenta que ejecuta la tarea. Django elegira una carpeta propia bajo
+# %LOCALAPPDATA% para cada cuenta. La tarea programada sirve directamente los
+# recursos versionados desde static mediante PORTAL_STATIC_SOURCE_MODE=True.
+# Tambien elimina el valor heredado de versiones anteriores del publicador.
+Remove-EnvValue -Name "STATIC_ROOT"
 Set-EnvValue -Name "PORTAL_RUNTIME_ROOT" -Value ($RuntimeRoot.Replace("\", "/"))
 Set-EnvValue -Name "CORREO_SSH_KNOWN_HOSTS" -Value ($KnownHostsPath.Replace("\", "/"))
 Set-EnvValue -Name "SECURE_SSL_REDIRECT" -Value ($(if ($Https) { "True" } else { "False" }))
@@ -205,19 +211,10 @@ if ($LASTEXITCODE -ne 0) {
     throw "La validacion del portal fallo. No se registro la tarea automatica."
 }
 
-Write-Host "Preparando archivos estaticos antes de iniciar la tarea..."
-& $Python "run.py" "static"
+Write-Host "Comprobando archivos estaticos versionados..."
+& $Python "run.py" "static-source"
 if ($LASTEXITCODE -ne 0) {
-    throw "No se pudieron preparar los archivos estaticos. No se registro la tarea automatica."
-}
-# No vuelva a reemplazar las ACL archivo por archivo. Los recursos se crean
-# dentro de work y heredan el permiso de modificacion concedido arriba a la
-# cuenta de servicio. Reescribir las ACL despues de collectstatic dejaba el
-# manifiesto sin acceso efectivo en algunas sesiones del Programador de tareas.
-$StaticAccess = "${ServiceAccount}:(OI)(CI)F"
-& icacls $StaticRoot /grant $StaticAccess /T /C | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Los estaticos se generaron, pero no se pudo conceder acceso a $ServiceAccount."
+    throw "Faltan archivos estaticos del portal. No se registro la tarea automatica."
 }
 
 $PowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
