@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>Nuevo hallazgo registrado | Portal de No Conformidades</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f3f5f8;font-family:Arial,Helvetica,sans-serif;color:#252c38;">
+  <!-- Texto de vista previa que aparece en la bandeja de entrada -->
+  <div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    Se registró el hallazgo {{ codigo_hallazgo }} del proceso {{ proceso }}. Revisa los detalles en el portal.
+  </div>
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f3f5f8;">
+    <tr>
+      <td align="center" style="padding:38px 16px 38px 16px;">
+        <!--[if mso]><table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="width:100%;max-width:620px;background-color:#ffffff;border:1px solid #e2e6ed;border-radius:12px;overflow:hidden;">
+          <!-- Cabecera corporativa -->
+          <tr>
+            <td style="background-color:#e60012;padding:25px 34px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="font-size:29px;line-height:33px;font-weight:bold;letter-spacing:-1.5px;color:#ffffff;">Claro<span style="font-size:13px;vertical-align:top;letter-spacing:0;">®</span></td>
+                  <td align="right" style="font-size:11px;line-height:16px;color:#ffffff;font-weight:bold;letter-spacing:0.6px;">GESTIÓN DE<br>NO CONFORMIDADES</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Introducción -->
+          <tr>
+            <td style="padding:34px 34px 13px 34px;">
+              <p style="margin:0 0 10px 0;color:#687385;font-size:11px;font-weight:bold;letter-spacing:1.3px;">NOTIFICACIÓN DE NUEVO REGISTRO</p>
+              <h1 style="margin:0 0 17px 0;color:#1d2633;font-size:25px;line-height:32px;font-weight:bold;">Nuevo hallazgo registrado</h1>
+              <p style="margin:0 0 13px 0;font-size:15px;line-height:23px;color:#333d4b;">Hola, <strong>{{ nombre_responsable }}</strong>:</p>
+              {% if mismo_responsable %}
+              <p style="margin:0;font-size:14px;line-height:23px;color:#4b5563;">Has registrado un nuevo hallazgo y figuras como <strong>responsable del proceso</strong>. El registro ya está disponible en el portal para su seguimiento.</p>
+              {% else %}
+              <p style="margin:0;font-size:14px;line-height:23px;color:#4b5563;"><strong>{{ nombre_registrador }}</strong> ha registrado un nuevo hallazgo y te ha asignado como <strong>responsable del proceso</strong>. Puedes revisar su información y continuar con la gestión correspondiente.</p>
+              {% endif %}
+            </td>
+          </tr>
+          <!-- Panel de hallazgo -->
+          <tr>
+            <td style="padding:18px 34px 8px 34px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #e3e7ee;border-collapse:separate;border-spacing:0;border-radius:8px;overflow:hidden;">
+                <tr>
+                  <td style="background-color:#f8f9fb;padding:16px 18px;border-bottom:1px solid #e3e7ee;">
+                    <p style="margin:0 0 5px 0;font-size:11px;line-height:16px;color:#798394;font-weight:bold;letter-spacing:0.5px;">N.º DE HALLAZGO</p>
+                    <p style="margin:0;color:#202938;font-size:19px;line-height:25px;font-weight:bold;">{{ codigo_hallazgo }}</p>
+                  </td>
+                  <td align="right" style="background-color:#f8f9fb;padding:16px 18px;border-bottom:1px solid #e3e7ee;">
+                    <span style="display:inline-block;background-color:{% if es_critico %}#ffebed{% else %}#e9f2ff{% endif %};color:{% if es_critico %}#bb1221{% else %}#174b9b{% endif %};padding:7px 10px;border-radius:5px;font-size:11px;line-height:15px;font-weight:bold;">{% if es_critico %}CRÍTICO{% else %}NO CRÍTICO{% endif %}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="2" style="padding:6px 18px 4px 18px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td width="39%" valign="top" style="padding:10px 0;color:#7a8492;font-size:12px;line-height:18px;">Proceso</td>
+                        <td valign="top" style="padding:10px 0;color:#2e3745;font-size:13px;line-height:19px;font-weight:bold;">{{ proceso }}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#7a8492;font-size:12px;line-height:18px;">Subproceso</td>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#2e3745;font-size:13px;line-height:19px;">{{ subproceso }}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#7a8492;font-size:12px;line-height:18px;">Tipo de registro</td>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#2e3745;font-size:13px;line-height:19px;">{{ tipo_registro }}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#7a8492;font-size:12px;line-height:18px;">Fecha de detección</td>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#2e3745;font-size:13px;line-height:19px;">{{ fecha_deteccion }}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#7a8492;font-size:12px;line-height:18px;">Registrado por</td>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#2e3745;font-size:13px;line-height:19px;">{{ nombre_registrador }}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#7a8492;font-size:12px;line-height:18px;">Responsable</td>
+                        <td valign="top" style="padding:9px 0;border-top:1px solid #edf0f4;color:#2e3745;font-size:13px;line-height:19px;font-weight:bold;">{{ nombre_responsable }}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Descripción -->
+          <tr>
+            <td style="padding:19px 34px 7px 34px;">
+              <p style="margin:0 0 9px 0;font-size:12px;line-height:17px;font-weight:bold;color:#3c4654;">DESCRIPCIÓN DEL HALLAZGO</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="background-color:#f7f8fa;border-left:3px solid #e60012;padding:13px 15px;font-size:13px;line-height:21px;color:#404b5b;">{{ descripcion }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Flujo según criticidad -->
+          <tr>
+            <td style="padding:19px 34px 8px 34px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:14px 16px;background-color:#f0f5fc;border:1px solid #d5e4f7;border-radius:6px;color:#285381;font-size:12px;line-height:19px;">
+                    <strong>Siguiente etapa:</strong>
+                    {% if es_critico %}
+                    por su clasificación crítica, corresponde realizar el análisis de causa raíz antes de continuar con las acciones correctivas.
+                    {% else %}
+                    según el flujo del portal, el hallazgo no crítico continúa directamente a solución inmediata y acciones correctivas.
+                    {% endif %}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- CTA -->
+          <tr>
+            <td align="center" style="padding:27px 34px 28px 34px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#e60012" style="background-color:#e60012;border-radius:6px;">
+                    <a href="{{ url_hallazgo }}" style="display:inline-block;padding:15px 29px;border:1px solid #e60012;border-radius:6px;color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;line-height:18px;">Revisar hallazgo &rarr;</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:12px 0 0 0;color:#87919e;font-size:11px;line-height:18px;">Accede con tus credenciales corporativas.</p>
+            </td>
+          </tr>
+          <!-- Pie -->
+          <tr>
+            <td style="border-top:1px solid #e7ebf0;background-color:#fafbfc;padding:18px 34px 23px 34px;">
+              <p style="margin:0 0 6px 0;color:#4d5765;font-size:11px;line-height:17px;font-weight:bold;">Portal de Gestión de No Conformidades</p>
+              <p style="margin:0;color:#8993a1;font-size:11px;line-height:18px;">Esta notificación se generó automáticamente a partir del registro de un hallazgo. Por seguridad, revisa el detalle completo desde el portal.</p>
+            </td>
+          </tr>
+        </table>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

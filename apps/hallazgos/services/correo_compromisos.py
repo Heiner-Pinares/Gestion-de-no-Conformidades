@@ -1,4 +1,4 @@
-"""Notificación de compromisos por sendmail remoto a través de SSH."""
+"""Notificaciones del portal por sendmail remoto a través de SSH."""
 
 from __future__ import annotations
 
@@ -21,9 +21,10 @@ from django.core.validators import validate_email
 from django.db import transaction
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.catalogos.services import TIPO_COPIA, TIPO_PARA, destinatarios_adicionales
-from apps.hallazgos.models import Accion, HistorialHallazgo
+from apps.hallazgos.models import Accion, Hallazgo, HistorialHallazgo
 
 
 logger = logging.getLogger(__name__)
@@ -77,12 +78,17 @@ class CorreoCompromisoService:
         "CORREO_REPROGRAMACION_ACEPTADO",
         "CORREO_REPROGRAMACION_INCIERTO",
     }
+    EVENTOS_HALLAZGO_NO_REPETIBLES = {
+        "CORREO_HALLAZGO_INICIADO",
+        "CORREO_HALLAZGO_ACEPTADO",
+        "CORREO_HALLAZGO_INCIERTO",
+    }
 
     @staticmethod
     def _configuracion() -> None:
         if not settings.CORREO_COMPROMISOS_ENABLED:
             raise CorreoCompromisoError(
-                "El envío de correos de compromisos está deshabilitado en la configuración del servidor.",
+                "El envío de correos del portal está deshabilitado en la configuración del servidor.",
                 codigo="DESHABILITADO",
             )
         faltantes = [
@@ -103,28 +109,24 @@ class CorreoCompromisoService:
             )
 
     @classmethod
-    def construir_mensaje(cls, accion: Accion) -> tuple[EmailMessage, list[str]]:
-        cls._configuracion()
-        accion = Accion.objects.select_related(
-            "responsable__jefe", "ciclo__hallazgo"
-        ).get(pk=accion.pk)
-        responsable = accion.responsable
+    def _destinatarios_responsable(cls, responsable) -> tuple[list[str], list[str]]:
+        """Aplica la misma regla de destinatarios a hallazgos y compromisos."""
+
         if responsable is None or not responsable.is_active:
             raise CorreoCompromisoError(
-                "El compromiso no tiene un responsable activo.", codigo="SIN_RESPONSABLE"
+                "El registro no tiene un responsable activo.", codigo="SIN_RESPONSABLE"
             )
-
         if not responsable.email.strip():
             raise CorreoCompromisoError(
                 "El responsable seleccionado no tiene un correo registrado.",
                 codigo="SIN_CORREO_RESPONSABLE",
             )
+
         adicionales = destinatarios_adicionales()
         para = _normalizar_direcciones([
             responsable.email,
             *adicionales[TIPO_PARA],
         ])
-
         copia: list[str] = []
         jefe = responsable.jefe
         if jefe and jefe.is_active:
@@ -139,7 +141,20 @@ class CorreoCompromisoService:
             *adicionales[TIPO_COPIA],
         ])
         claves_para = {direccion.casefold() for direccion in para}
-        copia = [direccion for direccion in copia if direccion.casefold() not in claves_para]
+        copia = [
+            direccion for direccion in copia
+            if direccion.casefold() not in claves_para
+        ]
+        return para, copia
+
+    @classmethod
+    def construir_mensaje(cls, accion: Accion) -> tuple[EmailMessage, list[str]]:
+        cls._configuracion()
+        accion = Accion.objects.select_related(
+            "responsable__jefe", "ciclo__hallazgo"
+        ).get(pk=accion.pk)
+        responsable = accion.responsable
+        para, copia = cls._destinatarios_responsable(responsable)
 
         if not settings.CORREO_REMITENTE_EMAIL.strip():
             raise CorreoCompromisoError(
@@ -181,6 +196,75 @@ class CorreoCompromisoService:
         if copia:
             mensaje["Cc"] = ", ".join(copia)
         mensaje["Subject"] = f"Nuevo compromiso asignado: {accion.codigo}"
+        mensaje["Date"] = formatdate(localtime=True)
+        mensaje["Message-ID"] = make_msgid(domain=dominio)
+        mensaje.set_content(texto)
+        mensaje.add_alternative(html, subtype="html")
+        return mensaje, [*para, *copia]
+
+    @classmethod
+    def construir_mensaje_hallazgo(
+        cls, hallazgo: Hallazgo
+    ) -> tuple[EmailMessage, list[str]]:
+        """Construye el aviso de registro para el responsable del hallazgo."""
+
+        cls._configuracion()
+        hallazgo = Hallazgo.objects.select_related(
+            "responsable__jefe",
+            "registrado_por",
+            "proceso",
+            "subproceso",
+            "tipo_registro",
+        ).get(pk=hallazgo.pk)
+        responsable = hallazgo.responsable
+        registrador = hallazgo.registrado_por
+        para, copia = cls._destinatarios_responsable(responsable)
+        remitente = _normalizar_direcciones([settings.CORREO_REMITENTE_EMAIL])
+        url = urljoin(
+            settings.PORTAL_PUBLIC_URL.rstrip("/") + "/",
+            reverse("hallazgo_detalle", args=[hallazgo.pk]).lstrip("/"),
+        )
+        fecha_deteccion = hallazgo.fecha_deteccion
+        if fecha_deteccion and timezone.is_aware(fecha_deteccion):
+            fecha_deteccion = timezone.localtime(fecha_deteccion)
+        contexto = {
+            "codigo_hallazgo": hallazgo.codigo,
+            "proceso": str(hallazgo.proceso),
+            "subproceso": str(hallazgo.subproceso) if hallazgo.subproceso else "No especificado",
+            "tipo_registro": str(hallazgo.tipo_registro),
+            "fecha_deteccion": (
+                fecha_deteccion.strftime("%d/%m/%Y")
+                if fecha_deteccion else "No especificada"
+            ),
+            "nombre_registrador": registrador.get_full_name() or registrador.username,
+            "nombre_responsable": responsable.get_full_name() or responsable.username,
+            "mismo_responsable": registrador.pk == responsable.pk,
+            "es_critico": hallazgo.es_critica == "SI",
+            "descripcion": hallazgo.descripcion,
+            "url_hallazgo": url,
+        }
+        html = render_to_string("correos/nuevo_hallazgo.html", contexto)
+        texto = (
+            f"Hola {contexto['nombre_responsable']},\n\n"
+            f"Se registró el hallazgo {hallazgo.codigo}.\n"
+            f"Proceso: {contexto['proceso']}\n"
+            f"Subproceso: {contexto['subproceso']}\n"
+            f"Tipo de registro: {contexto['tipo_registro']}\n"
+            f"Fecha de detección: {contexto['fecha_deteccion']}\n"
+            f"Registrado por: {contexto['nombre_registrador']}\n"
+            f"Responsable: {contexto['nombre_responsable']}\n"
+            f"Descripción: {hallazgo.descripcion}\n\n"
+            f"Revisa el hallazgo en {url}\n"
+        )
+        dominio = remitente[0].rsplit("@", 1)[-1]
+        mensaje = EmailMessage(policy=SMTP)
+        mensaje["From"] = formataddr(
+            (settings.CORREO_REMITENTE_NOMBRE, remitente[0])
+        )
+        mensaje["To"] = ", ".join(para)
+        if copia:
+            mensaje["Cc"] = ", ".join(copia)
+        mensaje["Subject"] = f"Nuevo hallazgo registrado: {hallazgo.codigo}"
         mensaje["Date"] = formatdate(localtime=True)
         mensaje["Message-ID"] = make_msgid(domain=dominio)
         mensaje.set_content(texto)
@@ -437,6 +521,60 @@ class CorreoCompromisoService:
             "accion": accion.codigo,
             "responsable_id": accion.responsable_id,
             "jefe_id": accion.responsable.jefe_id if accion.responsable else None,
+            "codigo_salida": codigo,
+        }
+        intento.save(update_fields=["accion", "comentario", "metadata_json"])
+        return ResultadoCorreo(aceptado=True, codigo_salida=codigo)
+
+    @classmethod
+    def enviar_nuevo_hallazgo(
+        cls, *, hallazgo: Hallazgo, usuario
+    ) -> ResultadoCorreo:
+        """Notifica una sola vez el registro sin afectar el hallazgo si falla."""
+
+        with transaction.atomic():
+            hallazgo = Hallazgo.objects.select_for_update().get(pk=hallazgo.pk)
+            if HistorialHallazgo.objects.filter(
+                hallazgo=hallazgo,
+                accion__in=cls.EVENTOS_HALLAZGO_NO_REPETIBLES,
+            ).exists():
+                return ResultadoCorreo(aceptado=False, duplicado=True)
+            intento = HistorialHallazgo.objects.create(
+                hallazgo=hallazgo,
+                usuario=usuario,
+                accion="CORREO_HALLAZGO_INICIADO",
+                estado_anterior=hallazgo.estado,
+                estado_nuevo=hallazgo.estado,
+                comentario=f"Inicio del aviso de registro para {hallazgo.codigo}.",
+                metadata_json={"hallazgo": hallazgo.codigo},
+            )
+
+        try:
+            mensaje, destinatarios = cls.construir_mensaje_hallazgo(hallazgo)
+            codigo = cls._enviar_sendmail(mensaje, destinatarios)
+        except CorreoCompromisoError as error:
+            intento.accion = (
+                "CORREO_HALLAZGO_INCIERTO"
+                if error.incierto
+                else "CORREO_HALLAZGO_FALLIDO"
+            )
+            intento.comentario = str(error)
+            intento.metadata_json = {
+                "hallazgo": hallazgo.codigo,
+                "resultado": error.codigo,
+            }
+            intento.save(update_fields=["accion", "comentario", "metadata_json"])
+            raise
+
+        intento.accion = "CORREO_HALLAZGO_ACEPTADO"
+        intento.comentario = (
+            "sendmail aceptó el aviso del nuevo hallazgo. Esto no confirma la "
+            "entrega final en el buzón."
+        )
+        intento.metadata_json = {
+            "hallazgo": hallazgo.codigo,
+            "responsable_id": hallazgo.responsable_id,
+            "jefe_id": hallazgo.responsable.jefe_id,
             "codigo_salida": codigo,
         }
         intento.save(update_fields=["accion", "comentario", "metadata_json"])

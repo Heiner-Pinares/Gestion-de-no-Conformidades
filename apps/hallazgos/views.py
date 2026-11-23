@@ -187,6 +187,24 @@ def hallazgo_crear(request):
         else:
             destino = "análisis de causa raíz" if hallazgo.estado == "EN_ANALISIS" else "solución inmediata"
             messages.success(request, f"{hallazgo.codigo} avanzó a {destino}.")
+            try:
+                resultado_correo = CorreoCompromisoService.enviar_nuevo_hallazgo(
+                    hallazgo=hallazgo,
+                    usuario=request.user,
+                )
+            except CorreoCompromisoError as error:
+                messages.warning(
+                    request,
+                    "El hallazgo se registró correctamente, pero no se pudo "
+                    f"completar el correo al responsable: {error}",
+                )
+            else:
+                if resultado_correo.aceptado:
+                    messages.success(
+                        request,
+                        "El correo del nuevo hallazgo fue aceptado por sendmail. "
+                        "La entrega final depende del sistema corporativo.",
+                    )
             return redirigir_siguiente_paso(hallazgo)
     return render(request, "hallazgos/registro.html", contexto_registro(
         form,

@@ -21,7 +21,7 @@ from apps.catalogos.models import (
     TipoRegistro,
     Urgencia,
 )
-from apps.hallazgos.models import HistorialHallazgo
+from apps.hallazgos.models import Hallazgo, HistorialHallazgo
 from apps.hallazgos.services import AccionService, HallazgoService
 from apps.hallazgos.services.correo_compromisos import (
     CorreoCompromisoError,
@@ -236,6 +236,120 @@ class CorreoCompromisoTests(TestCase):
         self.assertTrue(primero.aceptado)
         self.assertTrue(segundo.duplicado)
         self.assertEqual(cliente.exec_command.call_count, 1)
+
+    def test_nuevo_hallazgo_notifica_al_responsable_y_copia_al_jefe(self):
+        registrador = Usuario.objects.create_user(
+            "luis.registrador",
+            password="ClaveSoloParaTests-2026!",
+            first_name="Luis",
+            last_name="Registrador",
+            email="luis.registrador@claro.com.pe",
+        )
+        registrador.add_role("USUARIO")
+        hallazgo = HallazgoService.crear(
+            usuario=registrador,
+            borrador=False,
+            datos={
+                "titulo": "Nuevo hallazgo con responsable distinto",
+                "tipo_registro": TipoRegistro.objects.get(codigo="INC"),
+                "fuente_deteccion": FuenteDeteccion.objects.get(codigo="OPERACION"),
+                "proceso": self.proceso,
+                "responsable": self.responsable,
+                "descripcion": "Diferencia detectada durante la operación.",
+                "fecha_deteccion": timezone.now(),
+                "fecha_solucion": timezone.localdate() + timedelta(days=10),
+                "impacto_clientes": 1,
+                "impacto_tiempo": 1,
+                "impacto_soles": 1,
+                "urgencia": Urgencia.objects.get(valor=1),
+                "es_critica": "NO",
+                "criterio_categoria": "Caso operativo",
+                "requisito_referencia": "Procedimiento de prueba",
+            },
+        )
+        cliente, entrada, _ = self.cliente_ssh()
+
+        with patch(
+            "apps.hallazgos.services.correo_compromisos.paramiko.SSHClient",
+            return_value=cliente,
+        ):
+            primero = CorreoCompromisoService.enviar_nuevo_hallazgo(
+                hallazgo=hallazgo,
+                usuario=registrador,
+            )
+            segundo = CorreoCompromisoService.enviar_nuevo_hallazgo(
+                hallazgo=hallazgo,
+                usuario=registrador,
+            )
+
+        self.assertTrue(primero.aceptado)
+        self.assertTrue(segundo.duplicado)
+        self.assertEqual(cliente.exec_command.call_count, 1)
+        self.assertEqual(
+            cliente.exec_command.call_args.args[0],
+            "sendmail -i ana.responsable@claro.com.pe rosa.jefa@claro.com.pe",
+        )
+        mensaje = BytesParser(policy=policy.default).parsebytes(
+            entrada.write.call_args.args[0]
+        )
+        self.assertEqual(mensaje["To"], "ana.responsable@claro.com.pe")
+        self.assertEqual(mensaje["Cc"], "rosa.jefa@claro.com.pe")
+        self.assertEqual(
+            mensaje["Subject"],
+            f"Nuevo hallazgo registrado: {hallazgo.codigo}",
+        )
+        html = mensaje.get_body(("html",)).get_content()
+        self.assertIn("Nuevo hallazgo registrado", html)
+        self.assertIn("Luis Registrador", html)
+        self.assertIn("Ana Responsable", html)
+        self.assertIn(hallazgo.codigo, html)
+        self.assertIn("http://portal.example:8000", html)
+        self.assertTrue(
+            HistorialHallazgo.objects.filter(
+                hallazgo=hallazgo,
+                accion="CORREO_HALLAZGO_ACEPTADO",
+            ).exists()
+        )
+
+    def test_registro_web_invoca_correo_sin_revertir_el_hallazgo_si_falla(self):
+        self.client.force_login(self.responsable)
+        cantidad_inicial = Hallazgo.objects.count()
+        datos = {
+            "tipo_registro": TipoRegistro.objects.get(codigo="INC").pk,
+            "fuente_deteccion": FuenteDeteccion.objects.get(codigo="OPERACION").pk,
+            "proceso": self.proceso.pk,
+            "subproceso": "",
+            "actividad": "",
+            "descripcion": "Hallazgo que debe conservarse aunque falle el correo.",
+            "origen_tecnologico": "False",
+            "ticket_remedy": "",
+            "responsable": self.responsable.pk,
+            "fecha_deteccion": timezone.localdate().isoformat(),
+            "fecha_solucion": (timezone.localdate() + timedelta(days=10)).isoformat(),
+            "impacto_clientes": "1",
+            "impacto_tiempo": "1",
+            "impacto_soles": "1",
+            "urgencia": Urgencia.objects.get(valor=1).pk,
+            "es_critica": "NO",
+        }
+        with patch(
+            "apps.hallazgos.views.CorreoCompromisoService.enviar_nuevo_hallazgo",
+            side_effect=CorreoCompromisoError(
+                "No se pudo acceder al servidor de correo.",
+                codigo="SSH_INACCESIBLE",
+            ),
+        ) as enviar:
+            respuesta = self.client.post(reverse("hallazgo_crear"), datos)
+
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertEqual(Hallazgo.objects.count(), cantidad_inicial + 1)
+        nuevo = Hallazgo.objects.order_by("-pk").first()
+        enviar.assert_called_once_with(
+            hallazgo=nuevo,
+            usuario=self.responsable,
+        )
+        mensajes = [str(mensaje) for mensaje in get_messages(respuesta.wsgi_request)]
+        self.assertTrue(any("se registró correctamente" in mensaje for mensaje in mensajes))
 
     def test_reprogramacion_notifica_al_aprobador_con_el_html_solicitado(self):
         propuesta = timezone.localdate() + timedelta(days=5)
