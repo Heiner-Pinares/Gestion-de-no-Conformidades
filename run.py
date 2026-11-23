@@ -18,6 +18,10 @@ BASE_DIR = Path(__file__).resolve().parent
 ARCHIVOS_ESTATICOS_REQUERIDOS = (
     "css/portal-v8.css",
     "css/portal.css",
+    "images/favicon-nc.ico",
+    "images/favicon-nc-32.png",
+    "images/favicon-nc-192.png",
+    "images/apple-touch-icon-nc.png",
     "images/login-background-claro.png",
 )
 sys.path.insert(0, str(BASE_DIR))

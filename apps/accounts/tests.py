@@ -29,7 +29,15 @@ class MicrosoftLoginTests(TestCase):
         self.assertContains(response, "Ingresar con Microsoft")
         self.assertContains(response, reverse("microsoft_start"))
         self.assertContains(response, "login-user-symbol")
+        self.assertContains(response, 'rel="icon"', count=3)
+        self.assertContains(response, "favicon-nc")
+        self.assertContains(response, "apple-touch-icon-nc")
         self.assertNotContains(response, ">♙<")
+
+    def test_favicon_raiz_redirige_al_icono_del_portal(self):
+        response = self.client.get(reverse("favicon"))
+        self.assertEqual(response.status_code, 301)
+        self.assertEqual(response.url, "/static/images/favicon-nc.ico")
 
     def test_inicio_crea_state_y_pkce(self):
         response = self.client.get(reverse("microsoft_start"), {"next": "/buscar/"})
