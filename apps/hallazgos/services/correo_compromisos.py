@@ -219,6 +219,18 @@ class CorreoCompromisoService:
         responsable = hallazgo.responsable
         registrador = hallazgo.registrado_por
         para, copia = cls._destinatarios_responsable(responsable)
+        if registrador.pk != responsable.pk:
+            if not registrador.email.strip():
+                raise CorreoCompromisoError(
+                    "El usuario que registró el hallazgo no tiene un correo registrado.",
+                    codigo="SIN_CORREO_REGISTRADOR",
+                )
+            copia = _normalizar_direcciones([*copia, registrador.email])
+            claves_para = {direccion.casefold() for direccion in para}
+            copia = [
+                direccion for direccion in copia
+                if direccion.casefold() not in claves_para
+            ]
         remitente = _normalizar_direcciones([settings.CORREO_REMITENTE_EMAIL])
         url = urljoin(
             settings.PORTAL_PUBLIC_URL.rstrip("/") + "/",
@@ -574,6 +586,7 @@ class CorreoCompromisoService:
         intento.metadata_json = {
             "hallazgo": hallazgo.codigo,
             "responsable_id": hallazgo.responsable_id,
+            "registrado_por_id": hallazgo.registrado_por_id,
             "jefe_id": hallazgo.responsable.jefe_id,
             "codigo_salida": codigo,
         }

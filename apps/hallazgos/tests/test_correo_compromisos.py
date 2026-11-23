@@ -287,13 +287,17 @@ class CorreoCompromisoTests(TestCase):
         self.assertEqual(cliente.exec_command.call_count, 1)
         self.assertEqual(
             cliente.exec_command.call_args.args[0],
-            "sendmail -i ana.responsable@claro.com.pe rosa.jefa@claro.com.pe",
+            "sendmail -i ana.responsable@claro.com.pe rosa.jefa@claro.com.pe "
+            "luis.registrador@claro.com.pe",
         )
         mensaje = BytesParser(policy=policy.default).parsebytes(
             entrada.write.call_args.args[0]
         )
         self.assertEqual(mensaje["To"], "ana.responsable@claro.com.pe")
-        self.assertEqual(mensaje["Cc"], "rosa.jefa@claro.com.pe")
+        self.assertEqual(
+            mensaje["Cc"],
+            "rosa.jefa@claro.com.pe, luis.registrador@claro.com.pe",
+        )
         self.assertEqual(
             mensaje["Subject"],
             f"Nuevo hallazgo registrado: {hallazgo.codigo}",
