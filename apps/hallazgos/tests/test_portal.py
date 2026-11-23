@@ -15,6 +15,7 @@ from django.utils import timezone
 from PIL import Image
 
 from apps.accounts.models import Usuario
+from apps.accounts.permissions import puede_gestionar, puede_ver
 from apps.catalogos.models import AuditoriaAdministracion, CategoriaCausa, ConfiguracionUrgencia, FuenteDeteccion, MatrizPrioridad, PreguntaCausa, Proceso, Subproceso, TipoRegistro, Urgencia
 from apps.catalogos.services import actividades_queryset
 from apps.hallazgos.forms import HallazgoForm
@@ -668,6 +669,20 @@ class Recorridos(TestCase):
         otro=Proceso.objects.create(nombre='Fuera de alcance');h2=self.crear(proceso=otro);self.paso(h2,'enviar')
         with self.assertRaises(PermissionDenied): self.paso(h2,'validar',self.calidad)
         with self.assertRaises(PermissionDenied): HallazgoService.actualizar(usuario=self.ajeno,hallazgo=h,datos={'titulo':'Intrusión'})
+
+    def test_reportante_y_responsable_distinto_comparten_acceso_y_gestion(self):
+        h = self.crear(responsable=self.ajeno)
+        WorkflowService.continuar_identificacion(usuario=self.usuario, hallazgo=h)
+        h.refresh_from_db()
+
+        for participante in (self.usuario, self.ajeno):
+            self.assertTrue(puede_ver(participante, h))
+            self.assertTrue(puede_gestionar(participante, h))
+            self.assertTrue(hallazgos_visibles(participante).filter(pk=h.pk).exists())
+
+            self.client.force_login(participante)
+            respuesta = self.client.get(reverse('hallazgo_accion', args=[h.pk]))
+            self.assertEqual(respuesta.status_code, 200)
 
     def test_no_autovalidacion_multirrol(self):
         self.usuario.add_role('VALIDADOR');self.proceso.validadores.add(self.usuario)

@@ -26,9 +26,12 @@ def puede_validar(usuario, hallazgo):
 def puede_gestionar(usuario, hallazgo):
     if not usuario.is_authenticated or not usuario.is_active:
         return False
-    responsable = hallazgo.responsable_id == usuario.pk and tiene_permiso(usuario, "registrar_hallazgo")
+    participante = (
+        usuario.pk in {hallazgo.registrado_por_id, hallazgo.responsable_id}
+        and tiene_permiso(usuario, "registrar_hallazgo")
+    )
     calidad = tiene_permiso(usuario, "gestionar_tratamiento") and asignado_al_proceso(usuario, hallazgo)
-    return responsable or calidad
+    return participante or calidad
 
 
 def puede_ver(usuario, hallazgo):
