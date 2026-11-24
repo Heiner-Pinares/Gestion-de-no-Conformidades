@@ -23,13 +23,19 @@ def puede_validar(usuario, hallazgo):
             and asignado_al_proceso(usuario, hallazgo))
 
 
+def es_participante_hallazgo(usuario, hallazgo):
+    """Indica si el usuario es reportante o responsable del hallazgo."""
+    return bool(
+        usuario.is_authenticated
+        and usuario.is_active
+        and usuario.pk in {hallazgo.registrado_por_id, hallazgo.responsable_id}
+    )
+
+
 def puede_gestionar(usuario, hallazgo):
     if not usuario.is_authenticated or not usuario.is_active:
         return False
-    participante = (
-        usuario.pk in {hallazgo.registrado_por_id, hallazgo.responsable_id}
-        and tiene_permiso(usuario, "registrar_hallazgo")
-    )
+    participante = es_participante_hallazgo(usuario, hallazgo)
     calidad = tiene_permiso(usuario, "gestionar_tratamiento") and asignado_al_proceso(usuario, hallazgo)
     return participante or calidad
 

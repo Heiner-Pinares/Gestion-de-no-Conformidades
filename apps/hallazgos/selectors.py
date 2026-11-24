@@ -1,7 +1,12 @@
 """Consultas con alcance por usuario; compartidas por búsqueda, panel y reportes."""
 from django.db.models import Count, Q
 from django.utils import timezone
-from apps.accounts.permissions import es_administrador, puede_gestionar, puede_validar
+from apps.accounts.permissions import (
+    es_administrador,
+    es_participante_hallazgo,
+    puede_gestionar,
+    puede_validar,
+)
 from apps.catalogos.models import ProcesoValidador
 from .models import EvaluacionEficacia, Hallazgo
 from .services.workflow import TRANSICIONES
@@ -53,7 +58,7 @@ def acciones_disponibles(usuario, hallazgo):
             if not puede_validar(usuario, hallazgo) or not usuario.has_perm("accounts.evaluar_eficacia"):
                 continue
         if codigo == "enviar":
-            if usuario.pk not in {hallazgo.registrado_por_id, hallazgo.responsable_id} or not usuario.has_perm("accounts.registrar_hallazgo"):
+            if not es_participante_hallazgo(usuario, hallazgo):
                 continue
         elif codigo not in {"validar", "devolver", "cancelar", "cerrar", "reabrir"} and not puede_gestionar(usuario, hallazgo):
             continue

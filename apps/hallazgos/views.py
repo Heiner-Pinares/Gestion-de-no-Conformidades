@@ -14,7 +14,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
-from apps.accounts.permissions import es_administrador, puede_gestionar, puede_validar, puede_ver
+from apps.accounts.permissions import (
+    es_administrador,
+    es_participante_hallazgo,
+    puede_gestionar,
+    puede_validar,
+    puede_ver,
+)
 from apps.catalogos.models import CategoriaCausa
 from .forms import (
     AccionForm, ActividadPlanForm, AnalisisCausaForm, BuscarHallazgoForm, ComunicacionForm,
@@ -216,7 +222,7 @@ def hallazgo_crear(request):
 @login_required
 def hallazgo_editar(request, pk):
     hallazgo = obtener_hallazgo(request.user, pk)
-    autor = request.user.has_perm("accounts.registrar_hallazgo") and request.user.pk in [hallazgo.registrado_por_id, hallazgo.responsable_id]
+    autor = es_participante_hallazgo(request.user, hallazgo)
     revisor = puede_validar(request.user, hallazgo) and hallazgo.estado == "PENDIENTE_VALIDACION"
     ciclo = hallazgo.ciclo_actual
     accion_sin_actividades = hallazgo.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()
@@ -533,7 +539,7 @@ def hallazgo_detalle(request, pk):
             a.solicitud_reprogramacion
             and a.solicitud_reprogramacion.metadata_json.get("aprobador_id") == request.user.pk
         )
-    autor = request.user.has_perm("accounts.registrar_hallazgo") and request.user.pk in {h.registrado_por_id, h.responsable_id}
+    autor = es_participante_hallazgo(request.user, h)
     historial = preparar_historial_hallazgo(
         Paginator(h.historial.select_related("usuario"), 20).get_page(request.GET.get("page")),
         h,

@@ -1,6 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
-from apps.accounts.permissions import exigir_administrador
+from apps.accounts.permissions import es_participante_hallazgo, exigir_administrador
 from .common import (analisis_completo, bloquear, ciclo_vigente, exigir, gestionar,
     notificar, nuevo_ciclo, registrar, requiere_inmediata, tratamiento_completo, validar)
 from .hallazgo import validar_datos
@@ -30,7 +30,7 @@ class WorkflowService:
 
         hallazgo = bloquear(hallazgo, version)
         exigir(hallazgo.estado in {"BORRADOR", "DEVUELTO"}, "La identificación ya fue continuada.")
-        if usuario.pk not in {hallazgo.registrado_por_id, hallazgo.responsable_id} or not usuario.has_perm("accounts.registrar_hallazgo"):
+        if not es_participante_hallazgo(usuario, hallazgo):
             raise PermissionDenied("Solo el reportante o responsable puede continuar el hallazgo.")
         validar_datos(hallazgo, completo=True)
         hallazgo.save()
@@ -124,7 +124,7 @@ class WorkflowService:
             validar(usuario, hallazgo, "evaluar_eficacia")
         elif accion == "enviar":
             from django.core.exceptions import PermissionDenied
-            if usuario.pk not in {hallazgo.registrado_por_id, hallazgo.responsable_id} or not usuario.has_perm("accounts.registrar_hallazgo"):
+            if not es_participante_hallazgo(usuario, hallazgo):
                 raise PermissionDenied("Solo el reportante o responsable puede enviar el hallazgo.")
         else:
             gestionar(usuario, hallazgo)

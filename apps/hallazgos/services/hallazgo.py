@@ -6,7 +6,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
-from apps.accounts.permissions import puede_validar
+from apps.accounts.permissions import es_participante_hallazgo, puede_validar
 from apps.catalogos.models import AuditoriaAdministracion, MatrizPrioridad
 from apps.catalogos.services import actividades_para, catalogo_identificacion
 from apps.hallazgos.models import CorrelativoSAC, Hallazgo
@@ -191,7 +191,7 @@ class HallazgoService:
     def actualizar(*, usuario, hallazgo, datos, version=None, completo=False):
         hallazgo = bloquear(hallazgo, version)
         campos_permitidos(datos, CAMPOS_HALLAZGO)
-        es_autor = usuario.pk in {hallazgo.registrado_por_id, hallazgo.responsable_id} and usuario.has_perm("accounts.registrar_hallazgo")
+        es_autor = es_participante_hallazgo(usuario, hallazgo)
         es_revisor = hallazgo.estado == "PENDIENTE_VALIDACION" and puede_validar(usuario, hallazgo)
         ciclo = hallazgo.ciclo_actual
         accion_sin_actividades = hallazgo.estado == "ACCION_INMEDIATA" and ciclo is not None and not ciclo.acciones.exists()

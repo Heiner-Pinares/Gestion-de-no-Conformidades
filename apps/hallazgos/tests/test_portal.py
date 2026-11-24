@@ -684,6 +684,54 @@ class Recorridos(TestCase):
             respuesta = self.client.get(reverse('hallazgo_accion', args=[h.pk]))
             self.assertEqual(respuesta.status_code, 200)
 
+    def test_responsable_asignado_sin_rol_puede_gestionar_el_hallazgo_existente(self):
+        responsable = Usuario.objects.create_user(
+            'responsable.asignado',
+            password='ClaveSoloParaTests-2026!',
+        )
+        h = self.crear(responsable=responsable)
+
+        self.assertFalse(responsable.has_perm('accounts.registrar_hallazgo'))
+        self.assertTrue(puede_ver(responsable, h))
+        self.assertTrue(puede_gestionar(responsable, h))
+
+        self.client.force_login(responsable)
+        self.assertEqual(
+            self.client.get(reverse('hallazgo_editar', args=[h.pk])).status_code,
+            200,
+        )
+
+        HallazgoService.actualizar(
+            usuario=responsable,
+            hallazgo=h,
+            datos={'titulo': 'Hallazgo actualizado por el responsable'},
+        )
+        WorkflowService.continuar_identificacion(usuario=responsable, hallazgo=h)
+        h.refresh_from_db()
+
+        self.assertEqual(h.titulo, 'Hallazgo actualizado por el responsable')
+        self.assertEqual(
+            self.client.get(reverse('hallazgo_accion', args=[h.pk])).status_code,
+            200,
+        )
+        compromiso = AccionService.crear(
+            usuario=responsable,
+            hallazgo=h,
+            datos=dict(
+                tipo='INMEDIATA',
+                descripcion='Compromiso registrado por el responsable',
+                responsable=responsable,
+                fecha_inicio=timezone.localdate(),
+                fet_inicial=timezone.localdate() + timedelta(days=2),
+                resultado_esperado='Condición corregida',
+                comentario='',
+            ),
+        )
+        self.assertEqual(compromiso.responsable, responsable)
+
+        with self.assertRaises(PermissionDenied):
+            HallazgoService.crear(usuario=responsable, datos=self.datos())
+
     def test_no_autovalidacion_multirrol(self):
         self.usuario.add_role('VALIDADOR');self.proceso.validadores.add(self.usuario)
         self.usuario=Usuario.objects.get(pk=self.usuario.pk)
